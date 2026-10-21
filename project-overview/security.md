@@ -1,0 +1,89 @@
+# Job Manager — Security
+
+This page covers the security baseline that's in place today, what the hosting setup has to provide, and the rules future code must follow.
+
+## What's In Place
+
+### Security headers (`next.config.ts`)
+Applied to every route via `headers()`:
+
+| Header | Value | Why |
+|---|---|---|
+| `Content-Security-Policy` | see below | Restricts where scripts, styles, images, fonts, and forms can load from |
+| `Strict-Transport-Security` | `max-age=63072000` (production only) | Forces HTTPS for 2 years after first visit |
+| `X-Content-Type-Options` | `nosniff` | Stops browsers from guessing MIME types |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Sends only the origin to other sites, nothing over HTTPS→HTTP |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), browsing-topics=()` | Disables browser APIs the app doesn't use |
+| `X-Frame-Options` | `DENY` | Legacy clickjacking protection (CSP `frame-ancestors` is the modern equivalent) |
+
+`poweredByHeader: false` removes the `X-Powered-By: Next.js` header.
+
+HSTS deliberately leaves out `includeSubDomains` and `preload`. Add them once the production domain is known and every subdomain serves HTTPS. Preload in particular is effectively irreversible.
+
+### Content Security Policy
+```
+default-src 'self';
+script-src 'self' 'unsafe-inline';          (+ 'unsafe-eval' in development only)
+style-src 'self' 'unsafe-inline';
+img-src 'self' blob: data:;
+font-src 'self';
+object-src 'none';
+base-uri 'self';
+form-action 'self';
+frame-ancestors 'none';
+upgrade-insecure-requests                   (production only)
+```
+
+**Why it's static and allows `'unsafe-inline'` scripts:** the stricter, nonce-based CSP requires every page to be rendered dynamically, and the Next.js 16 docs state it is incompatible with Partial Prerendering, which `cacheComponents` enables. We chose to keep `cacheComponents`. Until that changes, React's automatic escaping is the main XSS defense, which makes the `dangerouslySetInnerHTML` rule below important.
+
+`'unsafe-eval'` is only added in development because React uses `eval` there for error stack reconstruction.
+
+### Global rate limit (`src/proxy.ts`, `src/lib/rate-limit.ts`)
+- Every request except static assets (`_next/static`, `_next/image`, images, favicon) counts toward **300 requests per minute per client IP**.
+- Over the limit, the app responds `429 Too Many Requests` with a `Retry-After` header (seconds until the window resets).
+- Counters live in memory (`memoryStore`), using a fixed window per key. Expired entries are swept once the map exceeds 10,000 keys.
+- `rateLimit()` takes a swappable `store`, so Phase 1 can move counters to Postgres without touching call sites.
+
+### How the client IP is derived
+`getClientIp()` uses the **rightmost** entry of `X-Forwarded-For`.
+
+Next.js only sets `X-Forwarded-For` itself when the header is missing, and never appends to it. A reverse proxy configured with `$proxy_add_x_forwarded_for` appends the real client IP as the last entry. Anything to its left was sent by the client and can be forged.
+
+## Reverse Proxy Requirements
+
+The app assumes it runs as a single Node process on a VPS / Docker host, behind exactly one reverse proxy that terminates TLS. Minimal nginx example:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+- `Host` must be forwarded unchanged. Server Actions reject requests whose `Origin` doesn't match the host, which is the built-in CSRF protection.
+- `X-Forwarded-For` must be appended by the proxy, or the rate limit can be bypassed by forging the header.
+- If another proxy or CDN (e.g. Cloudflare) is added in front, `getClientIp()` must be updated, because the rightmost entry would then be the CDN's IP.
+- Optional: nginx `limit_req` as an outer per-IP limit before requests reach Node.
+
+## Rules for Future Code
+
+- **Re-check auth inside every Server Action and Route Handler.** `proxy.ts` may only read the session cookie for redirects. A matcher change can silently skip it, and Server Actions are public POST endpoints.
+- **Validate every input with zod** in Server Actions and Route Handlers before using it.
+- **Never use `dangerouslySetInnerHTML` with unsanitized content.** This matters most for job descriptions scraped in Phase 3: sanitize them (e.g. with DOMPurify) or render them as plain text.
+- **No secrets in `NEXT_PUBLIC_*` variables.** Those are bundled into client JavaScript. The Supabase service role key must never be prefixed.
+- **Data Access Layer modules start with `import 'server-only'`**, so importing them from a Client Component fails the build.
+- **Rate limit every expensive or abuse-prone action** with `rateLimit()`, using a key specific to that action (see the Phase 1 limits in [roadmap.md](./roadmap.md)).
+
+## Known Limitations
+
+- In-memory counters reset on restart and aren't shared between processes. Don't run more than one Node instance until the Postgres store lands in Phase 1.
+- Inline scripts are allowed by the CSP (see above).
+- Without the reverse proxy (e.g. hitting the Node port directly), `X-Forwarded-For` is client-controlled and the per-IP limit can be bypassed. Don't expose the Node port publicly.
+- No CAPTCHA on sign-up or forgot-password. We rely on rate limiting plus Supabase Auth's own limits.
+
+## Dependency Audit
+
+- `npm audit --omit=dev`: 0 vulnerabilities (as of 2026-10-21).
+- `npm audit` reports 5 high-severity findings in the dev-only `braces` chain pulled in by eslint. They don't ship to production. Don't run `npm audit fix --force`, which would apply breaking downgrades.
