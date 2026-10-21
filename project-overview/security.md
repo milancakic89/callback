@@ -49,6 +49,21 @@ upgrade-insecure-requests                   (production only)
 
 Next.js only sets `X-Forwarded-For` itself when the header is missing, and never appends to it. A reverse proxy configured with `$proxy_add_x_forwarded_for` appends the real client IP as the last entry. Anything to its left was sent by the client and can be forged.
 
+### Auth (Phase 1)
+- **No browser Supabase client.** Auth runs only in Server Actions (`src/app/(auth)/actions.ts`) and `src/app/auth/confirm/route.ts`, so our rate limits can't be bypassed and no keys reach the browser.
+- Env vars are server-only and validated at startup (`src/lib/env.ts`). The secret key is used only by `src/lib/supabase/admin.ts`.
+- Auth limits use `postgresStore` (`src/lib/supabase/rate-limit-store.ts`), backed by `public.rate_limits` and the `rate_limit_hit` function, executable only by `service_role`. It fails closed.
+
+| Action | Limit |
+|---|---|
+| sign-in | 5 / 15 min per IP + email |
+| sign-up | 3 / hour per IP |
+| forgot-password | 3 / hour per email and 10 / hour per IP |
+| reset-password | 5 / 15 min per user |
+
+- Responses never reveal whether an account exists.
+- `/auth/confirm` only redirects to same-origin paths (`next` must start with `/`, not `//` or `/\`).
+
 ## Reverse Proxy Requirements
 
 The app assumes it runs as a single Node process on a VPS / Docker host, behind exactly one reverse proxy that terminates TLS. Minimal nginx example:
@@ -78,7 +93,8 @@ location / {
 
 ## Known Limitations
 
-- In-memory counters reset on restart and aren't shared between processes. Don't run more than one Node instance until the Postgres store lands in Phase 1.
+- The global proxy limit still uses in-memory counters, which reset on restart and aren't shared between processes. Auth limits use the Postgres store.
+- Supabase sees our server's IP for every auth call, so its per-IP auth rate limits may need raising for production.
 - Inline scripts are allowed by the CSP (see above).
 - Without the reverse proxy (e.g. hitting the Node port directly), `X-Forwarded-For` is client-controlled and the per-IP limit can be bypassed. Don't expose the Node port publicly.
 - No CAPTCHA on sign-up or forgot-password. We rely on rate limiting plus Supabase Auth's own limits.

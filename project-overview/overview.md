@@ -26,6 +26,5 @@ In scope:
 
 - **Job source**: how job listings are collected/ingested is not decided yet. The dashboard will ship as an explicit empty placeholder until this is defined.
 - **Application tracking source**: how "jobs applied to" entries get created (manual entry vs. automated) is not decided yet. The applications table schema is draft only until this is defined.
-- **Supabase setup**: no Supabase project, client, or env vars exist yet. This is the first task of the implementation phase, not part of this documentation step.
 
-See [architecture.md](./architecture.md) for route/data structure, [roadmap.md](./roadmap.md) for phased implementation order, and [security.md](./security.md) for the security baseline and hosting requirements.
+See [architecture.md](./architecture.md) for route/data structure, [roadmap.md](./roadmap.md) for phased implementation order, and [security.md](./security.md) for the security baseline and hosting requirements. Per-feature specs live in [features/](../features/).

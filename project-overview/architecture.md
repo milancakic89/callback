@@ -7,6 +7,8 @@
 | `/sign-in` | Public | Sign in with email/password |
 | `/sign-up` | Public | Create a new account |
 | `/forgot-password` | Public | Request a password reset |
+| `/reset-password` | Authenticated (via recovery link) | Set a new password |
+| `/auth/confirm` | Public (Route Handler) | Verifies email links (`token_hash` + `verifyOtp`), then redirects |
 | `/dashboard` | Authenticated | Search/browse job listings. Ships as an empty placeholder until a job source is defined. |
 | `/applications` | Authenticated | Table of jobs the user applied to. Ships as an empty placeholder until the tracking source is defined. |
 
@@ -19,7 +21,7 @@
 ## Request Pipeline
 
 - `next.config.ts` adds security headers and the CSP to every response.
-- `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`, always on the Node runtime) applies the global per-IP rate limit. In Phase 1 it will also redirect based on the session cookie, but it must never be the only auth check.
+- `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`, always on the Node runtime) applies the global per-IP rate limit. It also refreshes the Supabase session cookies and redirects based on the session, but it must never be the only auth check.
 - `src/lib/rate-limit.ts` provides `getClientIp()` and `rateLimit()` with a swappable counter store, reused by auth Server Actions in Phase 1.
 
 See [security.md](./security.md) for details.
@@ -42,7 +44,17 @@ Replaces the in-memory rate-limit counters. Likely columns: key (primary key), c
 
 ## Supabase Setup
 
-Not configured yet. Installing `@supabase/supabase-js`, creating `.env.local`, and adding a `src/lib/supabase` client are the first implementation task — see Phase 1 in [roadmap.md](./roadmap.md). The Supabase URL must also be added to the CSP `connect-src` at that point.
+Env vars (server-only, validated in `src/lib/env.ts`): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`. See `.env.example`.
+
+| Module | Key | Used for |
+|---|---|---|
+| `src/lib/supabase/server.ts` | publishable | Server Actions, Route Handlers, DAL (`src/lib/auth/dal.ts`) |
+| `src/lib/supabase/proxy.ts` | publishable | Session refresh in `src/proxy.ts` |
+| `src/lib/supabase/admin.ts` | secret | Only the `rate_limit_hit` RPC |
+
+There is **no browser client**: every auth call goes through a Server Action or Route Handler, so the CSP needs no `connect-src` change. Sessions are stored in persistent `sb-*-auth-token` cookies and refreshed in proxy.
+
+Migrations live in `supabase/migrations/`. The Supabase MCP server is configured in `.mcp.json`.
 
 ## UI Components
 
