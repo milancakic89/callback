@@ -7,8 +7,10 @@ import type { RawJob } from "../types";
 import { looksLikeJobTitle } from "./titles";
 
 // A job-ish path segment followed by the posting's own slug or id.
+// One optional hyphenated word on either side of the core word, so "/job-positions/…" and
+// "/open-positions-list/…" match too, not just an exact "/positions/…" segment.
 const JOB_PATH =
-  /\/(jobs?|positions?|openings?|vacanc(y|ies)|oglas[ia]?|pozicij[ae]?|careers?|karijer[ae]?|posao|poslovi|job-offers?|opportunit(y|ies)|roles?|konkurs[ia]?)\/[^?#]{3,}/i;
+  /\/(?:[a-z]+-)?(jobs?|positions?|openings?|vacanc(y|ies)|oglas[ia]?|pozicij[ae]?|careers?|karijer[ae]?|posao|poslovi|job-offers?|opportunit(y|ies)|roles?|konkurs[ia]?)(?:-[a-z]+)?\/[^?#]{3,}/i;
 const JOB_QUERY = /[?&](gh_jid|job_?id|jobid|job|position|vacancy|oglas)=/i;
 const GENERIC_SEGMENT =
   /^(early-careers?|experienced(-professionals?)?|students?|graduates?|internships?|benefits|culture|life-at.*|our-people|people|teams?|locations?|faq|how-we-hire|hiring-process|process|values|search|all|open-positions|openings|jobs|careers?|apply|login|register|privacy.*|about.*|why-.*|perks|events?|blog|news|stories|story|en|sr|de)$/i;
@@ -35,6 +37,10 @@ function locationFrom(segments: string[], title: string): string | null {
     (segment) =>
       segment !== title &&
       segment.length <= 80 &&
+      // A sibling job's own title ("Backend Engineer (Remote)") matches REMOTE_WORD too, since
+      // "remote" shows up inside role titles, not just location tags — e.g. jobs.cake.com's
+      // card-climbing picks up neighboring postings. Reject anything that reads as a title itself.
+      !looksLikeJobTitle(segment) &&
       (LOCATION_LABEL.test(segment) ||
         isSerbianPlace(segment) ||
         REMOTE_WORD.test(plain(segment)) ||

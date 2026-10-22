@@ -268,6 +268,27 @@ Where the code differs from the plan above, based on testing against the real si
 - **Blocked sites are reported, not bypassed.** A `robots.txt` that disallows everything (levi9.rs) and bot-protection pages (Akamai "Access Denied" on careers.se.com) end up in `needs-review.json` with the reason.
 - **Unreachable websites** (DNS failure, refused connection, timeout) skip the browser, path and sitemap steps. Certificate errors don't count as unreachable, because browsers fetch missing intermediate certificates that Node doesn't.
 - **Jobs with no location** are kept only for companies whose Joberty offices are all in Serbia.
+- **The DOM heuristic's location text can pick up a sibling job's own title**, not just real location
+  tags: `REMOTE_WORD` (`scraper/extract/dom-heuristic.ts`) matches "remote" anywhere in a card's text
+  segments, including inside a neighboring posting's title like "Backend Engineer (Remote)" when the
+  climbed card spans the whole list (jobs.cake.com was the case that surfaced this — a real "Remote"
+  badge was present, but so were two sibling titles, and `placeJob` then read the sibling titles'
+  extra words as "tied to another location" and dropped an otherwise-valid remote posting). Fixed by
+  excluding any candidate segment that `looksLikeJobTitle()` matches.
+- **A location of just "Hybrid" (no city) was silently dropped.** `isRemote` only looks for `REMOTE`
+  (remote/anywhere/wfh/…), which doesn't include "hybrid", so a bare "Hybrid" tag never reached the
+  remote branch and fell all the way to the final `keep: false` instead of the "no real location
+  named, trust the company's offices" branch below it — the same branch a *blank* location already
+  used. Avenga Serbia and DIB Travel Serbia (both Serbia-only offices) were losing real postings this
+  way. `placeJob` now computes that "no real place named" leftover once and reuses it for both an
+  empty location and a noise-only one like "Hybrid" or "Full-time".
+- **`JOB_PATH` only matched an exact `/jobs/`, `/positions/`, etc. segment**, so compound paths like
+  `/job-positions/…` (seen on itekako.com, a Webflow site) weren't recognized as job links at all.
+  Loosened to allow one hyphenated word on either side of the core word.
+- **Re-scan after these fixes (2026-10-22):** `npm run scrape -- jobs --force` across all 932
+  companies with a found careers page went from 1283 to **1327 active jobs**, from 261 to **272
+  companies**. Per-company pass/fail: `scraper/data/coverage-report.txt` (gitignored, regenerate with
+  the same offline pass over `jobs-raw.json` — no network needed to rebuild it).
 - **Ctrl+C:** `npm run` turns Ctrl+C into SIGTERM for the script, so both SIGINT and SIGTERM stop it gracefully and save. The script runs as one process (`node --import tsx`), because the `tsx` CLI wrapper killed it before it could save.
 
 ### First full run (2026-10-22)

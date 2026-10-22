@@ -94,9 +94,13 @@ export function placeJob(job: RawJob, companyOffices: string[]): Placement {
     return { keep: !tiedElsewhere, country: null, isRemote: true, remoteScope };
   }
 
-  // No location on the posting: trust it only when the company has no offices outside Serbia
-  // and nothing in the title or URL points elsewhere.
-  if (!raw.trim() && job.countryCode === null) {
+  // No location on the posting, or text that names no real place at all — just "Hybrid",
+  // "On-site", "Full-time" (REMOTE_NOISE already strips all of these). A bare "Hybrid" doesn't
+  // match REMOTE, so it never reaches the branch above; treat it the same as a blank location
+  // instead of falling through to a drop. Trust it only when the company has no offices outside
+  // Serbia and nothing in the title or URL points elsewhere.
+  const leftover = text.replace(REMOTE_NOISE, " ").replace(/[^a-z]+/g, " ");
+  if (!/[a-z]{2,}/.test(leftover) && job.countryCode === null) {
     const serbianOnly = companyOffices.every((office) => isSerbianPlace(office));
     return { keep: serbianOnly && !foreignHint, country: null, isRemote: false, remoteScope: null };
   }

@@ -3,6 +3,7 @@ import { closeBrowser } from "./browser";
 import type { StageOptions } from "./options";
 import { runCareers } from "./stages/careers";
 import { runCompanies } from "./stages/companies";
+import { runCoverage } from "./stages/coverage";
 import { runDescriptions } from "./stages/descriptions";
 import { runFinalize } from "./stages/finalize";
 import { runJobs } from "./stages/jobs";
@@ -16,6 +17,7 @@ Commands (output goes to scraper/data/):
   jobs          collect positions, then finalize            → jobs-raw.json, jobs.json, report.json, needs-review.json
   descriptions  backfill the full text for jobs missing one → updates jobs.json in place
   finalize      rebuild jobs.json, report.json and needs-review.json from what's already scraped
+  coverage      offline pass/fail list, one line per company → coverage-report.txt
   publish       upsert jobs.json into the Supabase "jobs" table (needs SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local)
   all         companies, careers, jobs (not descriptions — see below)
 
@@ -84,6 +86,9 @@ async function main(): Promise<void> {
       break;
     case "finalize":
       await runFinalize();
+      break;
+    case "coverage":
+      await runCoverage();
       break;
     case "publish":
       await runPublish();

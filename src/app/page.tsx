@@ -35,17 +35,7 @@ export default async function HomePage() {
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Job listings</h1>
-          <p className="mt-1 text-muted-foreground">
-            {jobs.length} active postings in Serbia and remote.{" "}
-            <Link href="/sign-up" className="font-medium text-foreground underline-offset-4 hover:underline">
-              Sign up
-            </Link>{" "}
-            to track which ones you&apos;ve applied to.
-          </p>
-        </div>
-
+        {/* No page heading — the header nav already says where you are. */}
         <Suspense fallback={<JobsExplorerFallback jobs={jobs} />}>
           <LiveJobsExplorer jobs={jobs} />
         </Suspense>

@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
+import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { JobsExplorer } from "@/components/jobs/jobs-explorer";
 import { JobsExplorerFallback } from "@/components/jobs/jobs-explorer-fallback";
 import { requireUser } from "@/lib/auth/dal";
@@ -11,32 +12,25 @@ import type { JobListItem } from "@/lib/jobs/types";
 
 export const metadata: Metadata = { title: "Dashboard | Job Manager" };
 
-// Same table as "/" (see features/dashboard.md), plus the Applied column and filter. `getActiveJobs`
-// is cached and cookie-free, so it's safe to call outside Suspense; the per-user parts (account
-// menu, applied IDs) read cookies and must stay inside one.
+// Fixed app shell (h-dvh, no page scroll): a sidebar plus the job table, both filling the
+// viewport. Only the table's rows scroll — see the `fillHeight`/`scrollable` plumbing in
+// jobs-explorer.tsx and jobs-table.tsx. `getActiveJobs` is cached and cookie-free, so it's safe
+// to call outside Suspense; the per-user parts (account, applied IDs) read cookies and must stay
+// inside one.
 export default async function DashboardPage() {
   const jobs = await getActiveJobs();
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-muted/30">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <span className="font-heading text-base font-semibold tracking-tight">Job Manager</span>
-          <Suspense fallback={<div className="h-8 w-44" />}>
-            <AccountMenu />
-          </Suspense>
-        </div>
-      </header>
+    <div className="flex h-dvh w-full overflow-hidden bg-muted/30">
+      <DashboardSidebar>
+        <Suspense fallback={<div className="h-20 shrink-0 border-t border-border" />}>
+          <SidebarAccount />
+        </Suspense>
+      </DashboardSidebar>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-muted-foreground">
-            {jobs.length} active postings. Mark the ones you&apos;ve applied to.
-          </p>
-        </div>
-
-        <Suspense fallback={<JobsExplorerFallback jobs={jobs} showApplied />}>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden px-6 py-6">
+        {/* No page heading — the sidebar's "Home" nav item already says where you are. */}
+        <Suspense fallback={<JobsExplorerFallback jobs={jobs} showApplied fillHeight />}>
           <AuthedJobsExplorer jobs={jobs} />
         </Suspense>
       </main>
@@ -44,16 +38,18 @@ export default async function DashboardPage() {
   );
 }
 
-async function AccountMenu() {
+async function SidebarAccount() {
   // Opt out of prerendering: the Supabase client reads Date.now() while verifying the JWT.
   await connection();
   const user = await requireUser();
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+    <div className="flex shrink-0 flex-col gap-2 border-t border-border p-3">
+      <span className="truncate text-xs text-muted-foreground" title={user.email}>
+        {user.email}
+      </span>
       <form action={signOut}>
-        <Button type="submit" variant="outline" size="sm">
+        <Button type="submit" variant="outline" size="sm" className="w-full">
           Sign out
         </Button>
       </form>
@@ -70,5 +66,7 @@ async function AuthedJobsExplorer({ jobs }: { jobs: JobListItem[] }) {
   // exactly what makes a per-request value like this safe to read here — see src/app/page.tsx.
   // eslint-disable-next-line react-hooks/purity -- request-time value, gated by connection() above
   const now = Date.now();
-  return <JobsExplorer jobs={jobs} now={now} showApplied initialAppliedIds={appliedIds} />;
+  return (
+    <JobsExplorer jobs={jobs} now={now} showApplied initialAppliedIds={appliedIds} fillHeight />
+  );
 }

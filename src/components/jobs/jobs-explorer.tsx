@@ -15,6 +15,7 @@ import {
 } from "@/lib/jobs/filter";
 import { decodeFilters, encodeFilters, FILTER_FIELDS, type FilterRule } from "@/lib/jobs/filter-schema";
 import type { JobListItem } from "@/lib/jobs/types";
+import { cn } from "cn";
 import { FilterBar } from "./filter-bar";
 import type { DescriptionStatus } from "./filter-rule";
 import { JobsSearch } from "./jobs-search";
@@ -32,6 +33,10 @@ export type JobsExplorerProps = {
   now: number;
   showApplied?: boolean;
   initialAppliedIds?: string[];
+  // When true, this fills its container's height (needs a sized ancestor, e.g. a flex row with
+  // h-dvh — see src/app/dashboard/page.tsx) and only the table's rows scroll internally, instead
+  // of the whole page. Search and the filter bar stay fixed above it either way.
+  fillHeight?: boolean;
 };
 
 const DEFAULT_SORT_FIELD: SortField = "posted";
@@ -50,7 +55,13 @@ function parseSort(raw: string | null): { field: SortField; direction: SortDirec
 // Owns search, filters, sort and paging; reads the URL once on mount and writes it back on every
 // change (via history.replaceState, no navigation). Loads descriptions in the background.
 // See features/dashboard.md "Key design choices" and "URL format".
-export function JobsExplorer({ jobs, now, showApplied = false, initialAppliedIds = [] }: JobsExplorerProps) {
+export function JobsExplorer({
+  jobs,
+  now,
+  showApplied = false,
+  initialAppliedIds = [],
+  fillHeight = false,
+}: JobsExplorerProps) {
   const searchParams = useSearchParams();
 
   const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
@@ -189,7 +200,7 @@ export function JobsExplorer({ jobs, now, showApplied = false, initialAppliedIds
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn("flex flex-col gap-4", fillHeight && "h-full min-h-0")}>
       <JobsSearch value={search} onChange={setSearch} />
       <FilterBar
         rules={rules}
@@ -198,30 +209,33 @@ export function JobsExplorer({ jobs, now, showApplied = false, initialAppliedIds
         onRulesChange={setRules}
         onRetryDescriptions={retryDescriptions}
       />
-      <JobsTable
-        rows={rows}
-        matchCount={sortedJobs.length}
-        totalCount={jobs.length}
-        page={clampedPage}
-        pageCount={pageCount}
-        pageSize={pageSize}
-        sort={sort}
-        direction={direction}
-        showApplied={showApplied}
-        appliedIds={appliedIds}
-        now={now}
-        pendingAppliedId={pendingAppliedId}
-        appliedErrors={appliedErrors}
-        loading={blocked}
-        onSortChange={handleSortChange}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPage(1);
-        }}
-        onToggleApplied={handleToggleApplied}
-        onClearFilters={handleClearFilters}
-      />
+      <div className={cn(fillHeight && "min-h-0 flex-1")}>
+        <JobsTable
+          rows={rows}
+          matchCount={sortedJobs.length}
+          totalCount={jobs.length}
+          page={clampedPage}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          sort={sort}
+          direction={direction}
+          showApplied={showApplied}
+          appliedIds={appliedIds}
+          now={now}
+          pendingAppliedId={pendingAppliedId}
+          appliedErrors={appliedErrors}
+          loading={blocked}
+          scrollable={fillHeight}
+          onSortChange={handleSortChange}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          onToggleApplied={handleToggleApplied}
+          onClearFilters={handleClearFilters}
+        />
+      </div>
     </div>
   );
 }

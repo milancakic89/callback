@@ -30,6 +30,10 @@ export type JobsTableProps = {
   // Omitted by the static Suspense fallback (jobs-explorer-fallback.tsx): there's no live clock
   // during a prerender, so Posted falls back to an absolute date instead of "3d ago" there.
   now?: number;
+  // When true, this card fills its container's height and only its rows scroll (the toolbar and
+  // pager stay put, and the header row stays stuck to the top of that scroll). Needs a sized
+  // ancestor — see the `fillHeight` prop on jobs-explorer.tsx, which drives this.
+  scrollable?: boolean;
   // Optional so the static Suspense fallback (jobs-explorer-fallback.tsx) can render this table
   // with no interactivity at all, without passing functions across a server/client boundary.
   onSortChange?: (field: SortField) => void;
@@ -117,6 +121,7 @@ export function JobsTable({
   appliedErrors,
   loading,
   now,
+  scrollable = false,
   onSortChange = noop,
   onPageChange = noop,
   onPageSizeChange = noop,
@@ -127,8 +132,18 @@ export function JobsTable({
   const to = Math.min(page * pageSize, matchCount);
 
   return (
-    <div className="flex flex-col gap-3 overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
+    <div
+      className={cn(
+        "flex flex-col overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10",
+        scrollable ? "h-full min-h-0" : "gap-3",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-2 px-4 pt-4",
+          scrollable && "shrink-0 pb-3",
+        )}
+      >
         <p className="text-sm text-muted-foreground">
           {loading ? (
             "Loading…"
@@ -156,105 +171,118 @@ export function JobsTable({
         </div>
       </div>
 
-      <Table>
-        {/* Overrides the shared TableHeader's default row border — the colored band has no need for one. */}
-        <TableHeader className="[&_tr]:border-b-0">
-          <TableRow className="hover:bg-transparent">
-            <SortableHead
-              field="title"
-              label="Label"
-              sort={sort}
-              direction={direction}
-              onSortChange={onSortChange}
-              className="py-3 pl-4"
-            />
-            <SortableHead
-              field="company"
-              label="Company"
-              sort={sort}
-              direction={direction}
-              onSortChange={onSortChange}
-              className="py-3"
-            />
-            <SortableHead
-              field="posted"
-              label="Posted"
-              sort={sort}
-              direction={direction}
-              onSortChange={onSortChange}
-              className="py-3"
-            />
-            <SortableHead
-              field="workMode"
-              label="Work mode"
-              sort={sort}
-              direction={direction}
-              onSortChange={onSortChange}
-              className="py-3"
-            />
-            {showApplied && <TableHead className={cn(HEADER_CLASS, "py-3 pr-4")}>Applied</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading ? (
-            Array.from({ length: 8 }).map((_, index) => (
-              <TableRow key={index} className={cn(ROW_CLASS, "hover:bg-transparent")}>
-                <TableCell colSpan={showApplied ? 5 : 4} className="px-4 py-3">
-                  <Skeleton className="h-5 w-full max-w-md" />
-                </TableCell>
-              </TableRow>
-            ))
-          ) : rows.length === 0 ? (
-            <TableRow className={cn(ROW_CLASS, "hover:bg-transparent")}>
-              <TableCell colSpan={showApplied ? 5 : 4} className="px-4 py-10 text-center whitespace-normal">
-                <p className="text-sm text-muted-foreground">No jobs match.</p>
-                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
-                  Clear filters
-                </Button>
-              </TableCell>
+      <div className={cn(scrollable && "min-h-0 flex-1 overflow-auto")}>
+        {/* Table's own wrapper defaults to overflow-x-auto, which (per the CSS overflow spec)
+            quietly computes overflow-y: auto too and becomes its own scroll container — stealing
+            the sticky header below, which then sticks to *that* unbounded-height box instead of
+            the div right above, and just scrolls away with everything else. Cancel it explicitly
+            (a plain "relative w-full" doesn't — tailwind-merge only drops a class it sees a
+            replacement for) so there's one scroll container here, not two. */}
+        <Table containerClassName={scrollable ? "relative w-full overflow-x-visible" : undefined}>
+          {/* Overrides the shared TableHeader's default row border — the colored band has no need
+              for one. Sticky (scrollable mode only) so the band stays pinned while rows scroll beneath it. */}
+          <TableHeader className={cn("[&_tr]:border-b-0", scrollable && "sticky top-0 z-10")}>
+            <TableRow className="hover:bg-transparent">
+              <SortableHead
+                field="title"
+                label="Label"
+                sort={sort}
+                direction={direction}
+                onSortChange={onSortChange}
+                className="py-3 pl-4"
+              />
+              <TableHead className={cn(HEADER_CLASS, "py-3")}>Location</TableHead>
+              <SortableHead
+                field="company"
+                label="Company"
+                sort={sort}
+                direction={direction}
+                onSortChange={onSortChange}
+                className="py-3"
+              />
+              <SortableHead
+                field="posted"
+                label="Posted"
+                sort={sort}
+                direction={direction}
+                onSortChange={onSortChange}
+                className="py-3"
+              />
+              <SortableHead
+                field="workMode"
+                label="Work mode"
+                sort={sort}
+                direction={direction}
+                onSortChange={onSortChange}
+                className="py-3"
+              />
+              {showApplied && <TableHead className={cn(HEADER_CLASS, "py-3 pr-4")}>Applied</TableHead>}
             </TableRow>
-          ) : (
-            rows.map((job) => (
-              <TableRow key={job.id} className={ROW_CLASS}>
-                <TableCell className="max-w-72 py-3 pl-4">
-                  {job.url ? (
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block truncate font-medium text-foreground hover:text-primary hover:underline"
-                    >
-                      {job.title}
-                    </a>
-                  ) : (
-                    <span className="block truncate font-medium">{job.title}</span>
-                  )}
-                </TableCell>
-                <TableCell className="max-w-56 truncate py-3 text-muted-foreground">{job.companyName}</TableCell>
-                <TableCell className="py-3">
-                  <PostedCell job={job} now={now} />
-                </TableCell>
-                <TableCell className="py-3">
-                  <WorkModeBadge workMode={job.workMode} />
-                </TableCell>
-                {showApplied && (
-                  <TableCell className="py-3 pr-4">
-                    <AppliedCheckbox
-                      jobTitle={job.title}
-                      applied={appliedIds.has(job.id)}
-                      pending={pendingAppliedId === job.id}
-                      error={appliedErrors[job.id] ?? null}
-                      onChange={(next) => onToggleApplied(job.id, next)}
-                    />
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 8 }).map((_, index) => (
+                <TableRow key={index} className={cn(ROW_CLASS, "hover:bg-transparent")}>
+                  <TableCell colSpan={showApplied ? 6 : 5} className="px-4 py-3">
+                    <Skeleton className="h-5 w-full max-w-md" />
                   </TableCell>
-                )}
+                </TableRow>
+              ))
+            ) : rows.length === 0 ? (
+              <TableRow className={cn(ROW_CLASS, "hover:bg-transparent")}>
+                <TableCell colSpan={showApplied ? 6 : 5} className="px-4 py-10 text-center whitespace-normal">
+                  <p className="text-sm text-muted-foreground">No jobs match.</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
+                    Clear filters
+                  </Button>
+                </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              rows.map((job) => (
+                <TableRow key={job.id} className={ROW_CLASS}>
+                  <TableCell className="max-w-72 py-3 pl-4">
+                    {job.url ? (
+                      <a
+                        href={job.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block truncate font-medium text-foreground hover:text-primary hover:underline"
+                      >
+                        {job.title}
+                      </a>
+                    ) : (
+                      <span className="block truncate font-medium">{job.title}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-48 truncate py-3 text-muted-foreground">
+                    {job.locationRaw ?? "—"}
+                  </TableCell>
+                  <TableCell className="max-w-56 truncate py-3 text-muted-foreground">{job.companyName}</TableCell>
+                  <TableCell className="py-3">
+                    <PostedCell job={job} now={now} />
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <WorkModeBadge workMode={job.workMode} />
+                  </TableCell>
+                  {showApplied && (
+                    <TableCell className="py-3 pr-4">
+                      <AppliedCheckbox
+                        jobTitle={job.title}
+                        applied={appliedIds.has(job.id)}
+                        pending={pendingAppliedId === job.id}
+                        error={appliedErrors[job.id] ?? null}
+                        onChange={(next) => onToggleApplied(job.id, next)}
+                      />
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      <div className="flex items-center justify-end gap-2 px-4 pb-4">
+      <div className={cn("flex items-center justify-end gap-2 px-4 pb-4", scrollable && "shrink-0 pt-3")}>
         <Button
           type="button"
           variant="outline"

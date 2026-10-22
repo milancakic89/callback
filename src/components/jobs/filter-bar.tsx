@@ -32,18 +32,24 @@ export function FilterBar({ rules, fields, descriptionStatus, onRulesChange, onR
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {rules.map((rule) => (
-        <FilterRuleRow
-          key={rule.id}
-          rule={rule}
-          fields={fields}
-          descriptionStatus={descriptionStatus}
-          onChange={(next) => updateRule(rule.id, next)}
-          onRemove={() => removeRule(rule.id)}
-          onRetryDescriptions={onRetryDescriptions}
-        />
-      ))}
+    <div className="flex shrink-0 flex-col gap-2">
+      {/* Capped so a long rule list scrolls in place instead of pushing the table down (or, in
+          fillHeight mode, shrinking it) — see features/dashboard.md. */}
+      {rules.length > 0 && (
+        <div className="flex max-h-[300px] flex-col gap-2 overflow-y-auto pr-1">
+          {rules.map((rule) => (
+            <FilterRuleRow
+              key={rule.id}
+              rule={rule}
+              fields={fields}
+              descriptionStatus={descriptionStatus}
+              onChange={(next) => updateRule(rule.id, next)}
+              onRemove={() => removeRule(rule.id)}
+              onRetryDescriptions={onRetryDescriptions}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <Popover open={addOpen} onOpenChange={setAddOpen}>
