@@ -43,7 +43,7 @@ Code done; see [features/auth.md](../features/auth.md). Waiting on Supabase setu
 - Decide how job listings are collected (manual entry, scraping, external API, etc.)
 - Integrate chosen source into the `jobs` table and dashboard
 
-**Status:** open decision, revisit later.
+**Status:** proposed: a free standalone scraper with JSON output, see [features/job-scraper.md](../features/job-scraper.md). Not implemented.
 
 ## Phase 4 — Applications Tracker
 **In scope:**
