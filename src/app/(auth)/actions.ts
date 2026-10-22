@@ -172,5 +172,7 @@ export async function resetPassword(
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect("/sign-in");
+  // "/" is the public job list (features/dashboard.md), not a guest-only page, so proxy doesn't
+  // redirect a signed-out visitor away from it.
+  redirect("/");
 }

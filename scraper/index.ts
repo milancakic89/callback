@@ -6,6 +6,7 @@ import { runCompanies } from "./stages/companies";
 import { runDescriptions } from "./stages/descriptions";
 import { runFinalize } from "./stages/finalize";
 import { runJobs } from "./stages/jobs";
+import { runPublish } from "./stages/publish";
 
 const USAGE = `Usage: npm run scrape -- <command> [options]
 
@@ -15,7 +16,8 @@ Commands (output goes to scraper/data/):
   jobs          collect positions, then finalize            → jobs-raw.json, jobs.json, report.json, needs-review.json
   descriptions  backfill the full text for jobs missing one → updates jobs.json in place
   finalize      rebuild jobs.json, report.json and needs-review.json from what's already scraped
-  all           companies, careers, jobs (not descriptions — see below)
+  publish       upsert jobs.json into the Supabase "jobs" table (needs SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local)
+  all         companies, careers, jobs (not descriptions — see below)
 
 Most jobs already get a description for free while "jobs" runs (it's in the same API
 response). "descriptions" is a separate, optional pass for the rest: one extra request per
@@ -82,6 +84,9 @@ async function main(): Promise<void> {
       break;
     case "finalize":
       await runFinalize();
+      break;
+    case "publish":
+      await runPublish();
       break;
     case "all":
       await runCompanies();

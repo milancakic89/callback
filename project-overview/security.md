@@ -64,6 +64,14 @@ Next.js only sets `X-Forwarded-For` itself when the header is missing, and never
 - Responses never reveal whether an account exists.
 - `/auth/confirm` only redirects to same-origin paths (`next` must start with `/`, not `//` or `/\`).
 
+### Dashboard (Phase 2)
+See [features/dashboard.md](../features/dashboard.md).
+
+- **The job list is intentionally public** (`/`, and `/api/jobs/descriptions`). `public.jobs` RLS already limited `anon`/`authenticated` to `active` rows (Phase 3's scraper); the dashboard changes nothing about what's exposed, only who can reach it without signing in.
+- **`setApplied`** (`src/app/dashboard/actions.ts`) re-checks `requireUser()`, validates input with zod, and is rate-limited at 60/min per user via `postgresStore`. `public.applications` RLS scopes every `select`/`insert`/`delete` to `user_id = auth.uid()`.
+- **Filters decoded from the URL are treated as untrusted input:** zod-validated, capped (20 rules, 20 values/rule, 100 chars/value), and every text value is regex-escaped before being compiled into a `RegExp` — a crafted link can't inject regex syntax or force pathological matching. An invalid or tampered `f` param is dropped silently (loads unfiltered), never thrown.
+- No browser Supabase client here either: `/api/jobs/descriptions` is same-origin and itself backed by the server-side `supabasePublic` client (`src/lib/supabase/public.ts`), so the CSP still needs no `connect-src` change.
+
 ## Reverse Proxy Requirements
 
 The app assumes it runs as a single Node process on a VPS / Docker host, behind exactly one reverse proxy that terminates TLS. Minimal nginx example:

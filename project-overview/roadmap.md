@@ -30,13 +30,15 @@ Code done; see [features/auth.md](../features/auth.md). Waiting on Supabase setu
 
 **Deferred:** nothing beyond auth itself.
 
-## Phase 2 — Dashboard Shell
-**In scope:**
-- Authenticated layout with nav tabs (Dashboard / Applications) and sign-out
-- `/dashboard` page with a job search UI skeleton (filters/search bar) and an empty state
-- No real job data yet
+## Phase 2 — Dashboard — Done
+See [features/dashboard.md](../features/dashboard.md).
 
-**Deferred:** actual job data source (Phase 3).
+**In scope:**
+- `/` — a public job table (search, a combinable rule-based filter builder, sort, paging) built on the real data from Phase 3
+- `/dashboard` — the same table, protected, plus an Applied column/filter backed by a minimal `applications` table
+- `work_mode` (`REMOTE` / `HYBRID` / `ON_SITE`) computed by the scraper and published alongside each job
+
+**Deferred:** `/applications` as its own page, application status/notes (Phase 4); OR groups and saved filter presets.
 
 ## Phase 3 — Job Data Source
 **In scope:**
@@ -46,14 +48,16 @@ Code done; see [features/auth.md](../features/auth.md). Waiting on Supabase setu
 **Status:** proposed: a free standalone scraper with JSON output, see [features/job-scraper.md](../features/job-scraper.md). Not implemented.
 
 ## Phase 4 — Applications Tracker
-**In scope:**
-- `/applications` page with a shadcn/ui `Table` component
-- Finalize `applications` schema and wire it to real data
+A minimal `applications` table (`user_id`, `job_id`, `applied_at`) and the Applied checkbox already
+ship in Phase 2 ([features/dashboard.md](../features/dashboard.md)) — entries are created by the
+user ticking the box, which answers Phase 5 for this minimal shape.
 
-**Deferred:** how entries get created (Phase 5).
+**In scope:**
+- `/applications` page with a shadcn/ui `Table` component, listing the user's applied-to jobs
+- Extend `applications` with `status` and `notes`
+
+**Deferred:** automated entries from another source (e.g. a browser extension) — still open.
 
 ## Phase 5 — Application Tracking Source
-**In scope:**
-- Decide how "where I applied" entries get created: manual entry vs. automated (e.g. derived from Phase 3's job source)
-
-**Status:** open decision, revisit later.
+**Status:** manual entry (the Applied checkbox, Phase 2) is decided and shipped. Automated entry
+(e.g. derived from Phase 3's job source) is still an open decision, revisit later.

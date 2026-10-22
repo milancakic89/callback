@@ -1,6 +1,6 @@
 # Feature: Job Scraper (Phase 3)
 
-**Status:** First version implemented in `scraper/` (`npm run scrape`). Output is JSON files; the Supabase schema comes later, derived from the JSON shape. See [Implementation notes](#implementation-notes) for where the code differs from the plan below.
+**Status:** First version implemented in `scraper/` (`npm run scrape`). Output is JSON files, and `publish` upserts `jobs.json` into the Supabase `jobs` table ([Publishing to Supabase](#publishing-to-supabase)). See [Implementation notes](#implementation-notes) for where the code differs from the plan below.
 
 Collects open positions automatically along the path a person would follow by hand: Joberty company list → company website → careers page → (country dropdown) → open positions. Scope is **companies with an office in Serbia**, keeping **positions in Serbia plus remote positions**.
 
@@ -30,6 +30,7 @@ npm run scrape -- careers            # careers page / ATS per company → career
 npm run scrape -- jobs               # positions → jobs-raw.json, then finalize
 npm run scrape -- descriptions       # backfill full job text where it wasn't free → updates jobs.json
 npm run scrape -- finalize           # rebuild jobs.json, report.json, needs-review.json only
+npm run scrape -- publish            # upsert jobs.json into the Supabase jobs table
 npm run scrape -- all                # companies, careers, jobs (not descriptions — see below)
 
   --company <text>   only companies whose Joberty slug (or, for descriptions, company name)
@@ -51,12 +52,22 @@ Every `Job` and `RawJob` carries a `description` field: the full posting text, H
 
 Ctrl+C stops after the companies in progress and saves; the next run continues where it stopped. Without `--force`, `careers` skips companies checked in the last 30 days and `jobs` skips companies scraped in the last 12 hours.
 
+### Publishing to Supabase
+`publish` copies `jobs.json` into `public.jobs` (migration `supabase/migrations/*_jobs.sql`), one column per `Job` field in snake_case. It reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` from `.env.local` and writes with the secret key, because the table has no write policies for `anon` or `authenticated`.
+
+- **Upsert by `id`, nothing is deleted.** `jobs.json` keeps closed jobs with `active: false`, so re-running `publish` closes them in the database too. It is safe to run repeatedly.
+- **Public read is limited to `active` rows** by an RLS policy, so closed jobs stay in the table but never reach the site.
+- **Cleaned on the way in:** `postedAt` (8 different formats in the data, including Unix seconds) becomes an ISO UTC timestamp, with values that can't be parsed stored as `null`. A `url` that isn't `http(s)` becomes `null`.
+- `search_text` is a generated column (`lower(title || ' ' || company_name)`) for a single `ilike` search.
+- `description` is plain text. Render it as text, never as HTML.
+- **`work_mode`** (`REMOTE` / `HYBRID` / `ON_SITE`, nullable) is computed here, not stored in `jobs.json`: `detectWorkMode()` in `scraper/normalize.ts` reads title, location, `isRemote` and the final description (only final once `descriptions` has run — `publish` is the one stage that sees it). Dashboard UI: [features/dashboard.md](./dashboard.md).
+
 ### Keeping it up to date
 Each stage's own staleness window (above) means running everything daily isn't wasteful — most companies get skipped automatically, and only new or stale ones are reprocessed. One daily cron entry is enough:
 
 ```cron
 # every day at 03:17
-17 3 * * * cd /path/to/job-manager && npm run scrape -- all >> scraper/data/cron.log 2>&1 && npm run scrape -- descriptions >> scraper/data/cron.log 2>&1
+17 3 * * * cd /path/to/job-manager && npm run scrape -- all >> scraper/data/cron.log 2>&1 && npm run scrape -- descriptions >> scraper/data/cron.log 2>&1 && npm run scrape -- publish >> scraper/data/cron.log 2>&1
 ```
 
 `all` runs `companies → careers → jobs` (`jobs` finalizes on its own at the end). No env vars or keys to set up. This matches the VPS/Docker hosting already planned in [architecture.md](../project-overview/architecture.md).

@@ -7,6 +7,9 @@ const GLOBAL_WINDOW_MS = 60_000;
 
 const PROTECTED_PREFIXES = ["/dashboard", "/reset-password"];
 const GUEST_ONLY_PATHS = ["/sign-in", "/sign-up", "/forgot-password"];
+// "/" is the public job list (features/dashboard.md); a signed-in visitor gets the same table
+// plus the Applied column at /dashboard instead.
+const SIGNED_IN_REDIRECT_PATHS = ["/"];
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -49,7 +52,10 @@ export async function proxy(request: NextRequest) {
   if (!isAuthenticated && PROTECTED_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix))) {
     return redirectWithCookies(request, "/sign-in", response);
   }
-  if (isAuthenticated && GUEST_ONLY_PATHS.some((path) => matchesPrefix(pathname, path))) {
+  if (
+    isAuthenticated &&
+    [...GUEST_ONLY_PATHS, ...SIGNED_IN_REDIRECT_PATHS].some((path) => matchesPrefix(pathname, path))
+  ) {
     return redirectWithCookies(request, "/dashboard", response);
   }
 

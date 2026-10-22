@@ -28,6 +28,44 @@ export function isSerbianPlace(text: string): boolean {
   return SERBIAN_PLACES.test(plain(text));
 }
 
+const HYBRID_WORK = /\b(hybrid|hibrid\w*)\b/;
+const ON_SITE_WORK =
+  /\bon[- ]?site\b|\bin[- ]?office\b|\bin the office\b|\bu kancelariji\b|\biz kancelarije\b/;
+
+export type WorkMode = "REMOTE" | "HYBRID" | "ON_SITE";
+
+// Computed at publish time (scraper/stages/publish.ts), once the description is final. Not stored
+// in jobs.json — see features/dashboard.md.
+export function detectWorkMode(job: {
+  title: string;
+  locationRaw: string | null;
+  description: string | null;
+  isRemote: boolean;
+}): WorkMode | null {
+  const titleAndLocation = plain(`${job.title} ${job.locationRaw ?? ""}`);
+
+  // Title/location win outright: "Hybrid — Belgrade" beats a job marked remote upstream.
+  if (HYBRID_WORK.test(titleAndLocation)) return "HYBRID";
+  if (job.isRemote) return "REMOTE";
+  if (ON_SITE_WORK.test(titleAndLocation)) return "ON_SITE";
+
+  if (job.description) {
+    const text = plain(job.description);
+    const hasHybrid = HYBRID_WORK.test(text);
+    const hasRemote = REMOTE.test(text);
+    const hasOnSite = ON_SITE_WORK.test(text);
+    // Hybrid mentioned alongside another mode ("remote-first, hybrid available") still means hybrid.
+    if (hasHybrid) return "HYBRID";
+    // Remote and on-site together is contradictory (e.g. boilerplate "remote-friendly" culture
+    // copy next to an on-site requirement) — safer to leave it unknown than guess.
+    if (hasRemote && hasOnSite) return null;
+    if (hasRemote) return "REMOTE";
+    if (hasOnSite) return "ON_SITE";
+  }
+
+  return null;
+}
+
 export type Placement = {
   keep: boolean;
   country: "RS" | null;

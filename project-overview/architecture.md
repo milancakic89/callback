@@ -9,14 +9,16 @@
 | `/forgot-password` | Public | Request a password reset |
 | `/reset-password` | Authenticated (via recovery link) | Set a new password |
 | `/auth/confirm` | Public (Route Handler) | Verifies email links (`token_hash` + `verifyOtp`), then redirects |
-| `/dashboard` | Authenticated | Search/browse job listings. Ships as an empty placeholder until a job source is defined. |
-| `/applications` | Authenticated | Table of jobs the user applied to. Ships as an empty placeholder until the tracking source is defined. |
+| `/` | Public | The job list: search, filters, no Applied column. See [features/dashboard.md](../features/dashboard.md). |
+| `/dashboard` | Authenticated | Same job list, plus the Applied column and filter. |
+| `/api/jobs/descriptions` | Public (Route Handler, `GET`) | Job descriptions, fetched client-side after the table renders. |
+| `/applications` | Authenticated | Table of jobs the user applied to, with status and notes. Ships as an empty placeholder until Phase 4 (a minimal version — a checkbox backed by `applications` — already exists on `/dashboard`). |
 
 ## Layout
 
 - Public auth routes (`/sign-in`, `/sign-up`, `/forgot-password`) use a minimal centered-form layout.
-- Authenticated routes (`/dashboard`, `/applications`) share a layout with a nav shell exposing both as tabs, plus sign-out.
-- Unauthenticated users hitting `/dashboard` or `/applications` redirect to `/sign-in`.
+- `/` and `/dashboard` each have their own header (nav links vs. account menu + sign-out) around the same job table.
+- A signed-in visitor hitting `/`, or a signed-out visitor hitting `/dashboard` or `/reset-password`, is redirected (`src/proxy.ts`).
 
 ## Request Pipeline
 
@@ -33,11 +35,16 @@ Supabase/Postgres tables. Marked draft because `jobs` and `applications` shapes 
 ### `users`
 Managed entirely by Supabase Auth — no custom table needed unless profile fields are added later.
 
-### `jobs` (placeholder, shape TBD)
-Will hold job listings once a source is picked. Likely candidate columns: title, company, location, url, posted_at — not finalized.
+### `jobs`
+Scraped job postings, filled by `npm run scrape -- publish` from `scraper/data/jobs.json` (see [job-scraper.md](../features/job-scraper.md#publishing-to-supabase)). Migration: `supabase/migrations/*_jobs.sql`.
 
-### `applications` (placeholder, shape TBD)
-Will hold the user's applied-to jobs. Likely candidate columns: user_id, job reference, status, applied_at, notes — not finalized.
+- `id` (text, primary key, `<source>:<externalId>`), `company_joberty_id`, `company_name`, `title`, `location_raw`, `country` (ISO alpha-2), `is_remote`, `remote_scope`, `department`, `url` (http(s) only), `description` (plain text), `source`, `posted_at`, `first_seen_at`, `last_seen_at`, `active`, `work_mode` (`public.work_mode` enum: `REMOTE` / `HYBRID` / `ON_SITE`, nullable — computed by the scraper at publish time, see [features/dashboard.md](../features/dashboard.md))
+- `search_text`: generated lowercase `title + company_name`, for `ilike` search
+- Index: partial on `(first_seen_at desc, id) where active`, for the public list
+- RLS: `anon` and `authenticated` can `select` active rows only. There are no write policies, so only `service_role` (the scraper's `publish`) can write.
+
+### `applications`
+One row per (user, job) marked as applied: `user_id`, `job_id` (references `jobs.id`), `applied_at`. Primary key `(user_id, job_id)`. RLS: `authenticated` can `select`/`insert`/`delete` only their own rows (`user_id = auth.uid()`). Backs the Applied checkbox on `/dashboard` ([features/dashboard.md](../features/dashboard.md)). Phase 4 adds `status` and `notes`.
 
 ### `rate_limits` (Phase 1, draft)
 Replaces the in-memory rate-limit counters. Likely columns: key (primary key), count, reset_at. It's updated through a single atomic SQL function (upsert + increment) called only from the server with the service role key, never exposed to clients.
@@ -48,14 +55,15 @@ Env vars (server-only, validated in `src/lib/env.ts`): `SUPABASE_URL`, `SUPABASE
 
 | Module | Key | Used for |
 |---|---|---|
-| `src/lib/supabase/server.ts` | publishable | Server Actions, Route Handlers, DAL (`src/lib/auth/dal.ts`) |
+| `src/lib/supabase/server.ts` | publishable | Server Actions, Route Handlers, DAL (`src/lib/auth/dal.ts`), the Applied Server Action |
+| `src/lib/supabase/public.ts` | publishable | `src/lib/jobs/queries.ts`'s cached (`'use cache'`) reads — no cookies, so it can be cached |
 | `src/lib/supabase/proxy.ts` | publishable | Session refresh in `src/proxy.ts` |
 | `src/lib/supabase/admin.ts` | secret | Only the `rate_limit_hit` RPC |
 
-There is **no browser client**: every auth call goes through a Server Action or Route Handler, so the CSP needs no `connect-src` change. Sessions are stored in persistent `sb-*-auth-token` cookies and refreshed in proxy.
+There is **no browser client**: every auth call goes through a Server Action or Route Handler, so the CSP needs no `connect-src` change. Sessions are stored in persistent `sb-*-auth-token` cookies and refreshed in proxy. The dashboard's job descriptions are fetched client-side, but only from our own same-origin Route Handler (`/api/jobs/descriptions`), which is itself backed by the server-side Supabase client — same reasoning, same `connect-src` non-change.
 
 Migrations live in `supabase/migrations/`. The Supabase MCP server is configured in `.mcp.json`.
 
 ## UI Components
 
-shadcn/ui on top of Tailwind v4 for forms (auth), tables (applications), and nav shell (authenticated layout).
+shadcn/ui (Base UI primitives) on top of Tailwind v4 for forms (auth), the job table, filter builder and nav headers (`src/components/jobs/`), and the future `/applications` table.
