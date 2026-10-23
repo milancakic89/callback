@@ -73,6 +73,55 @@ export type Placement = {
   remoteScope: string | null;
 };
 
+// What a job board says about where candidates may live. Unlike an ATS location, a list here
+// means "any of these": "Europe, USA, APAC" is open to Serbia.
+export type BoardLocation = {
+  // Free text, split on separators below; ignored when `allowedPlaces` is given.
+  location: string | null;
+  // A structured list from the source (Himalayas); ["Worldwide"] when it has no restriction.
+  allowedPlaces?: string[];
+  // Allowed UTC offsets in hours; empty or missing means any.
+  utcOffsets?: number[];
+  remote: boolean;
+  // The board's "remote" means remote within its home market (Arbeitnow: Germany), so only an
+  // explicitly Serbian place counts.
+  serbiaOnly?: boolean;
+  title: string;
+};
+
+const LOCATION_SEPARATORS = /\s*(?:[,;|/]|\bor\b)\s*/i;
+// CET and CEST.
+const SERBIAN_UTC_OFFSETS = [1, 2];
+
+// Keeps postings open to someone living in Serbia: Serbia itself, worldwide, or a region that
+// contains it (Europe, EMEA, CEE, Balkans, EU — the same regions placeJob keeps).
+export function placeBoardJob(job: BoardLocation): Placement {
+  const drop: Placement = { keep: false, country: null, isRemote: job.remote, remoteScope: null };
+  if (job.utcOffsets?.length && !job.utcOffsets.some((offset) => SERBIAN_UTC_OFFSETS.includes(offset))) {
+    return drop;
+  }
+
+  const parts = (job.allowedPlaces ?? (job.location ?? "").split(LOCATION_SEPARATORS))
+    .map((part) => plain(part).trim())
+    .filter(Boolean);
+  const serbian = parts.filter((part) => SERBIAN_PLACES.test(part));
+  if (serbian.length) {
+    const onlySerbia = serbian.length === parts.length;
+    return { keep: true, country: onlySerbia ? "RS" : null, isRemote: job.remote, remoteScope: null };
+  }
+  // On-site elsewhere, or a job that names no place: nothing says it's open to Serbia.
+  if (!job.remote || job.serbiaOnly) return drop;
+
+  // "Remote", "Worldwide", "EMEA", "UTC+1" leave nothing behind; "USA timezones" leaves "usa".
+  const open = parts.filter((part) => !/[a-z]{2,}/.test(part.replace(REMOTE_NOISE, " ").replace(/[^a-z]+/g, " ")));
+  if (parts.length && !open.length) return drop;
+  // "Account Executive, DACH - Germany" listed as "Europe" is still for Germany.
+  if (FOREIGN_MARKERS.test(plain(job.title))) return drop;
+
+  const remoteScope = REMOTE_SCOPES.find(([re]) => open.some((part) => re.test(part)))?.[1] ?? null;
+  return { keep: true, country: null, isRemote: true, remoteScope };
+}
+
 // Keeps jobs in Serbia, and remote jobs not tied to another country.
 export function placeJob(job: RawJob, companyOffices: string[]): Placement {
   // "U.S." → "US", so the abbreviation survives as one word.

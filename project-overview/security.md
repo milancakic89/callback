@@ -72,6 +72,10 @@ See [features/dashboard.md](../features/dashboard.md).
 - **Applying is irreversible in the database, not just the UI** ([features/applied.md](../features/applied.md)). `public.applications` RLS scopes `select`/`insert`/`update` to `user_id = auth.uid()`, there is no delete policy or grant, and the `update` grant covers the `status` column only, so `job_id`, `user_id` and `applied_at` can't be changed from a client.
 - **`jobs` has a second select policy** for `authenticated`: a user can read a job they applied to even when it is inactive. `anon` still only sees active jobs.
 - **Filters decoded from the URL are treated as untrusted input:** zod-validated, capped (20 rules, 20 values/rule, 100 chars/value), and every text value is regex-escaped before being compiled into a `RegExp` — a crafted link can't inject regex syntax or force pathological matching. An invalid or tampered `f` param is dropped silently (loads unfiltered), never thrown.
+- **`POST /api/jobs/revalidate`** (`src/app/api/jobs/revalidate/route.ts`) lets the scraper drop the cached job list after `publish`/`boards`.
+  - It requires `Authorization: Bearer $REVALIDATE_SECRET`, at least 32 characters, shared with the scraper through `.env.local`. The secret is compared as SHA-256 digests with `timingSafeEqual`.
+  - It is rate-limited at 10/min per IP. It returns 404 while `REVALIDATE_SECRET` is unset.
+  - All it can do is expire the `jobs` cache tag, so the worst case of abuse is extra Supabase reads.
 - No browser Supabase client here either: `/api/jobs/descriptions` is same-origin and itself backed by the server-side `supabasePublic` client (`src/lib/supabase/public.ts`), so the CSP still needs no `connect-src` change.
 
 ## Reverse Proxy Requirements

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "scrape": "node --import tsx scraper/index.ts"
+    "scrape": "node --import tsx scraper/index.ts",
+    "jobs:refresh": "npm run scrape -- refresh"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SortDirection, SortField } from "@/lib/jobs/filter";
 import { formatAbsolute, formatRelative } from "@/lib/jobs/format";
-import type { JobListItem } from "@/lib/jobs/types";
+import { sourceLabel, type JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
 
 export type JobsTableProps = {
@@ -141,6 +141,7 @@ export function JobsTable({
                 onSortChange={onSortChange}
                 className="py-3"
               />
+              <TableHead className={cn(HEADER_CLASS, "py-3")}>Source</TableHead>
               <SortableHead
                 field="posted"
                 label="Posted"
@@ -164,14 +165,14 @@ export function JobsTable({
             {loading ? (
               Array.from({ length: 8 }).map((_, index) => (
                 <TableRow key={index} className={cn(ROW_CLASS, "hover:bg-transparent")}>
-                  <TableCell colSpan={showApplied ? 6 : 5} className="px-4 py-3">
+                  <TableCell colSpan={showApplied ? 7 : 6} className="px-4 py-3">
                     <Skeleton className="h-5 w-full max-w-md" />
                   </TableCell>
                 </TableRow>
               ))
             ) : rows.length === 0 ? (
               <TableRow className={cn(ROW_CLASS, "hover:bg-transparent")}>
-                <TableCell colSpan={showApplied ? 6 : 5} className="px-4 py-10 text-center whitespace-normal">
+                <TableCell colSpan={showApplied ? 7 : 6} className="px-4 py-10 text-center whitespace-normal">
                   <p className="text-sm text-muted-foreground">No jobs match.</p>
                   <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
                     Clear filters
@@ -199,6 +200,7 @@ export function JobsTable({
                     {job.locationRaw ?? "—"}
                   </TableCell>
                   <TableCell className="max-w-56 truncate py-3 text-muted-foreground">{job.companyName}</TableCell>
+                  <TableCell className="py-3 text-muted-foreground">{sourceLabel(job.source)}</TableCell>
                   <TableCell className="py-3">
                     <PostedCell job={job} now={now} />
                   </TableCell>

@@ -13,7 +13,8 @@ Phase 2 of [roadmap.md](../project-overview/roadmap.md) planned a dashboard shel
   - Signed-out visitors get the table, search and filters on `/`.
   - `/dashboard` stays protected. Signed-in users see the same table plus the Applied column and the Applied filter.
   - The Applied column doesn't exist at all for signed-out visitors: it is neither hidden nor disabled.
-- **Columns:** Label (the job title, linking to the posting), Company, Posted, Work mode, Applied (signed in only).
+- **Columns:** Label (the job title, linking to the posting), Company, Source, Posted, Work mode, Applied (signed in only).
+  - Source was added with the [job boards](./job-boards.md), whose terms require crediting them. It shows `sourceLabel(source)` from `src/lib/jobs/types.ts`: "Himalayas", "Greenhouse", "Joberty", or "Company site" for the scraper's `dom`/`network`/`jsonld` extraction.
 - **Work mode is a single nullable enum, `work_mode`, with values `REMOTE`, `HYBRID` and `ON_SITE`.** The scraper computes it. The table shows it in one column as a badge, or `—` when it's unknown.
 - **Applied is a checkbox backed by a minimal `applications` table** (`user_id`, `job_id`, `applied_at`). It originally toggled both ways and saved immediately; it has since become one-way with a confirmation dialog, and `applications` gained a `status` — see [applied.md](./applied.md). The `setApplied` Server Action described below is now `markApplied`, and `src/app/dashboard/` is now `src/app/(app)/dashboard/`.
 - **Search** is live with no debounce: it matches substrings of title + company.

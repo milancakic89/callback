@@ -17,6 +17,7 @@ type JobRow = {
   posted_at: string | null;
   first_seen_at: string;
   url: string | null;
+  source: string;
 };
 
 function toListItem(row: JobRow): JobListItem {
@@ -30,6 +31,7 @@ function toListItem(row: JobRow): JobListItem {
     postedAt: row.posted_at,
     firstSeenAt: row.first_seen_at,
     url: row.url,
+    source: row.source,
   };
 }
 
@@ -45,7 +47,7 @@ export async function getActiveJobs(): Promise<JobListItem[]> {
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabasePublic
       .from("jobs")
-      .select("id, title, company_name, location_raw, department, work_mode, posted_at, first_seen_at, url")
+      .select("id, title, company_name, location_raw, department, work_mode, posted_at, first_seen_at, url, source")
       .eq("active", true)
       .order("id")
       .range(from, from + PAGE_SIZE - 1)

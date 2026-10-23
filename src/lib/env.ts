@@ -12,6 +12,9 @@ const envSchema = z.object({
   SMTP_USER: z.string().min(1),
   SMTP_PASSWORD: z.string().min(1),
   MAIL_FROM: z.string().min(1),
+  // Shared with the scraper, which calls POST /api/jobs/revalidate after writing jobs. Optional:
+  // without it that route is disabled and the job list refreshes on its cacheLife instead.
+  REVALIDATE_SECRET: z.string().min(32).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

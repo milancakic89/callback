@@ -20,7 +20,35 @@ export type JobListItem = {
   postedAt: string | null;
   firstSeenAt: string;
   url: string | null;
+  // Where the posting came from: an ATS, a job board, or the scraper's generic page extraction.
+  // Shown in the Source column — the job boards' terms require crediting them.
+  source: string;
 };
+
+const SOURCE_LABELS: Record<string, string> = {
+  himalayas: "Himalayas",
+  jobicy: "Jobicy",
+  remoteok: "Remote OK",
+  remotive: "Remotive",
+  arbeitnow: "Arbeitnow",
+  joberty: "Joberty",
+  smartrecruiters: "SmartRecruiters",
+  bamboohr: "BambooHR",
+  talentlyft: "TalentLyft",
+  hibob: "HiBob",
+  jazzhr: "JazzHR",
+  icims: "iCIMS",
+  successfactors: "SuccessFactors",
+  // The scraper read these off the company's own careers page, with no ATS behind it.
+  dom: "Company site",
+  network: "Company site",
+  jsonld: "Company site",
+};
+
+// Every other ATS name is a single word ("greenhouse" → "Greenhouse").
+export function sourceLabel(source: string): string {
+  return SOURCE_LABELS[source] ?? source.charAt(0).toUpperCase() + source.slice(1);
+}
 
 // `posted_at` is missing for most rows (see features/dashboard.md); fall back to when the
 // scraper first saw the posting so sorting and the Posted filter always have a value.

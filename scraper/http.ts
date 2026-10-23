@@ -23,6 +23,14 @@ export type HttpResponse = { status: number; url: string; text: string; contentT
 
 const nextSlot = new Map<string, number>();
 
+// Honored only when short: Workable has answered a burst with a ~23-hour Retry-After.
+const MAX_RETRY_AFTER_MS = 60_000;
+
+function retryAfterMs(res: Response): number | null {
+  const seconds = Number(res.headers.get("retry-after"));
+  return seconds > 0 && seconds * 1000 <= MAX_RETRY_AFTER_MS ? seconds * 1000 : null;
+}
+
 async function throttle(host: string, intervalMs: number): Promise<void> {
   const now = Date.now();
   const slot = Math.max(now, nextSlot.get(host) ?? 0);
@@ -58,7 +66,7 @@ export async function request(url: string, options: RequestOptions = {}): Promis
         signal: AbortSignal.timeout(timeoutMs),
       });
       if ((res.status === 429 || res.status >= 500) && attempt < retries) {
-        await sleep(2000 * (attempt + 1));
+        await sleep(retryAfterMs(res) ?? 2000 * (attempt + 1));
         continue;
       }
       return {

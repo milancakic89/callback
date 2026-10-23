@@ -31,7 +31,9 @@ npm run scrape -- jobs               # positions → jobs-raw.json, then finaliz
 npm run scrape -- descriptions       # backfill full job text where it wasn't free → updates jobs.json
 npm run scrape -- finalize           # rebuild jobs.json, report.json, needs-review.json only
 npm run scrape -- publish            # upsert jobs.json into the Supabase jobs table
+npm run scrape -- boards             # remote jobs from public job boards, straight into Supabase (features/job-boards.md)
 npm run scrape -- all                # companies, careers, jobs (not descriptions — see below)
+npm run jobs:refresh                 # everything, for cron: all, descriptions, publish, boards (see below)
 
   --company <text>   only companies whose Joberty slug (or, for descriptions, company name)
                       contains this; repeatable; always re-runs them
@@ -60,6 +62,10 @@ Ctrl+C stops after the companies in progress and saves; the next run continues w
 - **Cleaned on the way in:** `postedAt` (8 different formats in the data, including Unix seconds) becomes an ISO UTC timestamp, with values that can't be parsed stored as `null`. A `url` that isn't `http(s)` becomes `null`.
 - `search_text` is a generated column (`lower(title || ' ' || company_name)`) for a single `ilike` search.
 - `description` is plain text. Render it as text, never as HTML.
+- **The dashboard sees the new data right away:**
+  - After upserting, `publish` (and `boards`) calls `POST $APP_URL/api/jobs/revalidate` with `REVALIDATE_SECRET` (`scraper/revalidate.ts`). That expires the `jobs` cache tag behind the dashboard's `cacheLife("hours")` job list.
+  - The call is best-effort. Without the two env vars, or with the app down, it logs and moves on, and the list catches up within the hour.
+  - `npm run scrape -- revalidate` does the same on its own.
 - **`work_mode`** (`REMOTE` / `HYBRID` / `ON_SITE`, nullable) is computed here, not stored in `jobs.json`: `detectWorkMode()` in `scraper/normalize.ts` reads title, location, `isRemote` and the final description (only final once `descriptions` has run — `publish` is the one stage that sees it). Dashboard UI: [features/dashboard.md](./dashboard.md).
 
 ### Keeping it up to date
@@ -67,10 +73,19 @@ Each stage's own staleness window (above) means running everything daily isn't w
 
 ```cron
 # every day at 03:17
-17 3 * * * cd /path/to/job-manager && npm run scrape -- all >> scraper/data/cron.log 2>&1 && npm run scrape -- descriptions >> scraper/data/cron.log 2>&1 && npm run scrape -- publish >> scraper/data/cron.log 2>&1
+17 3 * * * cd /path/to/job-manager && npm run jobs:refresh >> scraper/data/cron.log 2>&1
 ```
 
-`all` runs `companies → careers → jobs` (`jobs` finalizes on its own at the end). No env vars or keys to set up. This matches the VPS/Docker hosting already planned in [architecture.md](../project-overview/architecture.md).
+`jobs:refresh` (`npm run scrape -- refresh`) runs every step in one process:
+
+1. `companies → careers → jobs`, the same as `all` (`jobs` finalizes on its own at the end).
+2. `descriptions`.
+3. `publish`.
+4. `boards`, last, because it skips postings the scraper already has, read from the fresh `jobs.json` — see [job-boards.md](./job-boards.md).
+
+- **A failing step doesn't stop the rest.** Each step can work from the previous run's files: if Joberty is down, the boards still refresh. The failure is logged, and the process exits 1 so cron records it.
+- **Ctrl+C** stops after the step in progress.
+- **Setup:** only the Supabase keys in `.env.local` that `publish` and `boards` need. This matches the VPS/Docker hosting already planned in [architecture.md](../project-overview/architecture.md).
 
 - **Closing jobs is automatic.** A job missing from a successful scrape gets `active: false`. A *failed* scrape (site down, timeout) never closes that company's jobs — a transient outage must not look like every position closed.
 - **What still needs a human, occasionally (not daily):**
