@@ -9,18 +9,21 @@ type AppliedCheckboxProps = {
   applied: boolean;
   pending?: boolean;
   error?: string | null;
-  onChange: (next: boolean) => void;
+  onRequestApply: () => void;
 };
 
-// Controlled by the explorer's `useAppliedJobs` hook, which does the optimistic update and the
-// Server Action call — see features/dashboard.md "Applied Server Action".
-export function AppliedCheckbox({ jobTitle, applied, pending, error, onChange }: AppliedCheckboxProps) {
+// Controlled by the explorer, which keeps it unchecked until the confirm dialog is accepted and
+// the Server Action has been called — see features/applied.md. Once applied it is checked and
+// disabled for good: there is no way to unapply, here or in the database.
+export function AppliedCheckbox({ jobTitle, applied, pending, error, onRequestApply }: AppliedCheckboxProps) {
   const checkbox = (
     <Checkbox
       checked={applied}
-      disabled={pending}
-      onCheckedChange={(checked) => onChange(checked === true)}
-      aria-label={applied ? `Mark "${jobTitle}" as not applied` : `Mark "${jobTitle}" as applied`}
+      disabled={applied || pending}
+      onCheckedChange={(checked) => {
+        if (checked === true && !applied) onRequestApply();
+      }}
+      aria-label={applied ? `Applied to "${jobTitle}"` : `Mark "${jobTitle}" as applied`}
       className={cn(error && "border-destructive")}
     />
   );

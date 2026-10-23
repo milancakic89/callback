@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { setApplied } from "@/app/dashboard/actions";
+import { markApplied } from "@/app/(app)/dashboard/actions";
 import {
   buildIndex,
   compileRules,
@@ -16,6 +16,7 @@ import {
 import { decodeFilters, encodeFilters, FILTER_FIELDS, type FilterRule } from "@/lib/jobs/filter-schema";
 import type { JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
+import { ApplyConfirmDialog } from "./apply-confirm-dialog";
 import { FilterBar } from "./filter-bar";
 import type { DescriptionStatus } from "./filter-rule";
 import { JobsSearch } from "./jobs-search";
@@ -24,7 +25,7 @@ import { JobsTable } from "./jobs-table";
 export type JobsExplorerProps = {
   jobs: JobListItem[];
   // The server's clock at request time, for "3d ago" — see the callers (src/app/page.tsx,
-  // src/app/dashboard/page.tsx). Not read with `Date.now()` in here: this subtree still renders
+  // src/app/(app)/dashboard/page.tsx). Not read with `Date.now()` in here: this subtree still renders
   // on the server in dev mode and for any truly dynamic request (useSearchParams only forces it
   // out of the *static build-time* shell, not out of SSR in general), and the server's module
   // instance and the browser's load at a different moment — a module-level timestamp drifts
@@ -34,7 +35,7 @@ export type JobsExplorerProps = {
   showApplied?: boolean;
   initialAppliedIds?: string[];
   // When true, this fills its container's height (needs a sized ancestor, e.g. a flex row with
-  // h-dvh — see src/app/dashboard/page.tsx) and only the table's rows scroll internally, instead
+  // h-dvh — see src/app/(app)/dashboard/page.tsx) and only the table's rows scroll internally, instead
   // of the whole page. Search and the filter bar stay fixed above it either way.
   fillHeight?: boolean;
 };
@@ -76,6 +77,7 @@ export function JobsExplorer({
   const [appliedIds, setAppliedIds] = useState<Set<string>>(() => new Set(initialAppliedIds));
   const [pendingAppliedId, setPendingAppliedId] = useState<string | null>(null);
   const [appliedErrors, setAppliedErrors] = useState<Record<string, string>>({});
+  const [confirmingJob, setConfirmingJob] = useState<JobListItem | null>(null);
 
   const fields = useMemo(
     () => FILTER_FIELDS.filter((field) => field !== "applied" || showApplied),
@@ -170,29 +172,27 @@ export function JobsExplorer({
     setRules([]);
   }
 
-  async function handleToggleApplied(jobId: string, next: boolean) {
+  // Runs after the confirm dialog is accepted. Applying is one-way, so there is no "unapply" path:
+  // the ID is added optimistically and only removed again if the Server Action fails.
+  async function handleApply(job: JobListItem) {
+    const jobId = job.id;
+    setConfirmingJob(null);
     setAppliedErrors((prev) => {
       if (!(jobId in prev)) return prev;
       const rest = { ...prev };
       delete rest[jobId];
       return rest;
     });
-    setAppliedIds((prev) => {
-      const copy = new Set(prev);
-      if (next) copy.add(jobId);
-      else copy.delete(jobId);
-      return copy;
-    });
+    setAppliedIds((prev) => new Set(prev).add(jobId));
     setPendingAppliedId(jobId);
 
-    const result = await setApplied(jobId, next);
+    const result = await markApplied(jobId);
 
     setPendingAppliedId(null);
     if (!result.ok) {
       setAppliedIds((prev) => {
         const copy = new Set(prev);
-        if (next) copy.delete(jobId);
-        else copy.add(jobId);
+        copy.delete(jobId);
         return copy;
       });
       setAppliedErrors((prev) => ({ ...prev, [jobId]: result.error }));
@@ -232,10 +232,17 @@ export function JobsExplorer({
             setPageSize(size);
             setPage(1);
           }}
-          onToggleApplied={handleToggleApplied}
+          onRequestApply={setConfirmingJob}
           onClearFilters={handleClearFilters}
         />
       </div>
+      {showApplied && (
+        <ApplyConfirmDialog
+          job={confirmingJob}
+          onCancel={() => setConfirmingJob(null)}
+          onConfirm={handleApply}
+        />
+      )}
     </div>
   );
 }

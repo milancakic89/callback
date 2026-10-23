@@ -38,7 +38,7 @@ See [features/dashboard.md](../features/dashboard.md).
 - `/dashboard` — the same table, protected, plus an Applied column/filter backed by a minimal `applications` table
 - `work_mode` (`REMOTE` / `HYBRID` / `ON_SITE`) computed by the scraper and published alongside each job
 
-**Deferred:** `/applications` as its own page, application status/notes (Phase 4); OR groups and saved filter presets.
+**Deferred:** application notes (Phase 4); OR groups and saved filter presets.
 
 ## Phase 3 — Job Data Source
 **In scope:**
@@ -47,16 +47,19 @@ See [features/dashboard.md](../features/dashboard.md).
 
 **Status:** proposed: a free standalone scraper with JSON output, see [features/job-scraper.md](../features/job-scraper.md). Not implemented.
 
-## Phase 4 — Applications Tracker
-A minimal `applications` table (`user_id`, `job_id`, `applied_at`) and the Applied checkbox already
-ship in Phase 2 ([features/dashboard.md](../features/dashboard.md)) — entries are created by the
-user ticking the box, which answers Phase 5 for this minimal shape.
+## Phase 4 — Applications Tracker — In Progress
+See [features/applied.md](../features/applied.md).
+
+A minimal `applications` table (`user_id`, `job_id`, `applied_at`) and the Applied checkbox shipped in Phase 2
+([features/dashboard.md](../features/dashboard.md)) — entries are created by the user ticking the box, which
+answers Phase 5 for this minimal shape.
 
 **In scope:**
-- `/applications` page with a shadcn/ui `Table` component, listing the user's applied-to jobs
-- Extend `applications` with `status` and `notes`
+- `/applications` page with a shadcn/ui `Table` component, listing the user's applied-to jobs with a Status dropdown
+- `status` on `applications` (Pending / Long time no answer / Rejected / Got offer)
+- Applying is one-way: the Applied checkbox asks for confirmation, and there is no way to undo it
 
-**Deferred:** automated entries from another source (e.g. a browser extension) — still open.
+**Deferred:** `notes` on an application, status history; automated entries from another source (e.g. a browser extension) — still open.
 
 ## Phase 5 — Application Tracking Source
 **Status:** manual entry (the Applied checkbox, Phase 2) is decided and shipped. Automated entry

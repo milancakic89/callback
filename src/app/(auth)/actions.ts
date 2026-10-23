@@ -20,7 +20,6 @@ export type AuthFormState = {
   error?: string;
   message?: string;
   fieldErrors?: Record<string, string[] | undefined>;
-  email?: string;
 };
 
 const MINUTE = 60_000;
@@ -41,29 +40,24 @@ function fieldErrors(error: z.ZodError) {
   return z.flattenError(error).fieldErrors as Record<string, string[] | undefined>;
 }
 
-function rawEmail(formData: FormData) {
-  const email = formData.get("email");
-  return typeof email === "string" ? email : "";
-}
-
 export async function signIn(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const parsed = signInSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    return { fieldErrors: fieldErrors(parsed.error), email: rawEmail(formData) };
+    return { fieldErrors: fieldErrors(parsed.error) };
   }
   const { email, password } = parsed.data;
 
   if (await isLimited(`sign-in:${await clientIp()}:${email}`, 5, 15 * MINUTE)) {
-    return { error: TOO_MANY_ATTEMPTS, email };
+    return { error: TOO_MANY_ATTEMPTS };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     if (error.code === "email_not_confirmed") {
-      return { error: "Confirm your email first. Check your inbox for the link.", email };
+      return { error: "Confirm your email first. Check your inbox for the link." };
     }
-    return { error: "Invalid email or password", email };
+    return { error: "Invalid email or password" };
   }
 
   redirect("/dashboard");
@@ -72,12 +66,12 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
 export async function signUp(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    return { fieldErrors: fieldErrors(parsed.error), email: rawEmail(formData) };
+    return { fieldErrors: fieldErrors(parsed.error) };
   }
   const { email, password } = parsed.data;
 
   if (await isLimited(`sign-up:${await clientIp()}`, 3, HOUR)) {
-    return { error: TOO_MANY_ATTEMPTS, email };
+    return { error: TOO_MANY_ATTEMPTS };
   }
 
   // generateLink creates the user without sending Supabase's own email; we send it via SMTP.
@@ -88,23 +82,23 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
   });
   if (error) {
     if (error.code === "weak_password") {
-      return { fieldErrors: { password: [error.message] }, email };
+      return { fieldErrors: { password: [error.message] } };
     }
     // Don't reveal existing accounts.
     if (error.code !== "email_exists" && error.code !== "user_already_exists") {
       console.error("signUp generateLink failed:", error.code, error.message);
-      return { error: GENERIC_ERROR, email };
+      return { error: GENERIC_ERROR };
     }
   } else {
     try {
       await sendAuthEmail({ to: email, type: "signup", tokenHash: data.properties.hashed_token });
     } catch (mailError) {
       console.error("signUp email failed:", mailError);
-      return { error: GENERIC_ERROR, email };
+      return { error: GENERIC_ERROR };
     }
   }
 
-  return { message: "Check your email to confirm your account.", email };
+  return { message: "Check your email to confirm your account." };
 }
 
 export async function forgotPassword(
@@ -113,7 +107,7 @@ export async function forgotPassword(
 ): Promise<AuthFormState> {
   const parsed = forgotPasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    return { fieldErrors: fieldErrors(parsed.error), email: rawEmail(formData) };
+    return { fieldErrors: fieldErrors(parsed.error) };
   }
   const { email } = parsed.data;
 
@@ -122,7 +116,7 @@ export async function forgotPassword(
     (await isLimited(`forgot-password:ip:${await clientIp()}`, 10, HOUR)) ||
     (await isLimited(`forgot-password:email:${email}`, 3, HOUR))
   ) {
-    return { error: TOO_MANY_ATTEMPTS, email };
+    return { error: TOO_MANY_ATTEMPTS };
   }
 
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "recovery", email });
@@ -139,7 +133,7 @@ export async function forgotPassword(
     }
   }
 
-  return { message: "If an account exists, we've sent a reset link.", email };
+  return { message: "If an account exists, we've sent a reset link." };
 }
 
 export async function resetPassword(

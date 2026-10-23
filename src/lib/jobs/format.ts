@@ -23,8 +23,10 @@ export function formatRelative(iso: string, now: number): string {
   return "just now";
 }
 
-export function formatAbsolute(iso: string): string {
+// Pass `timeZone` wherever this renders in a hydrated Client Component: without it the day comes
+// from the runtime's own zone, which can differ between the server and the browser.
+export function formatAbsolute(iso: string, timeZone?: string): string {
   const time = Date.parse(iso);
   if (!Number.isFinite(time)) return "Unknown";
-  return new Date(time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone });
 }

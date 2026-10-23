@@ -12,7 +12,7 @@
 | `/` | Public | The job list: search, filters, no Applied column. See [features/dashboard.md](../features/dashboard.md). |
 | `/dashboard` | Authenticated | Same job list, plus the Applied column and filter. |
 | `/api/jobs/descriptions` | Public (Route Handler, `GET`) | Job descriptions, fetched client-side after the table renders. |
-| `/applications` | Authenticated | Table of jobs the user applied to, with status and notes. Ships as an empty placeholder until Phase 4 (a minimal version — a checkbox backed by `applications` — already exists on `/dashboard`). |
+| `/applications` | Authenticated | Table of the jobs the user applied to: Label, Company, Applied date and a Status dropdown. Jobs the scraper has taken down stay listed as Expired. See [features/applied.md](../features/applied.md). |
 
 ## Layout
 
@@ -30,7 +30,7 @@ See [security.md](./security.md) for details.
 
 ## Data Model (Draft — Subject to Change)
 
-Supabase/Postgres tables. Marked draft because `jobs` and `applications` shapes depend on decisions not yet made (job source, tracking source).
+Supabase/Postgres tables. Marked draft because the `jobs` shape depends on decisions not yet made (job source).
 
 ### `users`
 Managed entirely by Supabase Auth — no custom table needed unless profile fields are added later.
@@ -44,7 +44,10 @@ Scraped job postings, filled by `npm run scrape -- publish` from `scraper/data/j
 - RLS: `anon` and `authenticated` can `select` active rows only. There are no write policies, so only `service_role` (the scraper's `publish`) can write.
 
 ### `applications`
-One row per (user, job) marked as applied: `user_id`, `job_id` (references `jobs.id`), `applied_at`. Primary key `(user_id, job_id)`. RLS: `authenticated` can `select`/`insert`/`delete` only their own rows (`user_id = auth.uid()`). Backs the Applied checkbox on `/dashboard` ([features/dashboard.md](../features/dashboard.md)). Phase 4 adds `status` and `notes`.
+One row per (user, job) the user applied to: `user_id`, `job_id` (references `jobs.id`), `applied_at`, `status` (`public.application_status` enum: `PENDING` / `NO_ANSWER` / `REJECTED` / `OFFER`, default `PENDING`). Primary key `(user_id, job_id)`. Backs the Applied checkbox on `/dashboard` and the `/applications` page ([features/applied.md](../features/applied.md)).
+
+- RLS: `authenticated` can `select` and `insert` only their own rows (`user_id = auth.uid()`), and `update` only the `status` column of their own rows (column-level grant). There is no delete policy or grant: applying is irreversible.
+- A second `select` policy on `jobs` ("Users can read jobs they applied to") lets a user read a job they applied to even after the scraper sets `active = false`, so `/applications` can show it as Expired.
 
 ### `rate_limits` (Phase 1, draft)
 Replaces the in-memory rate-limit counters. Likely columns: key (primary key), count, reset_at. It's updated through a single atomic SQL function (upsert + increment) called only from the server with the service role key, never exposed to clients.
@@ -66,4 +69,4 @@ Migrations live in `supabase/migrations/`. The Supabase MCP server is configured
 
 ## UI Components
 
-shadcn/ui (Base UI primitives) on top of Tailwind v4 for forms (auth), the job table, filter builder and nav headers (`src/components/jobs/`), and the future `/applications` table.
+shadcn/ui (Base UI primitives) on top of Tailwind v4 for forms (auth), the job table, filter builder and nav headers (`src/components/jobs/`), and the `/applications` table.

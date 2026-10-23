@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "@/app/(auth)/actions";
-import { FieldError, FormAlert, initialAuthState } from "@/components/auth/form-feedback";
+import { FieldError, FormAlert } from "@/components/auth/form-feedback";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,11 @@ const LINK_ERRORS: Record<string, string> = {
 };
 
 export function SignInForm() {
-  const [state, formAction, pending] = useActionState(signIn, initialAuthState);
+  const { state, formAction, pending, field } = useAuthForm(
+    signIn,
+    { email: "", password: "" },
+    { secrets: ["password"] },
+  );
   const linkError = LINK_ERRORS[useSearchParams().get("error") ?? ""];
   const alertState = state.error || state.message || !linkError ? state : { error: linkError };
 
@@ -25,11 +29,10 @@ export function SignInForm() {
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
-          name="email"
+          {...field("email")}
           type="email"
           autoComplete="email"
           placeholder="you@example.com"
-          defaultValue={state.email}
           aria-invalid={Boolean(state.fieldErrors?.email)}
           aria-describedby="email-error"
           required
@@ -48,7 +51,7 @@ export function SignInForm() {
         </div>
         <Input
           id="password"
-          name="password"
+          {...field("password")}
           type="password"
           autoComplete="current-password"
           aria-invalid={Boolean(state.fieldErrors?.password)}

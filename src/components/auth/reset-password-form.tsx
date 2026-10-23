@@ -1,14 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
 import { resetPassword } from "@/app/(auth)/actions";
-import { FieldError, FormAlert, initialAuthState } from "@/components/auth/form-feedback";
+import { FieldError, FormAlert } from "@/components/auth/form-feedback";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function ResetPasswordForm() {
-  const [state, formAction, pending] = useActionState(resetPassword, initialAuthState);
+  const { state, formAction, pending, field } = useAuthForm(
+    resetPassword,
+    { password: "", confirmPassword: "" },
+    { secrets: ["password", "confirmPassword"], linked: { password: ["confirmPassword"] } },
+  );
 
   return (
     <form action={formAction} className="grid gap-4">
@@ -17,7 +21,7 @@ export function ResetPasswordForm() {
         <Label htmlFor="password">New password</Label>
         <Input
           id="password"
-          name="password"
+          {...field("password")}
           type="password"
           autoComplete="new-password"
           minLength={8}
@@ -32,7 +36,7 @@ export function ResetPasswordForm() {
         <Label htmlFor="confirmPassword">Confirm new password</Label>
         <Input
           id="confirmPassword"
-          name="confirmPassword"
+          {...field("confirmPassword")}
           type="password"
           autoComplete="new-password"
           minLength={8}

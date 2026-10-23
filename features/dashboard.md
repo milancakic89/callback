@@ -15,7 +15,7 @@ Phase 2 of [roadmap.md](../project-overview/roadmap.md) planned a dashboard shel
   - The Applied column doesn't exist at all for signed-out visitors: it is neither hidden nor disabled.
 - **Columns:** Label (the job title, linking to the posting), Company, Posted, Work mode, Applied (signed in only).
 - **Work mode is a single nullable enum, `work_mode`, with values `REMOTE`, `HYBRID` and `ON_SITE`.** The scraper computes it. The table shows it in one column as a badge, or `—` when it's unknown.
-- **Applied is a checkbox that saves immediately.** It is backed by a minimal `applications` table (`user_id`, `job_id`, `applied_at`). Phase 4 adds status and notes.
+- **Applied is a checkbox backed by a minimal `applications` table** (`user_id`, `job_id`, `applied_at`). It originally toggled both ways and saved immediately; it has since become one-way with a confirmation dialog, and `applications` gained a `status` — see [applied.md](./applied.md). The `setApplied` Server Action described below is now `markApplied`, and `src/app/dashboard/` is now `src/app/(app)/dashboard/`.
 - **Search** is live with no debounce: it matches substrings of title + company.
 - **Filters are a list of rules.** A "+ Add filter" button adds a rule of the form `field · operator · values`.
   - All rules must match (AND).
@@ -282,7 +282,7 @@ Frontend Engineer (Vue)    Fivetran    1w ago     Remote      [ ]
 ## Out of scope
 - Showing the description (row expand or detail drawer). It is only used for filtering for now.
 - OR groups and nested rules, and saved filter presets.
-- The `/applications` page and application status (Phase 4).
+- The `/applications` page and application status (Phase 4, now planned in [applied.md](./applied.md)).
 - Synonyms (`Belgrade` / `Beograd`) and Cyrillic ↔ Latin transliteration.
 - On-demand revalidation after `publish`. `cacheLife('hours')` covers it for now.
 - Company autocomplete in the value input.

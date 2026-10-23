@@ -86,7 +86,7 @@ Every action follows the same order:
 - `src/app/auth/confirm/route.ts`: `GET` reads `token_hash`, `type` and `next`, then calls `verifyOtp({ type, token_hash })`.
   - On success it redirects to a **sanitized** `next`: it must start with `/` and not with `//` or `/\`; the default is `/dashboard`.
   - On failure it redirects to `/sign-in?error=invalid_link`.
-- `src/app/dashboard/page.tsx`: a static shell plus `<Suspense>` around `<CurrentUser/>`. That component calls `requireUser()` and renders the email and a sign-out `<form action={signOut}>`.
+- `src/app/dashboard/page.tsx` (now `src/app/(app)/dashboard/page.tsx`): a static shell plus `<Suspense>` around `<CurrentUser/>`. That component calls `requireUser()` and renders the email and a sign-out `<form action={signOut}>`.
 - `src/app/page.tsx`: delete it, and add `redirects()` in `next.config.ts` mapping `/` to `/dashboard` (`permanent: false`).
 
 ### 6. Proxy — extend `src/proxy.ts`

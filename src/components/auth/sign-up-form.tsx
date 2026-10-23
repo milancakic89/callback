@@ -1,14 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
 import { signUp } from "@/app/(auth)/actions";
-import { FieldError, FormAlert, initialAuthState } from "@/components/auth/form-feedback";
+import { FieldError, FormAlert } from "@/components/auth/form-feedback";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function SignUpForm() {
-  const [state, formAction, pending] = useActionState(signUp, initialAuthState);
+  const { state, formAction, pending, field } = useAuthForm(
+    signUp,
+    { email: "", password: "", confirmPassword: "" },
+    { secrets: ["password", "confirmPassword"], linked: { password: ["confirmPassword"] } },
+  );
 
   return (
     <form action={formAction} className="grid gap-4">
@@ -17,11 +21,10 @@ export function SignUpForm() {
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
-          name="email"
+          {...field("email")}
           type="email"
           autoComplete="email"
           placeholder="you@example.com"
-          defaultValue={state.email}
           aria-invalid={Boolean(state.fieldErrors?.email)}
           aria-describedby="email-error"
           required
@@ -32,7 +35,7 @@ export function SignUpForm() {
         <Label htmlFor="password">Password</Label>
         <Input
           id="password"
-          name="password"
+          {...field("password")}
           type="password"
           autoComplete="new-password"
           minLength={8}
@@ -47,7 +50,7 @@ export function SignUpForm() {
         <Label htmlFor="confirmPassword">Confirm password</Label>
         <Input
           id="confirmPassword"
-          name="confirmPassword"
+          {...field("confirmPassword")}
           type="password"
           autoComplete="new-password"
           minLength={8}
