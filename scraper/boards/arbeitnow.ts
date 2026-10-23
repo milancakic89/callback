@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { expectOk } from "../ats/adapter";
 import { htmlToText } from "../extract/description";
-import { getJson, SITE_INTERVAL_MS } from "../http";
+import { getJson } from "../http";
 import { cleanText } from "../text";
 import type { BoardAdapter, BoardJob } from "./board";
 
@@ -9,6 +9,8 @@ import type { BoardAdapter, BoardJob } from "./board";
 // a neighbor (a Dutch heat-pump fitter, "German Defense" pre-sales), so only Serbian places count.
 const API = "https://www.arbeitnow.com/api/job-board-api";
 const MAX_PAGES = 100;
+// At 1 request/s it answers 429 around page 15 (no Retry-After), so pace it well below that.
+const INTERVAL_MS = 4000;
 
 const pageSchema = z.object({
   data: z.array(
@@ -34,7 +36,7 @@ export const arbeitnow: BoardAdapter = {
   async fetchJobs() {
     const jobs: BoardJob[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const res = await getJson(`${API}?page=${page}`, { intervalMs: SITE_INTERVAL_MS, retries: 2 });
+      const res = await getJson(`${API}?page=${page}`, { intervalMs: INTERVAL_MS, retries: 2 });
       expectOk(res.status, `arbeitnow page ${page}`);
       const data = pageSchema.parse(res.data);
       for (const job of data.data) {

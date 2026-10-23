@@ -81,7 +81,8 @@ Each stage's own staleness window (above) means running everything daily isn't w
 1. `companies → careers → jobs`, the same as `all` (`jobs` finalizes on its own at the end).
 2. `descriptions`.
 3. `publish`.
-4. `boards`, last, because it skips postings the scraper already has, read from the fresh `jobs.json` — see [job-boards.md](./job-boards.md).
+4. `discover`: finds the ATS boards of companies seen on the job boards. Only companies not checked yet are probed — see [job-boards.md](./job-boards.md#company-careers-2026-10-24).
+5. `boards`, last, because it skips postings the scraper already has, read from the fresh `jobs.json` — see [job-boards.md](./job-boards.md).
 
 - **A failing step doesn't stop the rest.** Each step can work from the previous run's files: if Joberty is down, the boards still refresh. The failure is logged, and the process exits 1 so cron records it.
 - **Ctrl+C** stops after the step in progress.
@@ -170,7 +171,10 @@ Each stage reads the previous stage's JSON and writes its own, so any stage can 
 | Breezy | `{slug}.breezy.hr/json` |
 | Personio | `{slug}.jobs.personio.de/xml` |
 | Workday | `{tenant}.wdN.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs` (POST, paginated, `searchText: "Serbia"`) |
-| TalentLyft, Teamtailor, BambooHR... | added by frequency |
+| TalentLyft | widget: `api.talentlyft.com/public/convert/job_ads?companyId={uuid}`; hosted site: `{slug}.talentlyft.com/JobList` (HTML fragment, needs `X-Requested-With: XMLHttpRequest`) |
+| BambooHR | `{slug}.bamboohr.com/careers/list` (+ `/careers/{id}/detail` for the description) |
+| SuccessFactors | career site ("RMK") `{host}/search/?locationsearch=Serbia&startrow=N` (HTML, 25 per page); slug is the host |
+| Teamtailor, iCIMS, Oracle... | added by frequency (see Implementation notes) |
 
 Adapters are written in order of frequency, using the `ats` counts in `report.json` after stages 2 and 3a.
 
@@ -304,6 +308,26 @@ Where the code differs from the plan above, based on testing against the real si
   companies with a found careers page went from 1283 to **1327 active jobs**, from 261 to **272
   companies**. Per-company pass/fail: `scraper/data/coverage-report.txt` (gitignored, regenerate with
   the same offline pass over `jobs-raw.json` — no network needed to rebuild it).
+- **TalentLyft, BambooHR and SuccessFactors adapters (2026-10-23).**
+  - **How they were chosen:** the 544 companies with no jobs had their careers pages scanned for job platforms the scraper didn't read. Each platform found was then checked for Serbian postings.
+  - **Result:** 122 active jobs that HTML extraction had missed (109 in Serbia, 13 remote), from 17 companies:
+    - TalentLyft 65: HTEC, TeleTrader, Ingsoftware, M Plus, SEE Digital, RT-RK, Kim Tec, Saber and others.
+    - SuccessFactors 34: ZF, msg global, Atos, Sitel.
+    - BambooHR 23: IWConnect, Ibis, Mitto, 3ap.
+  - **Active jobs:** 1327 → 1428.
+  - **TalentLyft has two shapes:**
+    - A widget on the company's own site, detected from `window.tlOptions = { companyId: '…' }` (HTEC, RT-RK). Its slug is that UUID.
+    - A site TalentLyft hosts. Its slug is the subdomain.
+    - `widget.` is skipped as a slug, and `%2F` is decoded before detection, so "%2Fteletrader" doesn't become subdomain "2Fteletrader".
+  - **BambooHR detection only accepts tenant URLs** (`/careers`, `/jobs`, `/js/embed`, `/js/jobs2`, `data-domain="x.bamboohr.com"`). `resources.` and `staticfe.` serve BambooHR's own assets.
+  - **SuccessFactors detection** reads the host from the site's own `//<host>/platform/bootstrap/` assets. It replaces the old `career?company=` pattern, whose company id no API takes.
+    - Legacy portals (`career55.sapsf.eu/portalcareer`, Wireless Media) aren't covered.
+  - **Checked and not worth an adapter yet:**
+    - No Serbian postings when checked: JazzHR, Freshteam, Zoho Recruit, Factorial, 50skills, iCIMS (AROBS, Axway, Schneider) and Phenom (Qualtrics).
+    - GoHire (Algotech) had one.
+    - Not checked: Oracle Cloud (ADI, Belgrade Waterfront, Nexi) and Comeet (Cognyte).
+    - A few companies post only on Infostud, HelloWorld or LinkedIn. None of them has a public API.
+  - **HTEC's site sometimes answers 504** through Cloudflare. Once a run gets through, the companyId is saved in `careers.json`, and later runs call the API directly.
 - **Ctrl+C:** `npm run` turns Ctrl+C into SIGTERM for the script, so both SIGINT and SIGTERM stop it gracefully and save. The script runs as one process (`node --import tsx`), because the `tsx` CLI wrapper killed it before it could save.
 
 ### First full run (2026-10-22)

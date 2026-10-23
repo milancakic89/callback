@@ -7,6 +7,7 @@ import { runCareers } from "./stages/careers";
 import { runCompanies } from "./stages/companies";
 import { runCoverage } from "./stages/coverage";
 import { runDescriptions } from "./stages/descriptions";
+import { runDiscover } from "./stages/discover";
 import { runFinalize } from "./stages/finalize";
 import { runJobs } from "./stages/jobs";
 import { runPublish } from "./stages/publish";
@@ -23,10 +24,12 @@ Commands (output goes to scraper/data/):
   publish       upsert jobs.json into the Supabase "jobs" table (needs SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local)
   boards        remote jobs open to Serbia from Himalayas, Jobicy, RemoteOK, Remotive and Arbeitnow,
                 straight into the "jobs" table; run after publish   → boards-report.json
+  discover      find the ATS boards (Greenhouse, Lever, Ashby…) of companies on the job boards, for
+                "boards" to read; --company/--limit/--force apply   → company-boards.json
   revalidate    make the dashboard drop its cached job list now (publish and boards already do this;
                 needs APP_URL and REVALIDATE_SECRET in .env.local, and the app running)
   all         companies, careers, jobs (not descriptions — see below)
-  refresh       everything, for cron (npm run jobs:refresh): all, descriptions, publish, boards.
+  refresh       everything, for cron (npm run jobs:refresh): all, descriptions, publish, discover, boards.
                 A failing step is logged and the rest still run; exits 1 if any failed
 
 Most jobs already get a description for free while "jobs" runs (it's in the same API
@@ -107,6 +110,9 @@ async function main(): Promise<void> {
     case "revalidate":
       await revalidateJobs();
       break;
+    case "discover":
+      await runDiscover(options);
+      break;
     case "all":
       await runCompanies();
       if (!controller.signal.aborted) await runCareers(options);
@@ -121,6 +127,8 @@ async function main(): Promise<void> {
         ["jobs", () => runJobs(options)],
         ["descriptions", () => runDescriptions(options)],
         ["publish", runPublish],
+        // Reads company names from the boards' last run; new boards it finds are read right after.
+        ["discover", () => runDiscover(options)],
         ["boards", () => runBoards(controller.signal)],
       ];
       const failed: string[] = [];

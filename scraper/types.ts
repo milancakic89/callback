@@ -94,6 +94,21 @@ export const companyScrapeSchema = z.object({
 export type CompanyScrape = z.infer<typeof companyScrapeSchema>;
 export const scrapesFileSchema = z.record(z.string(), companyScrapeSchema);
 
+// company-boards.json: an ATS board found for a company seen on the job boards (stages/discover.ts),
+// keyed by coreName(company). The boards stage reads every found board (boards/companyboards.ts).
+export const companyBoardSchema = z.object({
+  name: z.string(),
+  // Null when none of the guessed slugs led to a board that's provably this company's.
+  ats: atsNameSchema.nullable(),
+  slug: z.string().nullable(),
+  // "name": the ATS reports exactly this company name. "title": the board lists a posting with the
+  // same title as one of this company's job-board postings.
+  via: z.enum(["name", "title"]).nullable(),
+  checkedAt: z.string(),
+});
+export type CompanyBoard = z.infer<typeof companyBoardSchema>;
+export const companyBoardsFileSchema = z.record(z.string(), companyBoardSchema);
+
 export const jobSchema = z.object({
   id: z.string(),
   companyJobertyId: z.number().int(),

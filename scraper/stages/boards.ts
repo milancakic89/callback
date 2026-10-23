@@ -1,9 +1,17 @@
 import { arbeitnow } from "../boards/arbeitnow";
+import { cryptocurrencyjobs, nodesk, remotefirstjobs } from "../boards/at-company-feeds";
 import { BOARD_NAMES, type BoardAdapter, type BoardJob, type BoardJobStatus, type BoardName } from "../boards/board";
+import { companyboards } from "../boards/companyboards";
+import { fourdayweek } from "../boards/fourdayweek";
+import { hackernews } from "../boards/hackernews";
 import { himalayas } from "../boards/himalayas";
 import { jobicy } from "../boards/jobicy";
+import { jobspresso } from "../boards/jobspresso";
+import { pythonorg } from "../boards/pythonorg";
 import { remoteok } from "../boards/remoteok";
 import { remotive } from "../boards/remotive";
+import { weworkremotely } from "../boards/weworkremotely";
+import { workingnomads } from "../boards/workingnomads";
 import { detectWorkMode, placeBoardJob, type Placement } from "../normalize";
 import { revalidateJobs } from "../revalidate";
 import { readData, writeData } from "../store";
@@ -12,15 +20,44 @@ import { coreName, describeError, plain } from "../text";
 import { jobsFileSchema } from "../types";
 
 // Same order as BOARD_NAMES, which is also the dedupe priority.
-const BOARDS: BoardAdapter[] = [himalayas, jobicy, remoteok, remotive, arbeitnow];
+const BOARDS: BoardAdapter[] = [
+  companyboards,
+  himalayas,
+  jobicy,
+  remoteok,
+  remotive,
+  arbeitnow,
+  weworkremotely,
+  workingnomads,
+  fourdayweek,
+  jobspresso,
+  cryptocurrencyjobs,
+  remotefirstjobs,
+  nodesk,
+  pythonorg,
+  hackernews,
+];
 
 const UPSERT_BATCH = 200;
 // Ids go into the request URL (`id=in.(…)`), so keep each batch well under URL length limits.
 const CLOSE_BATCH = 50;
 const PAGE_SIZE = 1000;
-// Jobicy (7 days) and RemoteOK (newest ~100) are short windows: a job missing from the feed may
-// still be open, so it stays active this long after posting unless shown closed.
-const SHORT_FEEDS = new Set<BoardName>(["jobicy", "remoteok"]);
+// Feeds that are a window of the newest postings (Jobicy: 7 days, RemoteOK: newest ~100 per tag,
+// RSS: newest 10–100, HN: this month's thread): a job missing from them may still be open, so it
+// stays active this long after posting unless shown closed. Only Himalayas, Remotive, Arbeitnow
+// and 4 Day Week return their whole list.
+const SHORT_FEEDS = new Set<BoardName>([
+  "jobicy",
+  "remoteok",
+  "weworkremotely",
+  "workingnomads",
+  "jobspresso",
+  "cryptocurrencyjobs",
+  "remotefirstjobs",
+  "nodesk",
+  "pythonorg",
+  "hackernews",
+]);
 const GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 
 type ExistingRow = {
@@ -28,6 +65,8 @@ type ExistingRow = {
   source: BoardName;
   company_name: string;
   title: string;
+  location_raw: string | null;
+  is_remote: boolean;
   first_seen_at: string;
   posted_at: string | null;
   active: boolean;
@@ -95,23 +134,56 @@ export async function runBoards(signal: AbortSignal): Promise<void> {
       { status: "failed", error: "not run", fetched: 0, kept: 0, outsideSerbia: 0, duplicates: 0, closed: 0, stillActive: 0 },
     ]),
   ) as Record<BoardName, SourceReport>;
+  const existing: ExistingRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("id, source, company_name, title, location_raw, is_remote, first_seen_at, posted_at, active")
+      .in("source", [...BOARD_NAMES])
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1)
+      .returns<ExistingRow[]>();
+    if (error) throw new Error(`Reading existing board jobs failed: ${error.message}`);
+    existing.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  const existingById = new Map(existing.map((row) => [row.id, row]));
+
   const fetchedIds = new Set<string>();
   const kept = new Map<string, Kept>();
+  // Row ids under a sub-board that couldn't be read (companyboards): left as they were.
+  const untouchable: string[] = [];
+  // Rows a failed board or sub-board leaves active still hold their jobs, so later boards must not
+  // add a second copy of them.
+  const holdKeys = (prefix: string) => {
+    for (const row of existing) {
+      if (row.active && row.id.startsWith(prefix)) taken.add(dedupeKey(row.company_name, row.title));
+    }
+  };
 
   for (const board of BOARDS) {
     const entry = report[board.name];
     if (signal.aborted) {
       entry.error = "interrupted";
+      holdKeys(`${board.name}:`);
       continue;
     }
     let jobs: BoardJob[];
     try {
-      jobs = await board.fetchJobs();
+      const result = await board.fetchJobs();
+      jobs = Array.isArray(result) ? result : result.jobs;
+      if (!Array.isArray(result)) {
+        for (const prefix of result.failedPrefixes) {
+          untouchable.push(`${board.name}:${prefix}`);
+          holdKeys(`${board.name}:${prefix}`);
+        }
+      }
       // An empty feed is far more likely a broken API than every job closing at once.
       if (!jobs.length) throw new Error("feed returned no jobs");
     } catch (error) {
       entry.error = describeError(error);
       console.log(`[boards ${board.name}] failed, its jobs stay as they were: ${entry.error}`);
+      holdKeys(`${board.name}:`);
       continue;
     }
     entry.status = "ok";
@@ -140,21 +212,6 @@ export async function runBoards(signal: AbortSignal): Promise<void> {
     );
   }
 
-  const existing: ExistingRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("id, source, company_name, title, first_seen_at, posted_at, active")
-      .in("source", [...BOARD_NAMES])
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1)
-      .returns<ExistingRow[]>();
-    if (error) throw new Error(`Reading existing board jobs failed: ${error.message}`);
-    existing.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) break;
-  }
-  const existingById = new Map(existing.map((row) => [row.id, row]));
-
   const now = new Date().toISOString();
   const rows = [...kept.entries()].map(([id, item]) => toRow(item, existingById.get(id)?.first_seen_at ?? now, now));
   for (let start = 0; start < rows.length; start += UPSERT_BATCH) {
@@ -166,7 +223,11 @@ export async function runBoards(signal: AbortSignal): Promise<void> {
 
   // Active rows of a board that read fine but no longer lists them.
   const missing = existing.filter(
-    (row) => row.active && report[row.source]?.status === "ok" && !kept.has(row.id),
+    (row) =>
+      row.active &&
+      report[row.source]?.status === "ok" &&
+      !kept.has(row.id) &&
+      !untouchable.some((prefix) => row.id.startsWith(prefix)),
   );
   const toClose: ExistingRow[] = [];
   const graceCandidates: ExistingRow[] = [];
@@ -177,7 +238,10 @@ export async function runBoards(signal: AbortSignal): Promise<void> {
       !fetchedIds.has(row.id) &&
       // A job just kept from another board (or the scraper) now covers it.
       !taken.has(dedupeKey(row.company_name, row.title)) &&
-      Date.now() - Date.parse(row.posted_at ?? row.first_seen_at) < GRACE_MS;
+      Date.now() - Date.parse(row.posted_at ?? row.first_seen_at) < GRACE_MS &&
+      // Kept under an earlier, looser filter: the grace period doesn't exempt it from today's.
+      // Short feeds store the source's own location text, so it can be placed again as is.
+      placeBoardJob({ location: row.location_raw, remote: row.is_remote, title: row.title }).keep;
     (agedOut ? graceCandidates : toClose).push(row);
   }
 

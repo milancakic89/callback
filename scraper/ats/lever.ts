@@ -23,11 +23,13 @@ const postingsSchema = z.array(
   }),
 );
 
-// EU-hosted accounts live on a separate API host.
+// EU-hosted accounts live on a separate API host. Big boards are slow: TSMG's ~4,500 postings are
+// 34 MB and take about a minute, so allow well over that.
 async function getPostings(slug: string, query: string) {
   const path = `/v0/postings/${encodeURIComponent(slug)}?mode=json${query}`;
-  const res = await getJson(`https://api.lever.co${path}`);
-  return res.status === 404 ? getJson(`https://api.eu.lever.co${path}`) : res;
+  const options = { timeoutMs: 120_000 };
+  const res = await getJson(`https://api.lever.co${path}`, options);
+  return res.status === 404 ? getJson(`https://api.eu.lever.co${path}`, options) : res;
 }
 
 export const lever: AtsAdapter = {

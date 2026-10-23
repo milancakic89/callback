@@ -54,11 +54,20 @@ const PATTERNS: Pattern[] = [
   },
   { ats: "pinpoint", re: /\b([a-z0-9-]+)\.pinpointhq\.com/gi, skip: SUBDOMAIN_SKIP },
   { ats: "teamtailor", re: /\b([a-z0-9-]+)\.teamtailor\.com/gi, skip: [...SUBDOMAIN_SKIP, "scripts", "career"] },
-  { ats: "talentlyft", re: /\b([a-z0-9-]+)\.talentlyft\.com/gi, skip: SUBDOMAIN_SKIP },
-  { ats: "bamboohr", re: /\b([a-z0-9-]+)\.bamboohr\.com/gi, skip: [...SUBDOMAIN_SKIP, "marketplace", "partners"] },
+  { ats: "talentlyft", re: /\b([a-z0-9-]+)\.talentlyft\.com/gi, skip: [...SUBDOMAIN_SKIP, "widget"] },
+  // The JavaScript widget on a company's own site: `window.tlOptions = { companyId: '…', … }`.
+  { ats: "talentlyft", re: /tlOptions\s*=\s*\{[^}]*?companyId\s*:\s*['"]([0-9a-f]{8}-[0-9a-f-]{27})['"]/gi },
+  // Only tenant URLs: resources., staticfe. and friends serve BambooHR's own assets.
+  {
+    ats: "bamboohr",
+    re: /\b([a-z0-9-]+)\.bamboohr\.com(?:\/(?:careers|jobs|js\/(?:embed|jobs2))|["'])/gi,
+    skip: [...SUBDOMAIN_SKIP, "marketplace", "partners", "resources", "staticfe"],
+  },
   { ats: "jobvite", re: /jobs\.jobvite\.com\/([a-z0-9_-]+)/gi },
   { ats: "icims", re: /\b([a-z0-9-]+)\.icims\.com/gi, skip: SUBDOMAIN_SKIP },
-  { ats: "successfactors", re: /(?:sapsf|successfactors)\.(?:com|eu)\/career\?company=([a-z0-9_-]+)/gi },
+  // A SuccessFactors career site ("RMK") links its own assets as //<host>/platform/bootstrap/; the
+  // adapter needs that host, not the company id in career?company= apply links.
+  { ats: "successfactors", re: /["'](?:https?:)?\/\/([a-z0-9.-]+\.[a-z]{2,})\/platform\/bootstrap\//gi },
   { ats: "comeet", re: /comeet\.(?:co|com)\/jobs\/([a-z0-9_.-]+)/gi },
   { ats: "hibob", re: /\b([a-z0-9-]+)\.careers\.hibob\.com/gi },
   { ats: "jazzhr", re: /\b([a-z0-9-]+)\.applytojob\.com/gi, skip: SUBDOMAIN_SKIP },
@@ -69,8 +78,9 @@ const PATTERNS: Pattern[] = [
 export function detectAts(texts: string[]): AtsMatch[] {
   const counts = new Map<string, { match: AtsMatch; count: number }>();
   for (const raw of texts) {
-    // JSON inside <script> escapes slashes as "\/".
-    const text = raw.replace(/\\\//g, "/");
+    // JSON inside <script> escapes slashes as "\/", and share links URL-encode them
+    // ("%2Fteletrader.talentlyft.com" would otherwise read as subdomain "2Fteletrader").
+    const text = raw.replace(/\\\//g, "/").replace(/%2F/gi, "/");
     for (const pattern of PATTERNS) {
       for (const m of text.matchAll(pattern.re)) {
         const slug = pattern.slug ? pattern.slug(m) : m[1];

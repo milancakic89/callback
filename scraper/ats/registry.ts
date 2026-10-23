@@ -1,6 +1,7 @@
 import type { AtsName } from "../types";
 import type { AtsAdapter } from "./adapter";
 import { ashby } from "./ashby";
+import { bamboohr } from "./bamboohr";
 import { breezy } from "./breezy";
 import { greenhouse } from "./greenhouse";
 import { lever } from "./lever";
@@ -8,6 +9,8 @@ import { personio } from "./personio";
 import { pinpoint } from "./pinpoint";
 import { recruitee } from "./recruitee";
 import { smartrecruiters } from "./smartrecruiters";
+import { successfactors } from "./successfactors";
+import { talentlyft } from "./talentlyft";
 import { workable } from "./workable";
 import { workday } from "./workday";
 
@@ -23,6 +26,9 @@ const ADAPTERS: Partial<Record<AtsName, AtsAdapter>> = {
   personio,
   workday,
   pinpoint,
+  talentlyft,
+  bamboohr,
+  successfactors,
 };
 
 export function getAdapter(name: AtsName): AtsAdapter | null {

@@ -26,11 +26,22 @@ export type JobListItem = {
 };
 
 const SOURCE_LABELS: Record<string, string> = {
+  // A company's own ATS board, found through its job-board postings (scraper/stages/discover.ts).
+  companyboards: "Company careers",
   himalayas: "Himalayas",
   jobicy: "Jobicy",
   remoteok: "Remote OK",
   remotive: "Remotive",
   arbeitnow: "Arbeitnow",
+  weworkremotely: "We Work Remotely",
+  workingnomads: "Working Nomads",
+  fourdayweek: "4 Day Week",
+  jobspresso: "Jobspresso",
+  cryptocurrencyjobs: "Cryptocurrency Jobs",
+  remotefirstjobs: "Remote First Jobs",
+  nodesk: "NoDesk",
+  pythonorg: "Python.org",
+  hackernews: "Hacker News",
   joberty: "Joberty",
   smartrecruiters: "SmartRecruiters",
   bamboohr: "BambooHR",

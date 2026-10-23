@@ -1,7 +1,25 @@
 import type { BoardLocation } from "../normalize";
 
-// In dedupe priority order: when two boards list the same job, the earlier one keeps it.
-export const BOARD_NAMES = ["himalayas", "jobicy", "remoteok", "remotive", "arbeitnow"] as const;
+// In dedupe priority order: when two boards list the same job, the earlier one keeps it. Boards
+// with structured locations come before the ones whose location is read out of free text.
+export const BOARD_NAMES = [
+  // Companies' own ATS boards first: they link straight to the employer, like the scraper's rows.
+  "companyboards",
+  "himalayas",
+  "jobicy",
+  "remoteok",
+  "remotive",
+  "arbeitnow",
+  "weworkremotely",
+  "workingnomads",
+  "fourdayweek",
+  "jobspresso",
+  "cryptocurrencyjobs",
+  "remotefirstjobs",
+  "nodesk",
+  "pythonorg",
+  "hackernews",
+] as const;
 export type BoardName = (typeof BOARD_NAMES)[number];
 
 export type BoardJobStatus = "active" | "closed" | "unknown";
@@ -19,11 +37,15 @@ export type BoardJob = Omit<BoardLocation, "title"> & {
   description: string | null;
 };
 
+// A board made of many sub-boards (companyboards) can read most of them and fail a few: the jobs it
+// read, plus the externalId prefixes ("greenhouse:acme:") whose rows must stay as they were.
+export type BoardFetch = { jobs: BoardJob[]; failedPrefixes: string[] };
+
 export type BoardAdapter = {
   name: BoardName;
   // The whole feed, every page. Throws when any page can't be read, so a partial feed never
   // looks like closed jobs.
-  fetchJobs(): Promise<BoardJob[]>;
+  fetchJobs(): Promise<BoardJob[] | BoardFetch>;
   // Only for boards whose feed is a short window (Jobicy: 7 days), to tell a job that aged out of
   // the feed from one that closed.
   checkStatus?(externalIds: string[]): Promise<Map<string, BoardJobStatus>>;
