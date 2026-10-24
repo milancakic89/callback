@@ -56,7 +56,7 @@ async function extract(
   const found = (source: string, jobs: RawJob[]): Extracted | null =>
     jobs.length ? { source, ats: ats?.ats ?? null, atsSlug: ats?.slug ?? null, jobs, pageUrl } : null;
   return (
-    found("network", extractNetworkJobs([...captured, ...extractInlineJson(html, pageUrl)], pageUrl)) ??
+    found("network", extractNetworkJobs([...captured, ...extractInlineJson(html, pageUrl)], pageUrl, html)) ??
     found("jsonld", extractJsonLdJobs(html, pageUrl)) ??
     found("dom", extractDomJobs(html, pageUrl))
   );
