@@ -1,5 +1,7 @@
 "use client";
 
+import { PlusIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { sortJobs } from "@/lib/jobs/filter";
 import type { JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
@@ -31,6 +33,15 @@ export function JobsExplorerFallback({
   return (
     <div className={cn("flex flex-col gap-4", fillHeight && "h-full min-h-0")}>
       <div className="h-9 w-full shrink-0 rounded-lg border border-input bg-transparent" aria-hidden />
+      {/* Mirrors FilterBar's no-rules layout so its real "+ Add filter" button doesn't shift the
+          table down once JobsExplorer hydrates and replaces this fallback. */}
+      <div className="flex shrink-0 flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" disabled>
+            <PlusIcon /> Add filter
+          </Button>
+        </div>
+      </div>
       <div className={cn(fillHeight && "min-h-0 flex-1")}>
         <JobsTable
           rows={sorted.slice(0, PAGE_SIZE)}
