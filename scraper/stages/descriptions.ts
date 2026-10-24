@@ -1,3 +1,4 @@
+import { renderPage } from "../browser";
 import { getAdapter } from "../ats/registry";
 import { extractJsonLdDescription, extractMainContentText } from "../extract/description";
 import { fetchHtml } from "../http";
@@ -10,13 +11,19 @@ import { atsNameSchema, jobsFileSchema, type Job } from "../types";
 // Generic fallback for sources with no adapter-specific detail call (dom, network, jsonld, joberty,
 // and any ATS without a fetchDescription): fetch the job's own page and pull its JSON-LD, else the
 // largest description-shaped block of text. Best-effort — many pages will still end up null.
-async function fetchGenericDescription(url: string): Promise<string | null> {
+// Many modern careers portals (IBM's among them) render the job body client-side, so a plain fetch
+// comes back empty; falling back to a headless render is what actually gets the real content there.
+async function fetchGenericDescription(url: string, useBrowser: boolean): Promise<string | null> {
   const page = await fetchHtml(url);
-  if (!page.usable) return null;
-  return extractJsonLdDescription(page.html) ?? extractMainContentText(page.html);
+  let html = page.usable ? page.html : null;
+  if (!html && useBrowser) {
+    html = (await renderPage(url).catch(() => null))?.html ?? null;
+  }
+  if (!html) return null;
+  return extractJsonLdDescription(html) ?? extractMainContentText(html);
 }
 
-async function fetchDescription(job: Job): Promise<string | null> {
+async function fetchDescription(job: Job, useBrowser: boolean): Promise<string | null> {
   const ats = atsNameSchema.safeParse(job.source);
   const adapter = ats.success ? getAdapter(ats.data) : null;
   if (adapter?.fetchDescription) {
@@ -25,7 +32,7 @@ async function fetchDescription(job: Job): Promise<string | null> {
     const found = await adapter.fetchDescription({ externalId, url: job.url });
     if (found) return found;
   }
-  return job.url ? fetchGenericDescription(job.url) : null;
+  return job.url ? fetchGenericDescription(job.url, useBrowser) : null;
 }
 
 function selectJobs(jobs: Job[], options: StageOptions): Job[] {
@@ -60,7 +67,7 @@ export async function runDescriptions(options: StageOptions): Promise<void> {
       let description: string | null = null;
       let outcome = "not found";
       try {
-        description = await fetchDescription(job);
+        description = await fetchDescription(job, options.browser);
       } catch (error) {
         outcome = describeError(error);
       }

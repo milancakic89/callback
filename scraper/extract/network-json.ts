@@ -149,6 +149,15 @@ function jobLinkFinder(html: string, pageUrl: string) {
   };
 }
 
+// List APIs sometimes give each job a short teaser instead of the real body (IBM's does: a
+// ~250-char business-unit blurb, identical across many unrelated postings, cut off with "...").
+// Treat that as no description so the `descriptions` stage fetches the job's own page for the
+// real one, instead of permanently settling for the teaser.
+const EXCERPT_MAX_CHARS = 500;
+function isExcerpt(text: string): boolean {
+  return text.length <= EXCERPT_MAX_CHARS && text.trimEnd().endsWith("...");
+}
+
 // Many custom careers pages load their list from their own API; find the array that is the job list.
 export function extractNetworkJobs(captured: CapturedJson[], pageUrl: string, html = ""): RawJob[] {
   const pageLink = jobLinkFinder(html, pageUrl);
@@ -192,7 +201,10 @@ export function extractNetworkJobs(captured: CapturedJson[], pageUrl: string, ht
       remote: typeof record.remote === "boolean" ? record.remote : null,
       department: firstString(record, ["department", "team", "category"]),
       postedAt: firstString(record, DATE_KEYS),
-      description: htmlToText(firstString(record, DESCRIPTION_KEYS)),
+      description: (() => {
+        const text = htmlToText(firstString(record, DESCRIPTION_KEYS));
+        return text && !isExcerpt(text) ? text : null;
+      })(),
     });
   }
   return [...jobs.values()];
