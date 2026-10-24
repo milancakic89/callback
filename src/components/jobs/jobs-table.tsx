@@ -1,5 +1,6 @@
 "use client";
 
+import { EyeIcon } from "lucide-react";
 import { AppliedCheckbox } from "./applied-checkbox";
 import { HEADER_CLASS, PageSizeSelect, Pager, ROW_CLASS, SortableHead } from "./table-parts";
 import { WorkModeBadge } from "./work-mode-badge";
@@ -40,6 +41,7 @@ export type JobsTableProps = {
   onPageSizeChange?: (size: number) => void;
   onRequestApply?: (job: JobListItem) => void;
   onClearFilters?: () => void;
+  onViewJob?: (job: JobListItem) => void;
 };
 
 function noop() {}
@@ -82,6 +84,7 @@ export function JobsTable({
   onPageSizeChange = noop,
   onRequestApply = noop,
   onClearFilters = noop,
+  onViewJob = noop,
 }: JobsTableProps) {
   const from = matchCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, matchCount);
@@ -158,21 +161,22 @@ export function JobsTable({
                 onSortChange={onSortChange}
                 className="py-3"
               />
-              {showApplied && <TableHead className={cn(HEADER_CLASS, "py-3 pr-4")}>Applied</TableHead>}
+              {showApplied && <TableHead className={cn(HEADER_CLASS, "py-3")}>Applied</TableHead>}
+              <TableHead className={cn(HEADER_CLASS, "py-3 pr-4")}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               Array.from({ length: 8 }).map((_, index) => (
                 <TableRow key={index} className={cn(ROW_CLASS, "hover:bg-transparent")}>
-                  <TableCell colSpan={showApplied ? 7 : 6} className="px-4 py-3">
+                  <TableCell colSpan={showApplied ? 8 : 7} className="px-4 py-3">
                     <Skeleton className="h-5 w-full max-w-md" />
                   </TableCell>
                 </TableRow>
               ))
             ) : rows.length === 0 ? (
               <TableRow className={cn(ROW_CLASS, "hover:bg-transparent")}>
-                <TableCell colSpan={showApplied ? 7 : 6} className="px-4 py-10 text-center whitespace-normal">
+                <TableCell colSpan={showApplied ? 8 : 7} className="px-4 py-10 text-center whitespace-normal">
                   <p className="text-sm text-muted-foreground">No jobs match.</p>
                   <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
                     Clear filters
@@ -208,7 +212,7 @@ export function JobsTable({
                     <WorkModeBadge workMode={job.workMode} />
                   </TableCell>
                   {showApplied && (
-                    <TableCell className="py-3 pr-4">
+                    <TableCell className="py-3">
                       <AppliedCheckbox
                         jobTitle={job.title}
                         applied={appliedIds.has(job.id)}
@@ -218,6 +222,17 @@ export function JobsTable({
                       />
                     </TableCell>
                   )}
+                  <TableCell className="py-3 pr-4">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => onViewJob(job)}
+                      aria-label={`View description for ${job.title}`}
+                    >
+                      <EyeIcon className="size-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}

@@ -19,6 +19,7 @@ import { cn } from "cn";
 import { ApplyConfirmDialog } from "./apply-confirm-dialog";
 import { FilterBar } from "./filter-bar";
 import type { DescriptionStatus } from "./filter-rule";
+import { JobDescriptionSheet } from "./job-description-sheet";
 import { JobsSearch } from "./jobs-search";
 import { JobsTable } from "./jobs-table";
 
@@ -78,6 +79,7 @@ export function JobsExplorer({
   const [pendingAppliedId, setPendingAppliedId] = useState<string | null>(null);
   const [appliedErrors, setAppliedErrors] = useState<Record<string, string>>({});
   const [confirmingJob, setConfirmingJob] = useState<JobListItem | null>(null);
+  const [viewingJob, setViewingJob] = useState<JobListItem | null>(null);
 
   const fields = useMemo(
     () => FILTER_FIELDS.filter((field) => field !== "applied" || showApplied),
@@ -234,6 +236,7 @@ export function JobsExplorer({
           }}
           onRequestApply={setConfirmingJob}
           onClearFilters={handleClearFilters}
+          onViewJob={setViewingJob}
         />
       </div>
       {showApplied && (
@@ -243,6 +246,13 @@ export function JobsExplorer({
           onConfirm={handleApply}
         />
       )}
+      <JobDescriptionSheet
+        job={viewingJob}
+        description={viewingJob ? descriptions?.[viewingJob.id] : undefined}
+        status={descStatus}
+        onClose={() => setViewingJob(null)}
+        onRetry={retryDescriptions}
+      />
     </div>
   );
 }
