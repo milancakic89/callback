@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { JobsExplorer } from "@/components/jobs/jobs-explorer";
 import { JobsExplorerFallback } from "@/components/jobs/jobs-explorer-fallback";
-import { requireUser } from "@/lib/auth/dal";
+import { requireAccountType } from "@/lib/auth/dal";
 import { getAppliedJobIds, getSavedJobs } from "@/lib/jobs/queries";
 
 export const metadata: Metadata = { title: "Saved jobs | Callback" };
@@ -20,7 +20,7 @@ export default function SavedJobsPage() {
 
 async function AuthedSavedJobs() {
   await connection();
-  const user = await requireUser();
+  const user = await requireAccountType("candidate");
   const [jobs, appliedIds] = await Promise.all([getSavedJobs(user.id), getAppliedJobIds(user.id)]);
 
   // react-hooks/purity doesn't know about Next's dynamic-API opt-out: connection() above is

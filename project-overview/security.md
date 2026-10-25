@@ -73,6 +73,13 @@ See [features/dashboard.md](../features/dashboard.md).
 - **`setSaved`** (same file) does the same checks as `markApplied`, with its own 60/min limit (key `saved:<userId>`). Saving toggles both ways, so `public.saved_jobs` RLS scopes `select`/`insert`/`delete` to `user_id = auth.uid()`; there is no update policy or grant ([features/saved-jobs.md](../features/saved-jobs.md)).
 - **`jobs` has two more select policies** for `authenticated`: a user can read a job they applied to, and a job they saved, even when it is inactive. `anon` still only sees active jobs.
 - **Filters decoded from the URL are treated as untrusted input:** zod-validated, capped (20 rules, 20 values/rule, 100 chars/value), and every text value is regex-escaped before being compiled into a `RegExp` — a crafted link can't inject regex syntax or force pathological matching. An invalid or tampered `f` param is dropped silently (loads unfiltered), never thrown.
+- **Account types** ([features/account-types.md](../features/account-types.md)).
+  - The type lives in `app_metadata`, which users can't edit.
+  - Candidate pages and Server Actions call `requireAccountType("candidate")`, and `/employer` calls `requireAccountType("employer")`. Proxy's redirects by type are only optimistic.
+  - Before activation there is no session. The right to pick a type is the `cb_pending_signup` cookie: encrypted (AES-256-GCM with `AUTH_COOKIE_SECRET`), `httpOnly`, valid for 1 hour, and set only after sign-up created the account or after sign-in proved the password.
+  - For emails that already have an account the cookie is a decoy, so sign-up still doesn't reveal accounts.
+  - `chooseAccountType` is limited to 10/h per IP and 5/h per email.
+  - `public.account_for_email` is executable by `service_role` only.
 - **`POST /api/jobs/revalidate`** (`src/app/api/jobs/revalidate/route.ts`) lets the scraper drop the cached job list after `publish`/`boards`.
   - It requires `Authorization: Bearer $REVALIDATE_SECRET`, at least 32 characters, shared with the scraper through `.env.local`. The secret is compared as SHA-256 digests with `timingSafeEqual`.
   - It is rate-limited at 10/min per IP. It returns 404 while `REVALIDATE_SECRET` is unset.

@@ -9,12 +9,13 @@
 | `/forgot-password` | Public | Request a password reset |
 | `/reset-password` | Authenticated (via recovery link) | Set a new password |
 | `/auth/confirm` | Public (Route Handler) | Verifies email links (`token_hash` + `verifyOtp`), then redirects |
-| `/` | Public | Landing page: what Callback does for candidates (live today) and employers (in development), with an interactive Fast Manual Mode demo. Signed-in visitors are redirected to `/dashboard`. See [features/landing.md](../features/landing.md). |
+| `/` | Public | Landing page: what Callback does for candidates (live today) and employers (in development), with an interactive Fast Manual Mode demo. Signed-in visitors are redirected to their home (`/dashboard` or `/employer`). See [features/landing.md](../features/landing.md). |
 | `/jobs` | Public | The job list: search, filters, no Applied column. Was `/` until the landing page; old `/?q=`, `?f=`, `?sort=` links redirect here. See [features/dashboard.md](../features/dashboard.md). |
 | `/dashboard` | Authenticated | Same job list, plus the Applied column and filter, and the Save job heart column. |
 | `/saved-jobs` | Authenticated | The dashboard table scoped to the jobs the user saved (same columns, search, filters and description sheet). Unticking a heart removes the row. Jobs the scraper has taken down stay listed as Expired. See [features/saved-jobs.md](../features/saved-jobs.md). |
 | `/api/jobs/descriptions` | Public (Route Handler, `GET`) | Job descriptions, fetched client-side after the table renders. |
 | `/applications` | Authenticated | Table of the jobs the user applied to: Label, Company, Applied date and a Status dropdown. Jobs the scraper has taken down stay listed as Expired. See [features/applied.md](../features/applied.md). |
+| `/employer` | Authenticated, employer accounts | The employer area: its own sidebar and, for now, an empty dashboard. See [features/account-types.md](../features/account-types.md). |
 
 ## Layout
 
@@ -23,7 +24,9 @@
 - Everything a signed-out visitor reaches from the landing page keeps its dark look: the auth layout adds the `dark` class (the `.dark` tokens in `globals.css` are the landing's palette), and `/jobs` has the dark nav over a light table. `<DarkSurface />` keeps `<html>` dark behind those pages. Lime (`--primary`) is the one accent across the app, used as a fill only, never as text on white. See [features/visual-continuity.md](../features/visual-continuity.md).
 - `/jobs` and `/dashboard` differ in their header (shared nav vs. the signed-in shell) around the same job table.
 - The signed-in shell (`src/app/(app)/layout.tsx`) is a sidebar from `md` (768px) up. Below that it becomes a top bar whose burger button expands and hides the menu. Tables turn into stacked cards there — see "Responsive" in [features/dashboard.md](../features/dashboard.md).
-- A signed-in visitor hitting `/` or `/jobs`, or a signed-out visitor hitting `/dashboard` or `/reset-password`, is redirected (`src/proxy.ts`).
+- A signed-in visitor hitting `/` or `/jobs`, or a signed-out visitor hitting `/dashboard`, `/employer` or `/reset-password`, is redirected (`src/proxy.ts`).
+- **Two account types** ([features/account-types.md](../features/account-types.md)). `/dashboard`, `/saved-jobs` and `/applications` are the candidate side, in `src/app/(app)/layout.tsx`. `/employer` is the employer side, in `src/app/(employer)/layout.tsx`, which is the same shell with its own sidebar items. Each side redirects the other type to its own home.
+- After sign-up, the auth layout shows the account-type dialog (`AccountTypeGate`) while a pending-signup cookie exists.
 
 ## Request Pipeline
 

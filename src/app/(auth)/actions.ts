@@ -1,9 +1,12 @@
 "use server";
 
+import { createClient as createStatelessClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { ACCOUNT_TYPES, homeFor, parseAccountType, type AccountType } from "@/lib/auth/account-type";
 import { requireUser } from "@/lib/auth/dal";
+import { clearPendingSignup, readPendingSignup, setPendingSignup } from "@/lib/auth/pending-signup";
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -11,6 +14,7 @@ import {
   signUpSchema,
 } from "@/lib/auth/schemas";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
+import { env } from "@/lib/env";
 import { sendAuthEmail } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
@@ -52,15 +56,22 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     if (error.code === "email_not_confirmed") {
+      // Supabase only says this once the password matched, so this is the account's owner. With no
+      // account type yet, the activation email hasn't been sent: open the choice dialog instead.
+      const account = await accountForEmail(email);
+      if (account && !account.account_type) {
+        await setPendingSignup({ uid: account.id, email });
+        return {};
+      }
       return { error: "Confirm your email first. Check your inbox for the link." };
     }
     return { error: "Invalid email or password" };
   }
 
-  redirect("/dashboard");
+  redirect(homeFor(parseAccountType(data.user.app_metadata.account_type)));
 }
 
 export async function signUp(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -74,7 +85,8 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     return { error: TOO_MANY_ATTEMPTS };
   }
 
-  // generateLink creates the user without sending Supabase's own email; we send it via SMTP.
+  // generateLink creates the user without sending Supabase's own email. Ours goes out only once an
+  // account type is chosen (chooseAccountType), so this link's token is never used.
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
     type: "signup",
     email,
@@ -84,21 +96,133 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     if (error.code === "weak_password") {
       return { fieldErrors: { password: [error.message] } };
     }
-    // Don't reveal existing accounts.
     if (error.code !== "email_exists" && error.code !== "user_already_exists") {
       console.error("signUp generateLink failed:", error.code, error.message);
       return { error: GENERIC_ERROR };
     }
-  } else {
-    try {
-      await sendAuthEmail({ to: email, type: "signup", tokenHash: data.properties.hashed_token });
-    } catch (mailError) {
-      console.error("signUp email failed:", mailError);
+    // An active account already uses this email. The dialog still opens, as a decoy that sends
+    // nothing, so sign-up doesn't reveal existing accounts.
+    await setPendingSignup({ uid: null, email });
+    return {};
+  }
+
+  // generateLink also succeeds for an existing, not-yet-activated account (without touching its
+  // password), so only someone who knows that password gets to choose its type.
+  const owner = await isUnconfirmedOwner(email, password);
+  await setPendingSignup({ uid: owner ? data.user.id : null, email });
+  return {};
+}
+
+const chooseAccountTypeSchema = z.object({ accountType: z.enum(ACCOUNT_TYPES) });
+
+// The dialog's submit (features/account-types.md). Saves the type and emails the activation link,
+// then lands on sign-in with a notice. The pending-signup cookie is the only authority here: there
+// is no session before activation.
+export async function chooseAccountType(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const parsed = chooseAccountTypeSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { error: "Choose how you'll use Callback." };
+  }
+
+  const pending = await readPendingSignup();
+  if (!pending) {
+    await clearPendingSignup();
+    redirect("/sign-in?error=choice_expired");
+  }
+
+  if (
+    (await isLimited(`account-type:ip:${await clientIp()}`, 10, HOUR)) ||
+    (await isLimited(`account-type:email:${pending.email}`, 5, HOUR))
+  ) {
+    return { error: TOO_MANY_ATTEMPTS };
+  }
+
+  // A decoy (pending.uid null) does nothing, but ends exactly like a real choice.
+  if (pending.uid) {
+    const result = await activateAs(pending.uid, parsed.data.accountType);
+    if (result === "failed") {
       return { error: GENERIC_ERROR };
+    }
+    if (result === "already_active") {
+      await clearPendingSignup();
+      redirect("/sign-in");
     }
   }
 
-  return { message: "Check your email to confirm your account." };
+  await clearPendingSignup();
+  redirect("/sign-in?notice=activation_sent");
+}
+
+// "Wrong email? Start over" in the dialog: drops the pending choice without sending anything. The
+// unactivated account stays; signing in to it later brings the dialog back.
+export async function startOver() {
+  await clearPendingSignup();
+  redirect("/sign-up");
+}
+
+// Saves the type and sends the activation link. The type is final once the account is active, so an
+// account that got activated in the meantime keeps the one it has.
+async function activateAs(uid: string, accountType: AccountType): Promise<"sent" | "already_active" | "failed"> {
+  const { data: found, error: findError } = await supabaseAdmin.auth.admin.getUserById(uid);
+  if (findError || !found.user?.email) {
+    console.error("chooseAccountType getUserById failed:", findError?.code, findError?.message);
+    return "failed";
+  }
+  if (found.user.email_confirmed_at) return "already_active";
+
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(uid, {
+    app_metadata: { account_type: accountType },
+  });
+  if (updateError) {
+    console.error("chooseAccountType updateUserById failed:", updateError.code, updateError.message);
+    return "failed";
+  }
+
+  // A magic link for an unconfirmed user confirms the email when it's verified, and needs no password.
+  const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: "magiclink",
+    email: found.user.email,
+  });
+  if (linkError) {
+    console.error("chooseAccountType generateLink failed:", linkError.code, linkError.message);
+    return "failed";
+  }
+  try {
+    await sendAuthEmail({
+      to: found.user.email,
+      type: "activation",
+      accountType,
+      tokenHash: link.properties.hashed_token,
+    });
+  } catch (mailError) {
+    console.error("chooseAccountType email failed:", mailError);
+    return "failed";
+  }
+  return "sent";
+}
+
+// Whether `password` belongs to this not-yet-activated account: Supabase answers email_not_confirmed
+// only to the right password. A throwaway client, because a successful sign-in would leave a
+// session on a shared one.
+async function isUnconfirmedOwner(email: string, password: string) {
+  const client = createStatelessClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  return error?.code === "email_not_confirmed";
+}
+
+// The account behind an email, through a secret-key-only RPC (the admin API can't search by email).
+// See supabase/migrations/20261025180000_account_types.sql.
+async function accountForEmail(email: string) {
+  const { data, error } = await supabaseAdmin
+    .rpc("account_for_email", { p_email: email })
+    .maybeSingle<{ id: string; account_type: string | null }>();
+  if (error) {
+    console.error("account_for_email failed:", error.code, error.message);
+    return null;
+  }
+  return data;
 }
 
 export async function forgotPassword(
@@ -160,7 +284,7 @@ export async function resetPassword(
     return { error: GENERIC_ERROR };
   }
 
-  redirect("/dashboard");
+  redirect(homeFor(user.accountType));
 }
 
 export async function signOut() {

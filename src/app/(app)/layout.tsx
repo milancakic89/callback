@@ -1,12 +1,9 @@
-import { connection } from "next/server";
 import { Suspense } from "react";
-import { signOut } from "@/app/(auth)/actions";
-import { Button } from "@/components/ui/button";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
-import { requireUser } from "@/lib/auth/dal";
+import { SidebarAccount } from "@/components/dashboard/sidebar-account";
 
-// Fixed app shell (h-dvh, no page scroll) shared by /dashboard, /saved-jobs and /applications: a
-// sidebar plus the page's content, both filling the viewport. From `md` up only a table's rows
+// Fixed app shell (h-dvh, no page scroll) for the candidate side — /dashboard, /saved-jobs and
+// /applications; src/app/(employer)/layout.tsx mirrors it for employers: a sidebar plus the page's content, both filling the viewport. From `md` up only a table's rows
 // scroll — see the `fillHeight`/`scrollable` plumbing in jobs-explorer.tsx and jobs-table.tsx.
 // Below `md` the sidebar is a top bar with a burger menu, the tables are tall cards, and <main>
 // itself scrolls — which is why its children must not shrink to the viewport there (a table card
@@ -15,7 +12,7 @@ import { requireUser } from "@/lib/auth/dal";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-muted/30 md:flex-row">
-      <DashboardSidebar>
+      <DashboardSidebar area="candidate">
         <Suspense fallback={<div className="h-20 shrink-0 border-t border-border" />}>
           <SidebarAccount />
         </Suspense>
@@ -24,25 +21,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 max-md:*:shrink-0 md:overflow-hidden">
         {children}
       </main>
-    </div>
-  );
-}
-
-async function SidebarAccount() {
-  // Opt out of prerendering: the Supabase client reads Date.now() while verifying the JWT.
-  await connection();
-  const user = await requireUser();
-
-  return (
-    <div className="flex shrink-0 flex-col gap-2 border-t border-border p-3">
-      <span className="truncate text-xs text-muted-foreground" title={user.email}>
-        {user.email}
-      </span>
-      <form action={signOut}>
-        <Button type="submit" variant="outline" size="sm" className="w-full">
-          Sign out
-        </Button>
-      </form>
     </div>
   );
 }

@@ -9,12 +9,12 @@ export default function SignInPage() {
   return (
     <AuthCard
       title="Welcome back"
-      description="Sign in to manage your job search."
+      description="Sign in to your Callback account."
       footerText="Don't have an account?"
       footerLinkLabel="Sign up"
       footerLinkHref="/sign-up"
     >
-      {/* SignInForm reads ?error= via useSearchParams; the boundary keeps the page shell static. */}
+      {/* SignInForm reads ?error= and ?notice= via useSearchParams; the boundary keeps the page shell static. */}
       <Suspense>
         <SignInForm />
       </Suspense>

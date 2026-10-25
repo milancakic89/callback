@@ -8,7 +8,7 @@ export default function SignUpPage() {
   return (
     <AuthCard
       title="Create your account"
-      description="Start tracking jobs and applications in one place."
+      description="Find your next job or hire your next teammate."
       footerText="Already have an account?"
       footerLinkLabel="Sign in"
       footerLinkHref="/sign-in"

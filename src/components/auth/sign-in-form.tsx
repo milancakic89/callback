@@ -11,6 +11,12 @@ import { Label } from "@/components/ui/label";
 
 const LINK_ERRORS: Record<string, string> = {
   invalid_link: "That link is invalid or has expired. Please request a new one.",
+  choice_expired: "That step expired. Sign in again to choose how you'll use Callback.",
+};
+
+// Set by chooseAccountType once the activation email is on its way (features/account-types.md).
+const NOTICES: Record<string, string> = {
+  activation_sent: "We've sent your activation link. Check your email to activate your account.",
 };
 
 export function SignInForm() {
@@ -19,8 +25,17 @@ export function SignInForm() {
     { email: "", password: "" },
     { secrets: ["password"] },
   );
-  const linkError = LINK_ERRORS[useSearchParams().get("error") ?? ""];
-  const alertState = state.error || state.message || !linkError ? state : { error: linkError };
+  const searchParams = useSearchParams();
+  const linkError = LINK_ERRORS[searchParams.get("error") ?? ""];
+  const notice = NOTICES[searchParams.get("notice") ?? ""];
+  const alertState =
+    state.error || state.message
+      ? state
+      : linkError
+        ? { error: linkError }
+        : notice
+          ? { message: notice }
+          : state;
 
   return (
     <form action={formAction} className="grid gap-4">

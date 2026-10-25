@@ -1,24 +1,31 @@
 "use client";
 
-import { ClipboardCheckIcon, HeartIcon, HomeIcon } from "lucide-react";
+import { ClipboardCheckIcon, HeartIcon, HomeIcon, LayoutDashboardIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "cn";
 
-const ITEMS = [
-  { href: "/dashboard", label: "Home", icon: HomeIcon },
-  { href: "/saved-jobs", label: "Saved jobs", icon: HeartIcon },
-  { href: "/applications", label: "Applications", icon: ClipboardCheckIcon },
-];
+// One list per side of the app (features/account-types.md). They live here rather than being passed
+// in, because a server layout can't hand icon components to this client component.
+const ITEMS = {
+  candidate: [
+    { href: "/dashboard", label: "Home", icon: HomeIcon },
+    { href: "/saved-jobs", label: "Saved jobs", icon: HeartIcon },
+    { href: "/applications", label: "Applications", icon: ClipboardCheckIcon },
+  ],
+  employer: [{ href: "/employer", label: "Dashboard", icon: LayoutDashboardIcon }],
+};
+
+export type SidebarArea = keyof typeof ITEMS;
 
 // `onNavigate` lets the burger menu fold itself away when a link is tapped (including the link to
 // the page you are already on, which changes no pathname to react to).
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({ area, onNavigate }: { area: SidebarArea; onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-      {ITEMS.map(({ href, label, icon: Icon }) => {
+      {ITEMS[area].map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link

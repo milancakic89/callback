@@ -1,15 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { homeFor, type AccountType } from "@/lib/auth/account-type";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { updateSession } from "@/lib/supabase/proxy";
 
 const GLOBAL_LIMIT = 300;
 const GLOBAL_WINDOW_MS = 60_000;
 
-const PROTECTED_PREFIXES = ["/dashboard", "/saved-jobs", "/applications", "/reset-password"];
+const CANDIDATE_PREFIXES = ["/dashboard", "/saved-jobs", "/applications"];
+const EMPLOYER_PREFIXES = ["/employer"];
+const PROTECTED_PREFIXES = [...CANDIDATE_PREFIXES, ...EMPLOYER_PREFIXES, "/reset-password"];
 const GUEST_ONLY_PATHS = ["/sign-in", "/sign-up", "/forgot-password"];
 // "/" is the landing page (features/landing.md) and "/jobs" the public job list
-// (features/dashboard.md); a signed-in visitor goes straight to /dashboard, which shows the same
-// table plus the Applied column.
+// (features/dashboard.md); a signed-in visitor goes straight to their own home: /dashboard (the same
+// table plus the Applied column) for a candidate, /employer for an employer.
 const SIGNED_IN_REDIRECT_PATHS = ["/", "/jobs"];
 
 function matchesPrefix(pathname: string, prefix: string) {
@@ -44,9 +47,9 @@ export async function proxy(request: NextRequest) {
   const hasSessionCookie = request.cookies
     .getAll()
     .some(({ name }) => name.startsWith("sb-") && name.includes("-auth-token"));
-  const { response, isAuthenticated } = hasSessionCookie
+  const { response, isAuthenticated, accountType } = hasSessionCookie
     ? await updateSession(request)
-    : { response: NextResponse.next(), isAuthenticated: false };
+    : { response: NextResponse.next(), isAuthenticated: false, accountType: "candidate" as AccountType };
 
   // Optimistic gating only: pages, Server Actions and the DAL re-check auth themselves.
   const { pathname } = request.nextUrl;
@@ -57,7 +60,13 @@ export async function proxy(request: NextRequest) {
     isAuthenticated &&
     [...GUEST_ONLY_PATHS, ...SIGNED_IN_REDIRECT_PATHS].some((path) => matchesPrefix(pathname, path))
   ) {
-    return redirectWithCookies(request, "/dashboard", response);
+    return redirectWithCookies(request, homeFor(accountType), response);
+  }
+  // Each account type has its own side of the app (features/account-types.md). Pages and Server
+  // Actions enforce this with requireAccountType(); this only saves the round trip.
+  const otherSide = accountType === "employer" ? CANDIDATE_PREFIXES : EMPLOYER_PREFIXES;
+  if (isAuthenticated && otherSide.some((prefix) => matchesPrefix(pathname, prefix))) {
+    return redirectWithCookies(request, homeFor(accountType), response);
   }
 
   return response;

@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { requireUser } from "@/lib/auth/dal";
+import { requireAccountType } from "@/lib/auth/dal";
 import { rateLimit } from "@/lib/rate-limit";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +25,7 @@ export async function markApplied(jobId: string): Promise<MarkAppliedResult> {
   const parsed = inputSchema.safeParse({ jobId });
   if (!parsed.success) return { ok: false, error: "Invalid request." };
 
-  const user = await requireUser();
+  const user = await requireAccountType("candidate");
 
   const { success } = await rateLimit({
     key: `applied:${user.id}`,
@@ -52,7 +52,7 @@ export async function setSaved(jobId: string, saved: boolean): Promise<SetSavedR
   const parsed = savedSchema.safeParse({ jobId, saved });
   if (!parsed.success) return { ok: false, error: "Invalid request." };
 
-  const user = await requireUser();
+  const user = await requireAccountType("candidate");
 
   const { success } = await rateLimit({
     key: `saved:${user.id}`,

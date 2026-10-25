@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer from "nodemailer";
+import { homeFor, type AccountType } from "@/lib/auth/account-type";
 import { env } from "@/lib/env";
 
 const transporter = nodemailer.createTransport({
@@ -9,14 +10,18 @@ const transporter = nodemailer.createTransport({
   auth: { user: env.SMTP_USER, pass: env.SMTP_PASSWORD },
 });
 
-type EmailType = "signup" | "recovery";
+// Activation is sent once the user has picked an account type (features/account-types.md). Its token
+// comes from a magic link, which also confirms the email, so the link is verified as `type=email`.
+type AuthEmail =
+  | { to: string; type: "activation"; accountType: AccountType; tokenHash: string }
+  | { to: string; type: "recovery"; tokenHash: string };
 
-const templates: Record<EmailType, { subject: string; heading: string; body: string; cta: string }> = {
-  signup: {
-    subject: "Confirm your Callback account",
-    heading: "Confirm your email",
-    body: "Thanks for signing up. Confirm your email address to finish creating your account.",
-    cta: "Confirm email",
+const templates: Record<AuthEmail["type"], { subject: string; heading: string; body: string; cta: string }> = {
+  activation: {
+    subject: "Activate your Callback account",
+    heading: "Activate your account",
+    body: "Confirm your email address to activate your account.",
+    cta: "Activate account",
   },
   recovery: {
     subject: "Reset your Callback password",
@@ -26,31 +31,34 @@ const templates: Record<EmailType, { subject: string; heading: string; body: str
   },
 };
 
-function confirmUrl(type: EmailType, tokenHash: string) {
+const ACTIVATION_BODY: Record<AccountType, string> = {
+  candidate: "Confirm your email address to activate your account and start your job search.",
+  employer: "Confirm your email address to activate your account and start hiring.",
+};
+
+function confirmUrl(email: AuthEmail) {
   const url = new URL("/auth/confirm", env.APP_URL);
-  url.searchParams.set("token_hash", tokenHash);
-  url.searchParams.set("type", type);
-  if (type === "recovery") url.searchParams.set("next", "/reset-password");
+  url.searchParams.set("token_hash", email.tokenHash);
+  if (email.type === "activation") {
+    url.searchParams.set("type", "email");
+    url.searchParams.set("next", homeFor(email.accountType));
+  } else {
+    url.searchParams.set("type", "recovery");
+    url.searchParams.set("next", "/reset-password");
+  }
   return url.toString();
 }
 
 // URL is built from our own origin and a URL-encoded token, so it needs no HTML escaping beyond "&".
-export async function sendAuthEmail({
-  to,
-  type,
-  tokenHash,
-}: {
-  to: string;
-  type: EmailType;
-  tokenHash: string;
-}) {
-  const { subject, heading, body, cta } = templates[type];
-  const url = confirmUrl(type, tokenHash);
+export async function sendAuthEmail(email: AuthEmail) {
+  const { subject, heading, cta } = templates[email.type];
+  const body = email.type === "activation" ? ACTIVATION_BODY[email.accountType] : templates[email.type].body;
+  const url = confirmUrl(email);
   const htmlUrl = url.replaceAll("&", "&amp;");
 
   await transporter.sendMail({
     from: env.MAIL_FROM,
-    to,
+    to: email.to,
     subject,
     text: `${heading}\n\n${body}\n\n${url}\n`,
     html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">

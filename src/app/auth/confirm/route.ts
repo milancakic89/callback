@@ -1,6 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { homeFor, parseAccountType } from "@/lib/auth/account-type";
 import { createClient } from "@/lib/supabase/server";
 
 const confirmSchema = z.object({
@@ -9,10 +10,11 @@ const confirmSchema = z.object({
   next: z.string().optional(),
 });
 
-// Only same-origin paths: "//host" and "/\host" are protocol-relative URLs in browsers.
-function safeNext(next: string | undefined) {
+// Only same-origin paths: "//host" and "/\host" are protocol-relative URLs in browsers. Without a
+// usable `next`, the user lands on the home for their account type.
+function safeNext(next: string | undefined, fallback: string) {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
-    return "/dashboard";
+    return fallback;
   }
   return next;
 }
@@ -23,9 +25,10 @@ export async function GET(request: NextRequest) {
   if (parsed.success) {
     const { token_hash, type, next } = parsed.data;
     const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({ token_hash, type: type as EmailOtpType });
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash, type: type as EmailOtpType });
     if (!error) {
-      return NextResponse.redirect(new URL(safeNext(next), request.url));
+      const home = homeFor(parseAccountType(data.user?.app_metadata.account_type));
+      return NextResponse.redirect(new URL(safeNext(next, home), request.url));
     }
   }
 

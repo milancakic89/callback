@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ApplicationsTable, ApplicationsTableFallback } from "@/components/applications/applications-table";
 import { getApplications } from "@/lib/applications/queries";
-import { requireUser } from "@/lib/auth/dal";
+import { requireAccountType } from "@/lib/auth/dal";
 
 export const metadata: Metadata = { title: "Applications | Callback" };
 
@@ -19,7 +19,7 @@ export default function ApplicationsPage() {
 
 async function AuthedApplicationsTable() {
   await connection();
-  const user = await requireUser();
+  const user = await requireAccountType("candidate");
   const items = await getApplications(user.id);
 
   return <ApplicationsTable items={items} />;

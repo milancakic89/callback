@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { parseAccountType } from "@/lib/auth/account-type";
 
 // Runs in proxy, the only place that can persist a refreshed session: Server Components can't write cookies.
 export async function updateSession(request: NextRequest) {
@@ -32,5 +33,10 @@ export async function updateSession(request: NextRequest) {
   // Verifies the JWT locally; only calls Supabase when the access token has expired and needs a refresh.
   const { data } = await supabase.auth.getClaims();
 
-  return { response, isAuthenticated: Boolean(data?.claims) };
+  return {
+    response,
+    isAuthenticated: Boolean(data?.claims),
+    // From app_metadata, which only the secret-key client can change (features/account-types.md).
+    accountType: parseAccountType(data?.claims?.app_metadata?.account_type),
+  };
 }

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { APPLICATION_STATUSES } from "@/lib/applications/types";
-import { requireUser } from "@/lib/auth/dal";
+import { requireAccountType } from "@/lib/auth/dal";
 import { rateLimit } from "@/lib/rate-limit";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +20,7 @@ export async function setApplicationStatus(jobId: string, status: string): Promi
   const parsed = inputSchema.safeParse({ jobId, status });
   if (!parsed.success) return { ok: false, error: "Invalid request." };
 
-  const user = await requireUser();
+  const user = await requireAccountType("candidate");
 
   const { success } = await rateLimit({
     key: `application-status:${user.id}`,

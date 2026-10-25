@@ -5,14 +5,14 @@ import { useState } from "react";
 import { Logo } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
-import { SidebarNav } from "./sidebar-nav";
+import { SidebarNav, type SidebarArea } from "./sidebar-nav";
 
 // Left nav for the signed-in app (public/dashboard-example.avif is the style reference). Below `md`
 // it is a top bar instead, whose burger button drops the same menu (nav + account block) down over
 // the page and folds it away again; from `md` up the menu is always open as a sidebar. `children`
 // is the account/sign-out block, rendered by the layout so its own Suspense boundary (it reads
 // cookies) stays with the caller.
-export function DashboardSidebar({ children }: { children?: React.ReactNode }) {
+export function DashboardSidebar({ area, children }: { area: SidebarArea; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -42,7 +42,7 @@ export function DashboardSidebar({ children }: { children?: React.ReactNode }) {
             open ? "flex" : "hidden",
           )}
         >
-          <SidebarNav onNavigate={() => setOpen(false)} />
+          <SidebarNav area={area} onNavigate={() => setOpen(false)} />
           {children}
         </div>
       </aside>
