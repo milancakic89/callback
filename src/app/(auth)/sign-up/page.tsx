@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthCard } from "@/components/auth/auth-card";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 
-export const metadata: Metadata = { title: "Sign up | Job Manager" };
+export const metadata: Metadata = { title: "Sign up | Callback" };
 
 export default function SignUpPage() {
   return (

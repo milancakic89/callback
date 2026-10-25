@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Job Manager",
+  title: "Callback",
   description: "Track job listings and your applications.",
 };
 

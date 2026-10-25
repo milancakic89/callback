@@ -112,7 +112,7 @@ create policy "Users can read jobs they saved" on public.jobs
 ### 5. Routes, navigation, proxy
 - **`src/app/(app)/dashboard/page.tsx`**: fetch `getAppliedJobIds` and `getSavedJobIds` in parallel and pass `showSaved initialSavedIds` to both `JobsExplorer` and the fallback.
 - **`src/app/(app)/saved-jobs/page.tsx`** (new):
-  - `metadata` title "Saved jobs | Job Manager".
+  - `metadata` title "Saved jobs | Callback".
   - Inside `<Suspense>`: `await connection()`, `requireUser()`, then `getSavedJobs` and `getAppliedJobIds` in parallel.
   - Renders `<JobsExplorer jobs={saved} now showApplied showSaved savedOnly initialAppliedIds initialSavedIds={saved.map(j => j.id)} fillHeight />`.
   - The fallback is the table in its existing `loading` skeleton state. The list is per-user, so nothing is prerendered.

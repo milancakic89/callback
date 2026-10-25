@@ -6,7 +6,7 @@ import { JobsExplorerFallback } from "@/components/jobs/jobs-explorer-fallback";
 import { requireUser } from "@/lib/auth/dal";
 import { getAppliedJobIds, getSavedJobs } from "@/lib/jobs/queries";
 
-export const metadata: Metadata = { title: "Saved jobs | Job Manager" };
+export const metadata: Metadata = { title: "Saved jobs | Callback" };
 
 // The shell (sidebar, account block) lives in ../layout.tsx. The saved list is per-user and reads
 // cookies, so nothing here can be prerendered: the fallback is just the table's loading skeleton.

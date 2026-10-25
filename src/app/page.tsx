@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { Wordmark } from "@/components/brand";
 import { buttonVariants } from "@/components/ui/button";
 import { JobsExplorer } from "@/components/jobs/jobs-explorer";
 import { JobsExplorerFallback } from "@/components/jobs/jobs-explorer-fallback";
@@ -9,7 +10,7 @@ import { getActiveJobs } from "@/lib/jobs/queries";
 import type { JobListItem } from "@/lib/jobs/types";
 
 export const metadata: Metadata = {
-  title: "Job Manager",
+  title: "Callback",
   description: "Browse active job listings in Serbia and remote, with search and filters.",
 };
 
@@ -22,7 +23,7 @@ export default async function HomePage() {
     <div className="flex min-h-full flex-1 flex-col bg-muted/30">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <span className="font-heading text-base font-semibold tracking-tight">Job Manager</span>
+          <Wordmark className="text-base" />
           <nav className="flex items-center gap-2">
             <Link href="/sign-in" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Sign in

@@ -5,7 +5,7 @@ import { ApplicationsTable, ApplicationsTableFallback } from "@/components/appli
 import { getApplications } from "@/lib/applications/queries";
 import { requireUser } from "@/lib/auth/dal";
 
-export const metadata: Metadata = { title: "Applications | Job Manager" };
+export const metadata: Metadata = { title: "Applications | Callback" };
 
 // The shell (sidebar, account block) lives in ../layout.tsx. The user's applications read cookies,
 // so they load inside Suspense, behind a static fallback.

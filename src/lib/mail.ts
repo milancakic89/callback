@@ -13,13 +13,13 @@ type EmailType = "signup" | "recovery";
 
 const templates: Record<EmailType, { subject: string; heading: string; body: string; cta: string }> = {
   signup: {
-    subject: "Confirm your Job Manager account",
+    subject: "Confirm your Callback account",
     heading: "Confirm your email",
     body: "Thanks for signing up. Confirm your email address to finish creating your account.",
     cta: "Confirm email",
   },
   recovery: {
-    subject: "Reset your Job Manager password",
+    subject: "Reset your Callback password",
     heading: "Reset your password",
     body: "We received a request to reset your password. If it wasn't you, ignore this email.",
     cta: "Reset password",

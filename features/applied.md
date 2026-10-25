@@ -99,7 +99,7 @@ create policy "Users can read jobs they applied to"
 **`/applications`**
 
 ```
-Job Manager      │ Showing 1–4 of 4                           Rows per page 50 ▾
+Callback =>      │ Showing 1–4 of 4                           Rows per page 50 ▾
                  │ Label ↕                     Company ↕  Applied ↓    Status ↕
  ⌂ Home          │ Senior Frontend Developer   Nordeus    22 Oct 2026  [Pending        ▾]
  ▣ Applications  │ Frontend Engineer (Vue)     Fivetran   21 Oct 2026  [Got offer      ▾]
@@ -169,7 +169,7 @@ Job Manager      │ Showing 1–4 of 4                           Rows per page 
 
 ### 7. `/applications` page
 - **`src/app/(app)/applications/page.tsx`**:
-  - `metadata` title "Applications | Job Manager".
+  - `metadata` title "Applications | Callback".
   - Inside `<Suspense>`: `await connection()`, `requireUser()`, then `getApplications(user.id)`, rendered as `<ApplicationsTable>`.
   - The fallback is a skeleton table.
 - **`src/components/applications/applications-table.tsx`** (`'use client'`):

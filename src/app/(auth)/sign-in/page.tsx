@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { SignInForm } from "@/components/auth/sign-in-form";
 
-export const metadata: Metadata = { title: "Sign in | Job Manager" };
+export const metadata: Metadata = { title: "Sign in | Callback" };
 
 export default function SignInPage() {
   return (

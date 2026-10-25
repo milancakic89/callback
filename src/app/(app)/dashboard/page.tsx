@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { getActiveJobs, getAppliedJobIds, getSavedJobIds } from "@/lib/jobs/queries";
 import type { JobListItem } from "@/lib/jobs/types";
 
-export const metadata: Metadata = { title: "Dashboard | Job Manager" };
+export const metadata: Metadata = { title: "Dashboard | Callback" };
 
 // The shell (sidebar, account block) lives in ../layout.tsx. `getActiveJobs` is cached and
 // cookie-free, so it's safe to call outside Suspense; the per-user part (applied IDs) reads

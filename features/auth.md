@@ -39,7 +39,7 @@ See `node_modules/next/dist/docs/01-app/02-guides/authentication*.md`.
 ### 1. Dependencies & UI setup
 - Install `@supabase/ssr` and `@supabase/supabase-js`, plus `zod` (v4).
 - shadcn/ui: run `npx shadcn@latest init` (check `--help` for non-interactive flags first), then `npx shadcn@latest add button input label card alert`. This creates `components.json`, `src/lib/utils.ts` and `src/components/ui/*`, and rewrites the theme in `src/app/globals.css`.
-- In `src/app/layout.tsx`, change the metadata title to "Job Manager".
+- In `src/app/layout.tsx`, change the metadata title to "Callback".
 - Add `!.env.example` to `.gitignore`. Add `.env.example` with `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY`.
 
 ### 2. Server-side foundations

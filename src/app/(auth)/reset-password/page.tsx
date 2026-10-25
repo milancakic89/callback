@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthCard } from "@/components/auth/auth-card";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
-export const metadata: Metadata = { title: "Reset password | Job Manager" };
+export const metadata: Metadata = { title: "Reset password | Callback" };
 
 export default function ResetPasswordPage() {
   return (

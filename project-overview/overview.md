@@ -1,8 +1,8 @@
-# Job Manager — Overview
+# Callback — Overview
 
 ## Product Summary
 
-Job Manager is a personal job-search tracker web app. It lets a user sign in, browse/search job listings on a main dashboard, and keep track of the jobs they've applied to in a dedicated applications table.
+Callback is a personal job-search tracker web app. It lets a user sign in, browse/search job listings on a main dashboard, and keep track of the jobs they've applied to in a dedicated applications table.
 
 ## Tech Stack
 
