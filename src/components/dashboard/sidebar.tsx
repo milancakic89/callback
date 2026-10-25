@@ -2,7 +2,7 @@
 
 import { MenuIcon, XIcon } from "lucide-react";
 import { useState } from "react";
-import { Wordmark } from "@/components/brand";
+import { Logo } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 import { SidebarNav } from "./sidebar-nav";
@@ -21,7 +21,7 @@ export function DashboardSidebar({ children }: { children?: React.ReactNode }) {
       {open && <div className="fixed inset-0 z-20 bg-black/30 md:hidden" onClick={() => setOpen(false)} aria-hidden />}
       <aside className="relative z-30 shrink-0 border-b border-border bg-card md:flex md:h-full md:w-56 md:flex-col md:border-r md:border-b-0">
         <div className="flex h-14 shrink-0 items-center justify-between px-4">
-          <Wordmark className="text-base" />
+          <Logo />
           <Button
             type="button"
             variant="ghost"

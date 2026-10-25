@@ -99,7 +99,7 @@ create policy "Users can read jobs they applied to"
 **`/applications`**
 
 ```
-Callback =>      │ Showing 1–4 of 4                           Rows per page 50 ▾
+Callback         │ Showing 1–4 of 4                           Rows per page 50 ▾
                  │ Label ↕                     Company ↕  Applied ↓    Status ↕
  ⌂ Home          │ Senior Frontend Developer   Nordeus    22 Oct 2026  [Pending        ▾]
  ▣ Applications  │ Frontend Engineer (Vue)     Fivetran   21 Oct 2026  [Got offer      ▾]

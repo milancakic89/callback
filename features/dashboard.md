@@ -120,7 +120,7 @@ Description  contains any of   [vue]
 ### UI sketch
 
 ```
-Callback =>                                         [Sign in] [Sign up]
+Callback                                            [Sign in] [Sign up]
 
 [ Search title or company…                                          ]
 
