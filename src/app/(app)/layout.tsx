@@ -5,20 +5,25 @@ import { Button } from "@/components/ui/button";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { requireUser } from "@/lib/auth/dal";
 
-// Fixed app shell (h-dvh, no page scroll) shared by /dashboard and /applications: a sidebar plus
-// the page's content, both filling the viewport. Only a table's rows scroll — see the
-// `fillHeight`/`scrollable` plumbing in jobs-explorer.tsx and jobs-table.tsx. The account block
-// reads cookies, so it must stay inside a Suspense boundary.
+// Fixed app shell (h-dvh, no page scroll) shared by /dashboard, /saved-jobs and /applications: a
+// sidebar plus the page's content, both filling the viewport. From `md` up only a table's rows
+// scroll — see the `fillHeight`/`scrollable` plumbing in jobs-explorer.tsx and jobs-table.tsx.
+// Below `md` the sidebar is a top bar with a burger menu, the tables are tall cards, and <main>
+// itself scrolls — which is why its children must not shrink to the viewport there (a table card
+// is overflow-hidden, so it would, and clip its own rows). The account block reads cookies, so it
+// must stay inside a Suspense boundary.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-muted/30">
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-muted/30 md:flex-row">
       <DashboardSidebar>
         <Suspense fallback={<div className="h-20 shrink-0 border-t border-border" />}>
           <SidebarAccount />
         </Suspense>
       </DashboardSidebar>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden px-6 py-6">{children}</main>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 max-md:*:shrink-0 md:overflow-hidden">
+        {children}
+      </main>
     </div>
   );
 }

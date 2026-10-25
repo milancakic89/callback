@@ -5,7 +5,7 @@ import { updateSession } from "@/lib/supabase/proxy";
 const GLOBAL_LIMIT = 300;
 const GLOBAL_WINDOW_MS = 60_000;
 
-const PROTECTED_PREFIXES = ["/dashboard", "/applications", "/reset-password"];
+const PROTECTED_PREFIXES = ["/dashboard", "/saved-jobs", "/applications", "/reset-password"];
 const GUEST_ONLY_PATHS = ["/sign-in", "/sign-up", "/forgot-password"];
 // "/" is the public job list (features/dashboard.md); a signed-in visitor gets the same table
 // plus the Applied column at /dashboard instead.

@@ -24,7 +24,7 @@ export function AuthCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="w-full max-w-3xl shadow-md [--card-spacing:--spacing(8)]">
+    <Card className="w-full max-w-3xl shadow-md [--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(8)]">
       <CardHeader>
         <CardTitle className="text-2xl">{title}</CardTitle>
         <CardDescription className="text-base">{description}</CardDescription>

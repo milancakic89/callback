@@ -10,7 +10,8 @@
 | `/reset-password` | Authenticated (via recovery link) | Set a new password |
 | `/auth/confirm` | Public (Route Handler) | Verifies email links (`token_hash` + `verifyOtp`), then redirects |
 | `/` | Public | The job list: search, filters, no Applied column. See [features/dashboard.md](../features/dashboard.md). |
-| `/dashboard` | Authenticated | Same job list, plus the Applied column and filter. |
+| `/dashboard` | Authenticated | Same job list, plus the Applied column and filter, and the Save job heart column. |
+| `/saved-jobs` | Authenticated | The dashboard table scoped to the jobs the user saved (same columns, search, filters and description sheet). Unticking a heart removes the row. Jobs the scraper has taken down stay listed as Expired. See [features/saved-jobs.md](../features/saved-jobs.md). |
 | `/api/jobs/descriptions` | Public (Route Handler, `GET`) | Job descriptions, fetched client-side after the table renders. |
 | `/applications` | Authenticated | Table of the jobs the user applied to: Label, Company, Applied date and a Status dropdown. Jobs the scraper has taken down stay listed as Expired. See [features/applied.md](../features/applied.md). |
 
@@ -18,6 +19,7 @@
 
 - Public auth routes (`/sign-in`, `/sign-up`, `/forgot-password`) use a minimal centered-form layout.
 - `/` and `/dashboard` each have their own header (nav links vs. account menu + sign-out) around the same job table.
+- The signed-in shell (`src/app/(app)/layout.tsx`) is a sidebar from `md` (768px) up. Below that it becomes a top bar whose burger button expands and hides the menu. Tables turn into stacked cards there — see "Responsive" in [features/dashboard.md](../features/dashboard.md).
 - A signed-in visitor hitting `/`, or a signed-out visitor hitting `/dashboard` or `/reset-password`, is redirected (`src/proxy.ts`).
 
 ## Request Pipeline
@@ -48,6 +50,12 @@ One row per (user, job) the user applied to: `user_id`, `job_id` (references `jo
 
 - RLS: `authenticated` can `select` and `insert` only their own rows (`user_id = auth.uid()`), and `update` only the `status` column of their own rows (column-level grant). There is no delete policy or grant: applying is irreversible.
 - A second `select` policy on `jobs` ("Users can read jobs they applied to") lets a user read a job they applied to even after the scraper sets `active = false`, so `/applications` can show it as Expired.
+
+### `saved_jobs`
+One row per (user, job) the user saved: `user_id`, `job_id` (references `jobs.id`), `saved_at`. Primary key `(user_id, job_id)`. Backs the Save job heart on `/dashboard` and the `/saved-jobs` page ([features/saved-jobs.md](../features/saved-jobs.md)).
+
+- RLS: `authenticated` can `select`, `insert` and `delete` only their own rows (`user_id = auth.uid()`). Saving toggles both ways, so unlike `applications` there is a delete policy. There is no update policy or grant.
+- A third `select` policy on `jobs` ("Users can read jobs they saved") lets a user read a saved job even after the scraper sets `active = false`, so `/saved-jobs` can show it as Expired.
 
 ### `rate_limits` (Phase 1, draft)
 Replaces the in-memory rate-limit counters. Likely columns: key (primary key), count, reset_at. It's updated through a single atomic SQL function (upsert + increment) called only from the server with the service role key, never exposed to clients.

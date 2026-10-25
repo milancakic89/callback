@@ -4,7 +4,20 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { setApplicationStatus } from "@/app/(app)/applications/actions";
 import { StatusSelect } from "./status-select";
-import { HEADER_CLASS, PageSizeSelect, Pager, ROW_CLASS, SortableHead } from "@/components/jobs/table-parts";
+import {
+  CARD_BODY_CLASS,
+  CARD_FULL_CELL_CLASS,
+  CARD_HEADER_CLASS,
+  CARD_TABLE_CLASS,
+  DataCell,
+  EXPIRED_ROW_CLASS,
+  HEADER_CLASS,
+  MobileSort,
+  PageSizeSelect,
+  Pager,
+  ROW_CLASS,
+  SortableHead,
+} from "@/components/jobs/table-parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,13 +33,17 @@ import { cn } from "cn";
 
 type SortField = "title" | "company" | "applied" | "status";
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 20;
 // Explicit so the day doesn't depend on whether the server or the browser formats it.
 const TIME_ZONE = "Europe/Belgrade";
 
-// A job the scraper has taken down stays listed with a gray row. Plain `bg-muted` is darker than
-// the zebra stripe's `bg-muted/40`, so it reads as a different kind of row.
-const EXPIRED_ROW_CLASS = "border-none bg-muted text-muted-foreground";
+// The sortable columns, for the sort picker that stands in for the header band on cards.
+const SORT_OPTIONS: { field: SortField; label: string }[] = [
+  { field: "title", label: "Label" },
+  { field: "company", label: "Company" },
+  { field: "applied", label: "Applied" },
+  { field: "status", label: "Status" },
+];
 
 function compare(a: ApplicationListItem, b: ApplicationListItem, field: SortField): number {
   switch (field) {
@@ -96,25 +113,29 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-4 pb-3">
+    <div className="flex flex-col gap-3 overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10 md:h-full md:min-h-0 md:gap-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 md:shrink-0 md:pb-3">
         <p className="text-sm text-muted-foreground">
           Showing <span className="font-medium text-foreground">{from}–{to}</span> of{" "}
           <span className="font-medium text-foreground">{sorted.length}</span>
         </p>
-        <PageSizeSelect
-          value={pageSize}
-          onChange={(size) => {
-            setPageSize(size);
-            setPage(1);
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <MobileSort options={SORT_OPTIONS} sort={sort} direction={direction} onSortChange={handleSortChange} />
+          <PageSizeSelect
+            value={pageSize}
+            onChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
+        </div>
       </div>
 
-      {/* One scroll container with a sticky header — see the long note in jobs-table.tsx. */}
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table containerClassName="relative w-full overflow-x-visible">
-          <TableHeader className="sticky top-0 z-10 [&_tr]:border-b-0">
+      {/* One scroll container with a sticky header — see the long note in jobs-table.tsx. Below
+          `md` the rows are cards and the page scrolls instead. */}
+      <div className="md:min-h-0 md:flex-1 md:overflow-auto">
+        <Table className={CARD_TABLE_CLASS} containerClassName="relative w-full overflow-x-visible">
+          <TableHeader className={cn("sticky top-0 z-10 [&_tr]:border-b-0", CARD_HEADER_CLASS)}>
             <TableRow className="hover:bg-transparent">
               <SortableHead
                 field="title"
@@ -150,10 +171,10 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
               />
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className={CARD_BODY_CLASS}>
             {items.length === 0 ? (
               <TableRow className={cn(ROW_CLASS, "hover:bg-transparent")}>
-                <TableCell colSpan={4} className="px-4 py-10 text-center whitespace-normal">
+                <TableCell colSpan={4} className={cn("px-4 py-10 text-center whitespace-normal", CARD_FULL_CELL_CLASS)}>
                   <p className="text-sm text-muted-foreground">You haven&apos;t applied to any jobs yet.</p>
                   <Button
                     variant="outline"
@@ -182,7 +203,7 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
 
                 return (
                   <TableRow key={item.jobId} className={item.active ? ROW_CLASS : EXPIRED_ROW_CLASS}>
-                    <TableCell className="max-w-96 py-3 pl-4">
+                    <DataCell className="py-3 pl-4 md:max-w-96">
                       <div className="flex items-center gap-2">
                         {item.url ? (
                           <a
@@ -190,21 +211,25 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             className={cn(
-                              "block truncate font-medium hover:text-primary hover:underline",
+                              "block font-medium hover:text-primary hover:underline md:truncate",
                               item.active ? "text-foreground" : "text-muted-foreground",
                             )}
                           >
                             {item.title}
                           </a>
                         ) : (
-                          <span className="block truncate font-medium">{item.title}</span>
+                          <span className="block font-medium md:truncate">{item.title}</span>
                         )}
                         {!item.active && <Badge variant="outline">Expired</Badge>}
                       </div>
-                    </TableCell>
-                    <TableCell className="max-w-56 truncate py-3 text-muted-foreground">{item.companyName}</TableCell>
-                    <TableCell className="py-3 whitespace-nowrap">{formatAbsolute(item.appliedAt, TIME_ZONE)}</TableCell>
-                    <TableCell className="py-3 pr-4">
+                    </DataCell>
+                    <DataCell className="py-3 text-muted-foreground md:max-w-56 md:truncate">
+                      {item.companyName}
+                    </DataCell>
+                    <DataCell className="py-3 whitespace-nowrap">
+                      {formatAbsolute(item.appliedAt, TIME_ZONE)}
+                    </DataCell>
+                    <DataCell className="py-3 pr-4">
                       {error ? (
                         <Tooltip>
                           <TooltipTrigger render={<span className="inline-flex" />}>{select}</TooltipTrigger>
@@ -213,7 +238,7 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
                       ) : (
                         select
                       )}
-                    </TableCell>
+                    </DataCell>
                   </TableRow>
                 );
               })
@@ -230,10 +255,10 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
 // The static fallback while the user's applications load: the header band and a few skeleton rows.
 export function ApplicationsTableFallback() {
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
+    <div className="flex flex-col overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10 md:h-full md:min-h-0">
       <div className="px-4 pt-4 pb-3 text-sm text-muted-foreground">Loading…</div>
-      <Table>
-        <TableHeader className="[&_tr]:border-b-0">
+      <Table className={CARD_TABLE_CLASS}>
+        <TableHeader className={cn("[&_tr]:border-b-0", CARD_HEADER_CLASS)}>
           <TableRow className="hover:bg-transparent">
             <TableHead className={cn(HEADER_CLASS, "py-3 pl-4")}>Label</TableHead>
             <TableHead className={cn(HEADER_CLASS, "py-3")}>Company</TableHead>

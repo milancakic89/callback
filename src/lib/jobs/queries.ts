@@ -18,7 +18,11 @@ type JobRow = {
   first_seen_at: string;
   url: string | null;
   source: string;
+  active: boolean;
 };
+
+const JOB_COLUMNS =
+  "id, title, company_name, location_raw, department, work_mode, posted_at, first_seen_at, url, source, active";
 
 function toListItem(row: JobRow): JobListItem {
   return {
@@ -32,6 +36,7 @@ function toListItem(row: JobRow): JobListItem {
     firstSeenAt: row.first_seen_at,
     url: row.url,
     source: row.source,
+    active: row.active,
   };
 }
 
@@ -47,7 +52,7 @@ export async function getActiveJobs(): Promise<JobListItem[]> {
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabasePublic
       .from("jobs")
-      .select("id, title, company_name, location_raw, department, work_mode, posted_at, first_seen_at, url, source")
+      .select(JOB_COLUMNS)
       .eq("active", true)
       .order("id")
       .range(from, from + PAGE_SIZE - 1)
@@ -95,4 +100,30 @@ export async function getAppliedJobIds(userId: string): Promise<string[]> {
     .returns<{ job_id: string }[]>();
   if (error) throw new Error(`getAppliedJobIds: ${error.message}`);
   return (data ?? []).map((row) => row.job_id);
+}
+
+// Same shape as getAppliedJobIds, for the dashboard's Save job hearts.
+export async function getSavedJobIds(userId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("saved_jobs")
+    .select("job_id")
+    .eq("user_id", userId)
+    .returns<{ job_id: string }[]>();
+  if (error) throw new Error(`getSavedJobIds: ${error.message}`);
+  return (data ?? []).map((row) => row.job_id);
+}
+
+// The /saved-jobs table's data. Not cached (session cookie), and not getActiveJobs() filtered by
+// saved IDs: a saved job the scraper has since taken down must stay listed, which only the
+// "Users can read jobs they saved" policy on `jobs` allows for this client.
+export async function getSavedJobs(userId: string): Promise<JobListItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("saved_jobs")
+    .select(`job:jobs(${JOB_COLUMNS})`)
+    .eq("user_id", userId)
+    .returns<{ job: JobRow | null }[]>();
+  if (error) throw new Error(`getSavedJobs: ${error.message}`);
+  return (data ?? []).flatMap((row) => (row.job ? [toListItem(row.job)] : []));
 }

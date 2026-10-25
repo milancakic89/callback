@@ -57,7 +57,7 @@ export function JobDescriptionSheet({ job, description, status, onClose, onRetry
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent side="right" className="w-full data-[side=right]:sm:max-w-5xl">
+      <SheetContent side="right" className="data-[side=right]:w-full data-[side=right]:sm:max-w-5xl">
         <SheetHeader>
           <SheetTitle className="pr-8">{shown?.title}</SheetTitle>
           <SheetDescription>

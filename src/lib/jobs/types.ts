@@ -23,6 +23,9 @@ export type JobListItem = {
   // Where the posting came from: an ATS, a job board, or the scraper's generic page extraction.
   // Shown in the Source column — the job boards' terms require crediting them.
   source: string;
+  // False once the scraper has taken the posting down. Only /saved-jobs can list such a job — see
+  // features/saved-jobs.md; the dashboard's rows are always active.
+  active: boolean;
 };
 
 const SOURCE_LABELS: Record<string, string> = {

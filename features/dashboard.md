@@ -13,7 +13,7 @@ Phase 2 of [roadmap.md](../project-overview/roadmap.md) planned a dashboard shel
   - Signed-out visitors get the table, search and filters on `/`.
   - `/dashboard` stays protected. Signed-in users see the same table plus the Applied column and the Applied filter.
   - The Applied column doesn't exist at all for signed-out visitors: it is neither hidden nor disabled.
-- **Columns:** Label (the job title, linking to the posting), Company, Source, Posted, Work mode, Applied (signed in only).
+- **Columns:** Label (the job title, linking to the posting), Company, Source, Posted, Work mode, Applied (signed in only), Save job (signed in only, a heart toggle — see [saved-jobs.md](./saved-jobs.md)).
   - Source was added with the [job boards](./job-boards.md), whose terms require crediting them. It shows `sourceLabel(source)` from `src/lib/jobs/types.ts`: "Himalayas", "Greenhouse", "Joberty", or "Company site" for the scraper's `dom`/`network`/`jsonld` extraction.
 - **Work mode is a single nullable enum, `work_mode`, with values `REMOTE`, `HYBRID` and `ON_SITE`.** The scraper computes it. The table shows it in one column as a badge, or `—` when it's unknown.
 - **Applied is a checkbox backed by a minimal `applications` table** (`user_id`, `job_id`, `applied_at`). It originally toggled both ways and saved immediately; it has since become one-way with a confirmation dialog, and `applications` gained a `status` — see [applied.md](./applied.md). The `setApplied` Server Action described below is now `markApplied`, and `src/app/dashboard/` is now `src/app/(app)/dashboard/`.
@@ -145,7 +145,8 @@ Frontend Engineer (Vue)    Fivetran    1w ago     Remote      [ ]
   - When `posted_at` is missing, it falls back to `first_seen_at`, shown muted with a "first seen" tooltip.
   - Sorting and the Posted filter use the same value.
 - **Sorting:** Label, Company, Posted and Work mode are sortable. The default is Posted, newest first.
-- **Paging:** client-side, 50 rows per page by default (25 / 50 / 100).
+- **Paging:** client-side, 20 rows per page by default (20 / 50 / 100).
+- **Responsive:** from `md` (768px) up it is the table above. Below it the header band and the column names are hidden and every row becomes a card (CSS only: `DataCell` in `table-parts.tsx`). On the jobs table the card is a two-column grid of three lines, with the other cells hidden: Label and the eye, Work mode and the heart, Company and the Applied checkbox. The three controls are centered on one vertical line. The applications table's card is one line per cell. A "Sort by" picker with a direction toggle stands in for the header's sort buttons, and the page itself scrolls instead of the rows (`fillHeight` only applies from `md`). The `/dashboard`, `/saved-jobs` and `/applications` shell swaps the sidebar for a top bar with a burger button that drops the menu down.
 - **Empty result:** "No jobs match" with a "Clear filters" button.
 
 ## Implementation Steps
