@@ -75,7 +75,7 @@ See [features/dashboard.md](../features/dashboard.md).
 - **Filters decoded from the URL are treated as untrusted input:** zod-validated, capped (20 rules, 20 values/rule, 100 chars/value), and every text value is regex-escaped before being compiled into a `RegExp` — a crafted link can't inject regex syntax or force pathological matching. An invalid or tampered `f` param is dropped silently (loads unfiltered), never thrown.
 - **Account types** ([features/account-types.md](../features/account-types.md)).
   - The type lives in `app_metadata`, which users can't edit.
-  - Candidate pages and Server Actions call `requireAccountType("candidate")`, and `/employer` calls `requireAccountType("employer")`. Proxy's redirects by type are only optimistic.
+  - Candidate pages and Server Actions call `requireAccountType("candidate")`, and the company pages under `/{company}` call `requireAccountType("employer")`. Proxy's redirects by type are only optimistic.
   - Before activation there is no session. The right to pick a type is the `cb_pending_signup` cookie: encrypted (AES-256-GCM with `AUTH_COOKIE_SECRET`), `httpOnly`, valid for 1 hour, and set only after sign-up created the account or after sign-in proved the password.
   - For emails that already have an account the cookie is a decoy, so sign-up still doesn't reveal accounts.
   - `chooseAccountType` is limited to 10/h per IP and 5/h per email.

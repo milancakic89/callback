@@ -64,6 +64,13 @@ answers Phase 5 for this minimal shape.
 
 **Deferred:** `notes` on an application, status history; automated entries from another source (e.g. a browser extension) — still open.
 
+## Employer: Companies & Jobs — In Progress
+See [features/companies.md](../features/companies.md).
+
+**Done (first step, no database):** the employer workspace under the company's slug (`/test`), a "Create your first job" dashboard, a job form with a live candidate preview, and jobs posted on Callback listed first and highlighted in the candidate table (a dev-only fixture stands in for them).
+
+**Deferred:** a `companies` table and slugs from accounts; `job_postings` and saving from the editor; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; reviewing applications. The order is in the feature doc.
+
 ## Phase 5 — Application Tracking Source
 **Status:** manual entry (the Applied checkbox, Phase 2) is decided and shipped. Automated entry
 (e.g. derived from Phase 3's job source) is still an open decision, revisit later.

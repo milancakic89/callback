@@ -48,12 +48,19 @@ const nextConfig: NextConfig = {
   // The public job list moved from / to /jobs (features/landing.md). Links shared before the move
   // carry the explorer's state in the query string (q, f, sort); send those on, query intact.
   async redirects() {
-    return ["q", "f", "sort"].map((key) => ({
-      source: "/",
-      has: [{ type: "query" as const, key }],
-      destination: "/jobs",
-      permanent: false,
-    }));
+    return [
+      ...["q", "f", "sort"].map((key) => ({
+        source: "/",
+        has: [{ type: "query" as const, key }],
+        destination: "/jobs",
+        permanent: false,
+      })),
+      // The employer home moved from /employer to the company's slug (features/companies.md).
+      // Activation emails sent before the move still carry next=/employer. "/test" is TEST_COMPANY's
+      // slug (not imported: next.config.ts has no path aliases); drop this once slugs come from accounts.
+      { source: "/employer", destination: "/test", permanent: false },
+      { source: "/employer/:path*", destination: "/test/:path*", permanent: false },
+    ];
   },
 };
 

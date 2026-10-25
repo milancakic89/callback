@@ -69,11 +69,11 @@ Every action follows the same order:
 
 | Action | Limits | Behavior |
 |---|---|---|
-| `signIn` | 5 / 15 min per IP+email | `signInWithPassword`. The error is "Invalid email or password". `email_not_confirmed` returns "Confirm your email first", unless the account has no type yet: then the account-type dialog opens ([account-types.md](./account-types.md)). Success redirects to `/dashboard` for a candidate and `/employer` for an employer. |
+| `signIn` | 5 / 15 min per IP+email | `signInWithPassword`. The error is "Invalid email or password". `email_not_confirmed` returns "Confirm your email first", unless the account has no type yet: then the account-type dialog opens ([account-types.md](./account-types.md)). Success redirects to `/dashboard` for a candidate and the company home (`/test`) for an employer. |
 | `signUp` | 3 / hour per IP | Creates the user with `generateLink`, but sends nothing yet. It opens the account-type dialog, and only `chooseAccountType` sends the activation email ([account-types.md](./account-types.md)). Existing accounts get the same dialog as a decoy, so they aren't revealed. A leaked or weak password shows its message. |
 | `chooseAccountType` | 10 / hour per IP, 5 / hour per email | Saves the type in `app_metadata` and sends the activation email, then redirects to `/sign-in?notice=activation_sent`. Authorized by the pending-signup cookie. |
 | `forgotPassword` | 3 / hour per email **and** 10 / hour per IP | `resetPasswordForEmail`. The response is always "If an account exists, we've sent a reset link". The IP limit stops attackers from burning the project-wide email quota. |
-| `resetPassword` | 5 / 15 min per user | `requireUser()`, then `updateUser({ password })`, then redirect to the user's home (`/dashboard` or `/employer`). |
+| `resetPassword` | 5 / 15 min per user | `requireUser()`, then `updateUser({ password })`, then redirect to the user's home (`/dashboard` or the company home, `/test`). |
 | `signOut` | — | `auth.signOut()`, then redirect to `/sign-in`. |
 
 ### 5. Routes & UI

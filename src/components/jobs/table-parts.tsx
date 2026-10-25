@@ -34,6 +34,20 @@ export const ROW_CLASS = cn("border-none md:odd:bg-card md:even:bg-muted/40 max-
 // A job the scraper has taken down stays listed with a gray row. Plain `bg-muted` is darker than
 // the zebra stripe's `bg-muted/40`, so it reads as a different kind of row.
 export const EXPIRED_ROW_CLASS = cn("border-none bg-muted text-muted-foreground", CARD_ROW_CLASS);
+// A job posted on Callback (features/companies.md): a strongly lime-tinted row instead of the zebra
+// stripe, with a 2px lime ring on a card. Lime is only ever a fill here, never text — the dark
+// "Auto-tracked" badge carries the meaning, and the tint and ring just make the row easy to spot.
+//
+// From `md` up the row also gets a lime hairline above and below, and a thick bar in the ink colour
+// on its left edge. They are inset shadows on the cells (picked by the row's child selectors),
+// because a shadow on the <tr> itself isn't painted reliably.
+export const NATIVE_ROW_CLASS = cn(
+  "border-none bg-primary/40 hover:bg-primary/50",
+  "md:[&>td]:shadow-[inset_0_1px_0_var(--primary),inset_0_-1px_0_var(--primary)]",
+  "md:[&>td:first-child]:shadow-[inset_6px_0_0_var(--primary-foreground),inset_0_1px_0_var(--primary),inset_0_-1px_0_var(--primary)]",
+  CARD_ROW_CLASS,
+  "max-md:ring-2 max-md:ring-primary",
+);
 
 export const PAGE_SIZES = [20, 50, 100];
 

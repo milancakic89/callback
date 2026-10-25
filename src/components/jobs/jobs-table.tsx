@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeIcon } from "lucide-react";
+import { EyeIcon, ZapIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { AppliedCheckbox } from "./applied-checkbox";
 import { SaveJobButton } from "./save-job-button";
@@ -13,6 +13,7 @@ import {
   EXPIRED_ROW_CLASS,
   HEADER_CLASS,
   MobileSort,
+  NATIVE_ROW_CLASS,
   PageSizeSelect,
   Pager,
   ROW_CLASS,
@@ -26,7 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SortDirection, SortField } from "@/lib/jobs/filter";
 import { formatAbsolute, formatRelative } from "@/lib/jobs/format";
-import { sourceLabel, type JobListItem } from "@/lib/jobs/types";
+import { isNativeJob, sourceLabel, type JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
 
 export type JobsTableProps = {
@@ -85,6 +86,28 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "posted", label: "Posted" },
   { field: "workMode", label: "Work mode" },
 ];
+
+// Marks a job posted on Callback (features/companies.md): applying to it is tracked for the
+// candidate, unlike a scraped job, whose status they update themselves.
+function AutoTrackedBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="shrink-0" />}>
+        {/* Dark, not the default lime: lime on the row's lime tint would barely show. */}
+        <Badge className="bg-foreground text-background">
+          <ZapIcon data-icon="inline-start" /> Auto-tracked
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>Posted on Callback. Your application status updates automatically.</TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Applied and Save are for jobs tracked by hand. A native job is tracked automatically (and, until
+// native jobs are stored, has no row for either to point at), so its cells stay empty.
+function NotNeeded() {
+  return <span className="text-muted-foreground">—</span>;
+}
 
 function PostedCell({ job, now }: { job: JobListItem; now?: number }) {
   // No live clock during a prerender (the static Suspense fallback has no `now`) — an absolute
@@ -247,24 +270,32 @@ export function JobsTable({
               rows.map((job) => {
                 const expired = !job.active;
                 const applied = appliedIds.has(job.id);
+                const native = isNativeJob(job);
                 return (
-                  <TableRow key={job.id} className={cn(expired ? EXPIRED_ROW_CLASS : ROW_CLASS, CARD_GRID_CLASS)}>
+                  <TableRow
+                    key={job.id}
+                    className={cn(expired ? EXPIRED_ROW_CLASS : native ? NATIVE_ROW_CLASS : ROW_CLASS, CARD_GRID_CLASS)}
+                  >
                     <DataCell className="py-3 pl-4 md:max-w-72 max-md:col-start-1 max-md:row-start-1">
-                      {job.url ? (
-                        <a
-                          href={job.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={cn(
-                            "block font-medium hover:underline md:truncate",
-                            expired ? "text-muted-foreground" : "text-foreground",
-                          )}
-                        >
-                          {job.title}
-                        </a>
-                      ) : (
-                        <span className="block font-medium md:truncate">{job.title}</span>
-                      )}
+                      <div className="flex min-w-0 items-center gap-2">
+                        {job.url ? (
+                          <a
+                            href={job.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cn(
+                              "block min-w-0 hover:underline md:truncate",
+                              native ? "font-semibold" : "font-medium",
+                              expired ? "text-muted-foreground" : "text-foreground",
+                            )}
+                          >
+                            {job.title}
+                          </a>
+                        ) : (
+                          <span className={cn("block min-w-0 md:truncate", native ? "font-semibold" : "font-medium")}>{job.title}</span>
+                        )}
+                        {native && <AutoTrackedBadge />}
+                      </div>
                     </DataCell>
                     <DataCell className="py-3 text-muted-foreground md:max-w-48 md:truncate max-md:hidden">
                       {job.locationRaw ?? "—"}
@@ -294,7 +325,8 @@ export function JobsTable({
                             (!expired || applied) && "max-md:pr-1.5",
                           )}
                         >
-                          {(!expired || applied) && (
+                          {native && <NotNeeded />}
+                          {!native && (!expired || applied) && (
                             <AppliedCheckbox
                               jobTitle={job.title}
                               applied={applied}
@@ -309,13 +341,17 @@ export function JobsTable({
                     )}
                     {showSaved && (
                       <DataCell className="py-3 max-md:col-start-2 max-md:row-start-2 max-md:justify-end">
-                        <SaveJobButton
-                          jobTitle={job.title}
-                          saved={savedIds.has(job.id)}
-                          pending={pendingSavedIds.has(job.id)}
-                          error={savedErrors[job.id] ?? null}
-                          onToggle={() => onToggleSaved(job, !savedIds.has(job.id))}
-                        />
+                        {native ? (
+                          <NotNeeded />
+                        ) : (
+                          <SaveJobButton
+                            jobTitle={job.title}
+                            saved={savedIds.has(job.id)}
+                            pending={pendingSavedIds.has(job.id)}
+                            error={savedErrors[job.id] ?? null}
+                            onToggle={() => onToggleSaved(job, !savedIds.has(job.id))}
+                          />
+                        )}
                       </DataCell>
                     )}
                     <DataCell className="py-3 pr-4 max-md:col-start-2 max-md:row-start-1 max-md:justify-end">

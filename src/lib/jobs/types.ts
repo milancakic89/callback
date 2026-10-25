@@ -28,7 +28,18 @@ export type JobListItem = {
   active: boolean;
 };
 
+// The `source` of a job posted on Callback itself (features/companies.md), as opposed to one the
+// scraper found elsewhere.
+export const NATIVE_SOURCE = "callback";
+
+// A native job's application can be tracked and its status updated automatically, so the table lists
+// it first and highlights it. Scraped jobs are tracked by hand by the candidate.
+export function isNativeJob(job: Pick<JobListItem, "source">): boolean {
+  return job.source === NATIVE_SOURCE;
+}
+
 const SOURCE_LABELS: Record<string, string> = {
+  callback: "Callback",
   // A company's own ATS board, found through its job-board postings (scraper/stages/discover.ts).
   companyboards: "Company careers",
   himalayas: "Himalayas",

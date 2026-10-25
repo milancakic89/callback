@@ -6,7 +6,7 @@ import {
   type FilterRule,
   type TextField,
 } from "./filter-schema";
-import { jobDate, type JobListItem, type WorkMode } from "./types";
+import { isNativeJob, jobDate, type JobListItem, type WorkMode } from "./types";
 
 // Lowercase, no diacritics, no hyphens, collapsed whitespace. Applied to both job text and typed
 // filter/search values, so "front-end" and "frontend" compare equal, and "Čačak" matches "cacak".
@@ -218,8 +218,11 @@ function compareJobs(a: JobListItem, b: JobListItem, field: SortField): number {
   }
 }
 
+// Jobs posted on Callback come first whatever the sort (features/companies.md): their applications
+// are tracked automatically. Within each group the chosen sort still applies. The sort is stable,
+// so the partition keeps that order.
 export function sortJobs(jobs: JobListItem[], field: SortField, direction: SortDirection): JobListItem[] {
   const sorted = [...jobs].sort((a, b) => compareJobs(a, b, field));
   if (direction === "desc") sorted.reverse();
-  return sorted;
+  return [...sorted.filter(isNativeJob), ...sorted.filter((job) => !isNativeJob(job))];
 }

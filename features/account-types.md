@@ -2,7 +2,7 @@
 
 **Status:** Implemented. `npx tsc --noEmit`, `npm run lint` and `npm run build` pass. The migration `supabase/migrations/20261025180000_account_types.sql` was applied on 2026-10-25 (remote version `20261025194831`): no account is left without a type, and only `service_role` can execute `account_for_email`. Checked on a production build with throwaway users that were deleted afterwards. The activation email itself was not sent during testing (the checks avoided sending mail to fake addresses), so a real end-to-end run with an inbox is still to do. See "Verification".
 
-Every account is either a **candidate**, who looks for work and uses the existing routes, or an **employer**, who posts jobs and has a separate area under `/employer`. After sign-up a dialog asks which one. It can't be dismissed, and the activation email is only sent once a type is chosen. Leaving without choosing brings the dialog back at the next sign-in. Once the account is active, the user lands on their own dashboard, and the type no longer changes.
+Every account is either a **candidate**, who looks for work and uses the existing routes, or an **employer**, who posts jobs and has a workspace under their company's slug (`/test` for now, see [companies.md](./companies.md)). After sign-up a dialog asks which one. It can't be dismissed, and the activation email is only sent once a type is chosen. Leaving without choosing brings the dialog back at the next sign-in. Once the account is active, the user lands on their own dashboard, and the type no longer changes.
 
 ## Decisions
 - **Where the type lives.** It is stored in `app_metadata.account_type` (`"candidate" | "employer"`).
@@ -20,12 +20,12 @@ Every account is either a **candidate**, who looks for work and uses the existin
 - **The activation link is sent only after the choice.**
   - `chooseAccountType` saves the type, then `generateLink({ type: "magiclink" })`.
   - Verifying that token as `type=email` confirms the email and starts a session (tested).
-  - The email links to `/auth/confirm?type=email&next=/dashboard|/employer`. `/auth/confirm` also falls back to the user's home when `next` is missing.
+  - The email links to `/auth/confirm?type=email&next=/dashboard|/test` (the employer's home, `homeFor`). `/auth/confirm` also falls back to the user's home when `next` is missing.
 - **The dialog can't be dismissed.** It has no close button, and Escape and outside clicks are ignored.
   - The one way out is "Wrong email? Start over", which clears the cookie and returns to `/sign-up`. It doesn't skip the choice; it abandons this sign-up. Without it, a mistyped email would lock the auth pages for an hour.
 - **The type is final once active.** Before activation the latest choice wins. Afterwards `chooseAccountType` leaves an active account's type alone.
 - **Existing accounts became candidates**, through the migration's backfill.
-- **The employer area is a placeholder.** `/employer` has its own sidebar and an empty state, because posting jobs and reviewing candidates don't exist yet.
+- **The employer area is a placeholder.** It has its own sidebar and a dashboard that offers to create a first job, and the job form stores nothing yet. It lives under the company's slug, not `/employer` ([companies.md](./companies.md)). Until a `companies` table exists, every employer belongs to the fixture company `test`, so their home is `/test`. `/employer` redirects there, for activation emails sent before the move.
 
 ## Flow
 1. **Sign up.** `signUp` calls `generateLink({ type: "signup" })`, which creates the user without sending anything, and sets the cookie. The page re-renders with the dialog.
@@ -36,20 +36,21 @@ Every account is either a **candidate**, who looks for work and uses the existin
    4. for a real `uid`: `updateUserById(app_metadata)`, then a magic link and `sendAuthEmail({ type: "activation" })`;
    5. clears the cookie and redirects to `/sign-in?notice=activation_sent`.
 3. **Leave without choosing, sign in later.** `signIn` gets `email_not_confirmed`, and `account_for_email` (a service-role-only RPC) shows there is no type yet, so it sets the cookie and the dialog is back. With a type already chosen, the old "Confirm your email first" message stays.
-4. **Activate.** The email link goes through `/auth/confirm` to `/dashboard` or `/employer`.
+4. **Activate.** The email link goes through `/auth/confirm` to `/dashboard` or the company home (`/test`).
 
 ## Routing
 | | Candidate | Employer |
 |---|---|---|
-| Home (`homeFor`) | `/dashboard` | `/employer` |
-| `/dashboard`, `/saved-jobs`, `/applications` | allowed | redirected to `/employer` |
-| `/employer` | redirected to `/dashboard` | allowed |
-| `/`, `/jobs`, `/sign-in`, `/sign-up`, `/forgot-password` | → `/dashboard` | → `/employer` |
+| Home (`homeFor`) | `/dashboard` | `/test` (the company's slug) |
+| `/dashboard`, `/saved-jobs`, `/applications` | allowed | redirected to `/test` |
+| `/test`, `/test/jobs/new` | redirected to `/dashboard` | allowed |
+| any other slug, e.g. `/foo` | not-found page (HTTP 200) | not-found page (HTTP 200) |
+| `/`, `/jobs`, `/sign-in`, `/sign-up`, `/forgot-password` | → `/dashboard` | → `/test` |
 
 - Proxy does this optimistically, from the JWT.
 - The real checks are `requireAccountType()` in `src/lib/auth/dal.ts`:
   - candidate pages and Server Actions (`markApplied`, `setSaved`, `setApplicationStatus`) require `"candidate"`;
-  - `/employer` requires `"employer"`.
+  - the company pages (`/test`, `/test/jobs/new`) require `"employer"`.
 - `signIn`, `resetPassword` and `/auth/confirm` send each user to `homeFor(type)`.
 
 ## Files
@@ -57,7 +58,7 @@ Every account is either a **candidate**, who looks for work and uses the existin
   - `src/lib/auth/account-type.ts`, `src/lib/auth/pending-signup.ts`;
   - `src/components/auth/account-type-dialog.tsx`, `account-type-gate.tsx`;
   - `src/components/dashboard/sidebar-account.tsx` (extracted from the candidate layout);
-  - `src/app/(employer)/layout.tsx`, `src/app/(employer)/employer/page.tsx`;
+  - `src/app/(employer)/[company]/layout.tsx`, `src/app/(employer)/[company]/page.tsx` (first written as `src/app/(employer)/layout.tsx` and `employer/page.tsx`, moved by [companies.md](./companies.md));
   - `supabase/migrations/20261025180000_account_types.sql`.
 - **Changed:**
   - `src/app/(auth)/actions.ts` (`signUp`, `signIn`, `resetPassword`, new `chooseAccountType` and `startOver`);
@@ -97,5 +98,5 @@ Every account is either a **candidate**, who looks for work and uses the existin
 
 **Still to do:**
 - End to end with a real inbox:
-  - sign up and choose "I'm hiring"; the email arrives and its link opens `/employer`;
+  - sign up and choose "I'm hiring"; the email arrives and its link opens `/test`;
   - the same as a job seeker, landing on `/dashboard`.

@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { supabasePublic } from "@/lib/supabase/public";
+import { DEV_NATIVE_JOB_DESCRIPTIONS, DEV_NATIVE_JOB_ITEMS } from "./dev-fixtures";
 import type { JobListItem, WorkMode } from "./types";
 
 // Supabase caps a single response at 1000 rows by default; there are already 1283+ active jobs.
@@ -61,7 +62,8 @@ export async function getActiveJobs(): Promise<JobListItem[]> {
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE_SIZE) break;
   }
-  return rows.map(toListItem);
+  // Jobs posted on Callback aren't stored yet; in development a fixture stands in for them.
+  return [...DEV_NATIVE_JOB_ITEMS, ...rows.map(toListItem)];
 }
 
 // Served by src/app/api/jobs/descriptions/route.ts, fetched client-side after the table renders.
@@ -70,7 +72,7 @@ export async function getJobDescriptions(): Promise<Record<string, string>> {
   cacheLife("hours");
   cacheTag("jobs");
 
-  const result: Record<string, string> = {};
+  const result: Record<string, string> = { ...DEV_NATIVE_JOB_DESCRIPTIONS };
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabasePublic
       .from("jobs")

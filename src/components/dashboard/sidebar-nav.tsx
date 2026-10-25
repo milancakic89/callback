@@ -7,16 +7,21 @@ import { cn } from "cn";
 
 // One list per side of the app (features/account-types.md). They live here rather than being passed
 // in, because a server layout can't hand icon components to this client component.
-const ITEMS = {
-  candidate: [
-    { href: "/dashboard", label: "Home", icon: HomeIcon },
-    { href: "/saved-jobs", label: "Saved jobs", icon: HeartIcon },
-    { href: "/applications", label: "Applications", icon: ClipboardCheckIcon },
-  ],
-  employer: [{ href: "/employer", label: "Dashboard", icon: LayoutDashboardIcon }],
-};
+const CANDIDATE_ITEMS = [
+  { href: "/dashboard", label: "Home", icon: HomeIcon },
+  { href: "/saved-jobs", label: "Saved jobs", icon: HeartIcon },
+  { href: "/applications", label: "Applications", icon: ClipboardCheckIcon },
+];
 
-export type SidebarArea = keyof typeof ITEMS;
+export type SidebarArea = "candidate" | "employer";
+
+// The employer's links sit under the company's slug (features/companies.md), which is the first
+// segment of every employer path: the layout doesn't pass it down, so it is read from the URL.
+function itemsFor(area: SidebarArea, pathname: string) {
+  if (area === "candidate") return CANDIDATE_ITEMS;
+  const slug = pathname.split("/")[1];
+  return [{ href: `/${slug}`, label: "Dashboard", icon: LayoutDashboardIcon }];
+}
 
 // `onNavigate` lets the burger menu fold itself away when a link is tapped (including the link to
 // the page you are already on, which changes no pathname to react to).
@@ -25,7 +30,7 @@ export function SidebarNav({ area, onNavigate }: { area: SidebarArea; onNavigate
 
   return (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-      {ITEMS[area].map(({ href, label, icon: Icon }) => {
+      {itemsFor(area, pathname).map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
