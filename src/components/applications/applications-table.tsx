@@ -211,7 +211,7 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             className={cn(
-                              "block font-medium hover:text-primary hover:underline md:truncate",
+                              "block font-medium hover:underline md:truncate",
                               item.active ? "text-foreground" : "text-muted-foreground",
                             )}
                           >

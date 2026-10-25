@@ -29,7 +29,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             className={cn(
               "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium",
               active
-                ? "bg-primary/10 text-primary"
+                ? "bg-primary/25 text-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >

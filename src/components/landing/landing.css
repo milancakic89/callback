@@ -1,0 +1,212 @@
+/* Landing page styles (features/landing.md). Everything is scoped to [data-landing], so the
+   signed-in app's tokens and components are untouched. Motion lives behind
+   prefers-reduced-motion: no-preference; without it every element renders in its final state. */
+
+[data-landing] {
+  --l-bg: #09090b;
+  --l-surface: #0e0e11;
+  --l-surface-2: #131317;
+  --l-surface-3: #1a1a1f;
+  --l-line: rgb(255 255 255 / 0.07);
+  --l-line-strong: rgb(255 255 255 / 0.12);
+  --l-fg: #ededeb;
+  --l-fg-muted: #a1a1a8;
+  --l-fg-subtle: #6d6d76;
+  --l-lime: #c6f24e;
+  --l-lime-hover: #d3f871;
+  --l-on-lime: #0b0d05;
+  --l-paper: #fcfbf8;
+  --l-ink: #1c1c1e;
+  --l-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  background-color: var(--l-bg);
+  color: var(--l-fg);
+  color-scheme: dark;
+}
+
+[data-landing] ::selection {
+  background: rgb(198 242 78 / 0.28);
+  color: #fff;
+}
+
+[data-landing] :focus-visible {
+  outline: 2px solid var(--l-lime);
+  outline-offset: 3px;
+}
+
+[data-landing] section[id] {
+  scroll-margin-top: 4.5rem;
+}
+
+/* Thin, quiet scrollbars for the document panes. */
+.l-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  overscroll-behavior: contain;
+}
+
+/* A sheet of paper in the document viewer. Sizes are in em off --z (the viewer's zoom), so the
+   whole page scales together, like zooming a PDF. */
+.l-paper {
+  font-size: calc(11.5px * var(--z, 1));
+  max-width: calc(34rem * var(--z, 1));
+  min-height: calc(34rem * var(--z, 1) * 1.414);
+  background: var(--l-paper);
+  color: var(--l-ink);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.05),
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 12px 32px -8px rgb(0 0 0 / 0.55);
+}
+
+/* The hero's top light: one soft, wide source, not a glow blob. */
+.l-hero-light {
+  background:
+    radial-gradient(60% 55% at 50% -5%, rgb(255 255 255 / 0.075), transparent 70%),
+    radial-gradient(35% 30% at 50% 0%, rgb(198 242 78 / 0.06), transparent 75%);
+}
+
+/* Hairline that fades out at both ends. */
+.l-hairline {
+  background: linear-gradient(to right, transparent, var(--l-line-strong) 20%, var(--l-line-strong) 80%, transparent);
+}
+
+/* Fades the bottom of the hero product shot into the page. */
+.l-fade-bottom {
+  mask-image: linear-gradient(to bottom, black 62%, transparent 98%);
+}
+
+/* Hero: stage chip flips Screening → Interview, then the candidate's update arrives. Final state
+   is the default, so reduced motion simply shows it. */
+.l-swap-out {
+  opacity: 0;
+}
+
+@keyframes l-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes l-window-in {
+  from { opacity: 0; transform: perspective(2400px) rotateX(16deg) translateY(36px); }
+  to { opacity: 1; transform: perspective(2400px) rotateX(0deg) translateY(0); }
+}
+
+@keyframes l-swap-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+@keyframes l-swap-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes l-notify {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes l-doc-next {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes l-doc-prev {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes l-ping {
+  0% { transform: scale(1); opacity: 0.6; }
+  80%, 100% { transform: scale(2.4); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-surface="dark"] {
+    scroll-behavior: smooth;
+  }
+
+  .l-rise {
+    animation: l-rise 0.9s var(--l-ease) both;
+    animation-delay: var(--l-delay, 0ms);
+  }
+
+  .l-window-in {
+    transform-origin: 50% 0%;
+    animation: l-window-in 1.3s var(--l-ease) 0.35s both;
+  }
+
+  .l-swap-out {
+    animation: l-swap-out 0.35s ease 2.1s both;
+  }
+
+  .l-swap-in {
+    animation: l-swap-in 0.35s ease 2.2s both;
+  }
+
+  .l-notify {
+    animation: l-notify 0.7s var(--l-ease) 2.6s both;
+  }
+
+  .l-doc-next {
+    animation: l-doc-next 0.45s var(--l-ease) both;
+  }
+
+  .l-doc-prev {
+    animation: l-doc-prev 0.45s var(--l-ease) both;
+  }
+
+  .l-ping {
+    animation: l-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+}
+
+/* Scroll reveal. ScrollReveal (scroll-reveal.tsx) sets data-revealed once an element is in view;
+   without scripting, or with reduced motion, nothing is ever hidden. */
+@media (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  [data-landing] [data-reveal] {
+    transition:
+      opacity 0.9s var(--l-ease),
+      transform 0.9s var(--l-ease);
+    transition-delay: var(--l-delay, 0ms);
+  }
+
+  [data-landing] [data-reveal]:not([data-revealed]) {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  /* The communication timeline: the lime line draws, then each step lights up in turn. */
+  [data-landing] [data-reveal] :is(.l-progress, .l-progress-y) {
+    transition: transform 2.2s var(--l-ease) 0.3s;
+  }
+
+  [data-landing] [data-reveal]:not([data-revealed]) .l-progress {
+    transform: scaleX(0);
+  }
+
+  [data-landing] [data-reveal]:not([data-revealed]) .l-progress-y {
+    transform: scaleY(0);
+  }
+
+  [data-landing] [data-reveal] .l-step {
+    transition: opacity 0.6s ease, transform 0.6s var(--l-ease);
+    transition-delay: calc(0.35s + var(--l-step, 0) * 0.5s);
+  }
+
+  [data-landing] [data-reveal]:not([data-revealed]) .l-step {
+    opacity: 0.25;
+    transform: translateY(6px);
+  }
+}
+
+/* Typefaces for the sample documents: system faces, so the CVs read as someone else's files rather
+   than as part of the page. No web fonts are loaded for them. */
+.l-doc-sans {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.l-doc-serif {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+}

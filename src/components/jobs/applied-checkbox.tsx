@@ -24,7 +24,9 @@ export function AppliedCheckbox({ jobTitle, applied, pending, error, onRequestAp
         if (checked === true && !applied) onRequestApply();
       }}
       aria-label={applied ? `Applied to "${jobTitle}"` : `Mark "${jobTitle}" as applied`}
-      className={cn(error && "border-destructive")}
+      // Applied is a settled state, not a greyed-out one: at the checkbox's default 50% for
+      // `disabled` the lime fill would nearly vanish on white.
+      className={cn(applied && "disabled:opacity-100", error && "border-destructive")}
     />
   );
 

@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
+  // The public job list moved from / to /jobs (features/landing.md). Links shared before the move
+  // carry the explorer's state in the query string (q, f, sort); send those on, query intact.
+  async redirects() {
+    return ["q", "f", "sort"].map((key) => ({
+      source: "/",
+      has: [{ type: "query" as const, key }],
+      destination: "/jobs",
+      permanent: false,
+    }));
+  },
 };
 
 export default nextConfig;

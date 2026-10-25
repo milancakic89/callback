@@ -256,7 +256,7 @@ export function JobsTable({
                           target="_blank"
                           rel="noopener noreferrer"
                           className={cn(
-                            "block font-medium hover:text-primary hover:underline md:truncate",
+                            "block font-medium hover:underline md:truncate",
                             expired ? "text-muted-foreground" : "text-foreground",
                           )}
                         >

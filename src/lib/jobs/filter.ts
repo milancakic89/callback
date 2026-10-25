@@ -169,7 +169,7 @@ function compileRule(rule: FilterRule, options: CompileOptions): CompiledRule | 
     case "posted":
       return compilePostedRule(rule);
     case "applied":
-      // Opened on "/" there's no Applied column to filter by — ignore rather than hide every job.
+      // Opened on "/jobs" there's no Applied column to filter by — ignore rather than hide every job.
       return options.showApplied ? compileAppliedRule(rule) : null;
     default:
       return null;

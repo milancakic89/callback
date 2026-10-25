@@ -7,9 +7,10 @@ const GLOBAL_WINDOW_MS = 60_000;
 
 const PROTECTED_PREFIXES = ["/dashboard", "/saved-jobs", "/applications", "/reset-password"];
 const GUEST_ONLY_PATHS = ["/sign-in", "/sign-up", "/forgot-password"];
-// "/" is the public job list (features/dashboard.md); a signed-in visitor gets the same table
-// plus the Applied column at /dashboard instead.
-const SIGNED_IN_REDIRECT_PATHS = ["/"];
+// "/" is the landing page (features/landing.md) and "/jobs" the public job list
+// (features/dashboard.md); a signed-in visitor goes straight to /dashboard, which shows the same
+// table plus the Applied column.
+const SIGNED_IN_REDIRECT_PATHS = ["/", "/jobs"];
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);

@@ -30,6 +30,9 @@ Code done; see [features/auth.md](../features/auth.md). Waiting on Supabase setu
 
 **Deferred:** nothing beyond auth itself.
 
+## Landing Page — Done
+See [features/landing.md](../features/landing.md). `/` is the landing page; the public job list moved to `/jobs`.
+
 ## Phase 2 — Dashboard — Done
 See [features/dashboard.md](../features/dashboard.md).
 

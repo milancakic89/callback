@@ -15,7 +15,7 @@ import { cn } from "cn";
 // header cell, so the band reads as one piece rather than per-cell fills.
 // The outer card (overflow-hidden + rounded-2xl) clips this to rounded top corners — no
 // per-cell rounding needed.
-export const HEADER_CLASS = "border-none bg-indigo-600 text-white dark:bg-indigo-700";
+export const HEADER_CLASS = "border-none bg-foreground text-background";
 
 // Below `md` the table becomes a stack of cards, one per row — CSS only, no second markup. The
 // table, body, rows and cells stop being table boxes and the header band is hidden along with the
@@ -52,7 +52,7 @@ export function DataCell({ className, ...props }: ComponentProps<typeof TableCel
 }
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
-  if (!active) return <ArrowUpDownIcon className="size-3.5 text-white/50" />;
+  if (!active) return <ArrowUpDownIcon className="size-3.5 text-background/50" />;
   return direction === "asc" ? <ArrowUpIcon className="size-3.5" /> : <ArrowDownIcon className="size-3.5" />;
 }
 
@@ -76,7 +76,7 @@ export function SortableHead<Field extends string>({
       <button
         type="button"
         onClick={() => onSortChange(field)}
-        className="inline-flex items-center gap-1 font-semibold text-white hover:text-white/80"
+        className="inline-flex items-center gap-1 font-semibold text-background hover:text-background/80"
       >
         {label}
         <SortIcon active={sort === field} direction={direction} />

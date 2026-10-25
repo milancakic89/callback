@@ -1,57 +1,74 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { connection } from "next/server";
-import { Suspense } from "react";
-import { Logo } from "@/components/brand";
-import { buttonVariants } from "@/components/ui/button";
-import { JobsExplorer } from "@/components/jobs/jobs-explorer";
-import { JobsExplorerFallback } from "@/components/jobs/jobs-explorer-fallback";
+import { DarkSurface } from "@/components/dark-surface";
+import { CandidateUpdates } from "@/components/landing/candidate-updates";
+import { FastManual } from "@/components/landing/fast-manual";
+import { FinalCta } from "@/components/landing/final-cta";
+import { ForCandidates } from "@/components/landing/for-candidates";
+import { ForEmployers } from "@/components/landing/for-employers";
+import { Hero } from "@/components/landing/hero";
+import { Pricing } from "@/components/landing/pricing";
+import { Problem } from "@/components/landing/problem";
+import { Screening } from "@/components/landing/screening";
+import { ScrollReveal } from "@/components/landing/scroll-reveal";
+import { SiteFooter } from "@/components/landing/site-footer";
+import { SiteNav } from "@/components/site-nav";
 import { getActiveJobs } from "@/lib/jobs/queries";
-import type { JobListItem } from "@/lib/jobs/types";
+import { jobDate, type JobListItem } from "@/lib/jobs/types";
+import "@/components/landing/landing.css";
 
 export const metadata: Metadata = {
-  title: "Callback",
-  description: "Browse active job listings in Serbia and remote, with search and filters.",
+  title: "Callback | Every application deserves a response",
+  description:
+    "Find your next role and track every application. For employers: review CVs and cover letters side by side, and keep every candidate informed.",
+  openGraph: {
+    title: "Callback | Every application deserves a response",
+    description: "Find your next opportunity. Review candidates faster. Make recruitment more transparent for everyone.",
+    type: "website",
+  },
 };
 
-// Public job list (Phase 2, features/dashboard.md). A signed-in visitor never sees this page —
-// src/proxy.ts redirects them to /dashboard, which shows the same table plus an Applied column.
-export default async function HomePage() {
-  const jobs = await getActiveJobs();
+const NUMBER = new Intl.NumberFormat("en-US");
 
-  return (
-    <div className="flex min-h-full flex-1 flex-col bg-muted/30">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Logo />
-          <nav className="flex items-center gap-2">
-            <Link href="/sign-in" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-              Sign in
-            </Link>
-            <Link href="/sign-up" className={buttonVariants({ variant: "default", size: "sm" })}>
-              Sign up
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
-        {/* No page heading — the header nav already says where you are. */}
-        <Suspense fallback={<JobsExplorerFallback jobs={jobs} />}>
-          <LiveJobsExplorer jobs={jobs} />
-        </Suspense>
-      </main>
-    </div>
-  );
+// The newest postings, at most one per company: a single employer often publishes a batch at once,
+// which would otherwise fill the whole preview.
+function newestPerCompany(jobs: JobListItem[], count: number): JobListItem[] {
+  const seen = new Set<string>();
+  const picked: JobListItem[] = [];
+  for (const job of [...jobs].sort((a, b) => Date.parse(jobDate(b)) - Date.parse(jobDate(a)))) {
+    const company = job.companyName.trim().toLowerCase();
+    if (seen.has(company)) continue;
+    seen.add(company);
+    picked.push(job);
+    if (picked.length === count) break;
+  }
+  return picked;
 }
 
-async function LiveJobsExplorer({ jobs }: { jobs: JobListItem[] }) {
-  // Opts out of the static prerender: `now` (for "3d ago") must come from the server's clock at
-  // request time, not get baked into the build's static shell — see jobs-explorer.tsx.
-  await connection();
-  // react-hooks/purity doesn't know about Next's dynamic-API opt-out: `connection()` above is
-  // exactly what makes a per-request value like this safe to read here, per Next's own docs.
-  // eslint-disable-next-line react-hooks/purity -- request-time value, gated by connection() above
-  const now = Date.now();
-  return <JobsExplorer jobs={jobs} now={now} />;
+// Landing page (features/landing.md). Signed-in visitors never see it: src/proxy.ts sends them to
+// /dashboard. The only data is the cached public job list (tag "jobs"), so the whole page
+// prerenders; just the count and the six newest postings reach the markup, never the full list.
+export default async function LandingPage() {
+  const jobs = await getActiveJobs();
+  const openRoles = NUMBER.format(jobs.length);
+  const newest = newestPerCompany(jobs, 6);
+
+  return (
+    <div data-landing className="flex flex-1 flex-col">
+      <DarkSurface />
+      <SiteNav />
+      <main className="flex-1">
+        <Hero openRoles={openRoles} />
+        <Problem />
+        <ForCandidates openRoles={openRoles} jobs={newest} />
+        <ForEmployers />
+        <FastManual />
+        <Screening />
+        <CandidateUpdates />
+        <Pricing />
+        <FinalCta openRoles={openRoles} />
+      </main>
+      <SiteFooter />
+      <ScrollReveal />
+    </div>
+  );
 }

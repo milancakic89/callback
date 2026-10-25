@@ -10,6 +10,7 @@ Phase 2 of [roadmap.md](../project-overview/roadmap.md) planned a dashboard shel
 
 ### Decisions
 - **The public list lives at `/`, and `/dashboard` shows the same list plus an Applied column.**
+  - Since the landing page ([landing.md](./landing.md)) the public list is at `/jobs`; `/` with the list's query params redirects there.
   - Signed-out visitors get the table, search and filters on `/`.
   - `/dashboard` stays protected. Signed-in users see the same table plus the Applied column and the Applied filter.
   - The Applied column doesn't exist at all for signed-out visitors: it is neither hidden nor disabled.
