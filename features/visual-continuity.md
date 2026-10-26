@@ -20,7 +20,7 @@ The landing page ([landing.md](./landing.md)) is dark with a lime accent. Every 
   - the checked Applied checkbox;
   - the active sidebar item's tint.
 
-  Text and icons on white stay `foreground`. On dark surfaces lime can also be text, as on the landing page.
+  Text and icons on white stay `foreground`. On dark surfaces lime can also be text, as on the landing page. The auth pages use that for their confirmations ("We've sent your activation link…", "…we've sent a reset link"): the `success` variant of `Alert` in `src/components/ui/alert.tsx` is lime text with a faint lime border and tint and a check icon, so a message there isn't missed. Errors keep the red `destructive` variant. The variant is for dark surfaces only.
 - **The table header becomes near-black ink** (the landing's surface colour) with white text, instead of indigo.
 - **The logo stays as it is** (blue mark). Dark surfaces use `<Logo onDark />`.
 - **One set of dark tokens.** `.dark` in `globals.css` is unused by the app today, so it is retuned to the landing palette. The auth pages and the shared nav use those tokens through the shadcn components. `landing.css` keeps its own `--l-*` variables with the same values.

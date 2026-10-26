@@ -10,6 +10,10 @@ const alertVariants = cva(
         default: "bg-card text-card-foreground",
         destructive:
           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+        // A confirmation that has to be noticed, such as "check your email". Lime text, so only on a
+        // dark surface (features/visual-continuity.md): on white it would be about 1.3:1.
+        success:
+          "border-primary/40 bg-primary/10 text-primary *:data-[slot=alert-description]:font-medium *:data-[slot=alert-description]:text-primary *:[svg]:text-current",
       },
     },
     defaultVariants: {

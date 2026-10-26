@@ -1,3 +1,4 @@
+import { CircleCheckIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { AuthFormState } from "@/app/(auth)/actions";
 
@@ -11,9 +12,11 @@ export function FormAlert({ state }: { state: AuthFormState }) {
       </Alert>
     );
   }
+  // The auth pages are dark, so a message (activation sent, reset link sent) can be lime text.
   if (state.message) {
     return (
-      <Alert>
+      <Alert variant="success">
+        <CircleCheckIcon aria-hidden />
         <AlertDescription>{state.message}</AlertDescription>
       </Alert>
     );
