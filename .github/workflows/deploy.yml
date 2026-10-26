@@ -1,0 +1,89 @@
+# Builds the app on every push to main and ships it to the VPS (project-overview/deployment.md).
+# Needs five repository secrets: PRODUCTION_ENV, DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY and
+# DEPLOY_KNOWN_HOSTS. Nothing else runs on the server but the unpacked build.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # A manual run, e.g. to redeploy after changing PRODUCTION_ENV.
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits for the running one rather than cancelling it halfway.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # The scraper's dev dependency; the app never needs a browser.
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      # Next.js version-skew protection: a browser that opened the previous release reloads instead of
+      # calling Server Actions or fetching chunks that no longer exist.
+      NEXT_DEPLOYMENT_ID: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # `next build` validates the environment (src/lib/env.ts) and prerenders pages that read the
+      # public job list from Supabase, so it needs the real variables. umask 077: owner-only file.
+      - name: Write the production environment
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+        run: |
+          umask 077
+          printf '%s\n' "$PRODUCTION_ENV" > .env.production.local
+
+      - run: npm run build
+
+      # The standalone server doesn't copy public/ or .next/static (Next.js docs, `output`).
+      - name: Package the release
+        run: |
+          cp -r public .next/standalone/public
+          mkdir -p .next/standalone/.next
+          cp -r .next/static .next/standalone/.next/static
+          tar -czf release.tgz -C .next/standalone .
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Upload the release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15"
+          scp $SSH_OPTS release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/$GITHUB_SHA.tgz"
+          scp $SSH_OPTS .env.production.local "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/$GITHUB_SHA.env"
+
+      # Unpacks, switches `current`, restarts, checks /api/health, and rolls back if that fails.
+      - name: Activate the release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 \
+            "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$GITHUB_SHA" < deploy/activate-release.sh

@@ -31,6 +31,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // A self-contained server in .next/standalone (no node_modules install on the host), started with
+  // `node server.js`. It is what the GitHub Actions deploy ships; see project-overview/deployment.md.
+  output: "standalone",
   poweredByHeader: false,
   cacheComponents: true,
   partialPrefetching: true,

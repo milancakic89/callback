@@ -1,0 +1,33 @@
+# systemd unit for the Next.js standalone server (project-overview/deployment.md).
+# Installed as /etc/systemd/system/callback.service by deploy/setup-server.sh.
+[Unit]
+Description=Callback (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+# `current` is a symlink to the active release; the deploy repoints it and restarts the service.
+WorkingDirectory=/srv/callback/current
+# Listen on loopback only: the app must be reached through Caddy (the per-IP rate limit trusts the
+# X-Forwarded-For it sets), never directly.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+# The production environment (the PRODUCTION_ENV secret, written by the deploy). Variables above win
+# over the file. Wrap values that contain spaces or # in double quotes.
+ExecStart=/usr/bin/node --env-file=/srv/callback/.env server.js
+Restart=on-failure
+RestartSec=3
+# Next.js finishes in-flight requests on SIGTERM; give it time to drain (Next.js self-hosting guide).
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

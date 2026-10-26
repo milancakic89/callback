@@ -88,7 +88,7 @@ See [features/dashboard.md](../features/dashboard.md).
 
 ## Reverse Proxy Requirements
 
-The app assumes it runs as a single Node process on a VPS / Docker host, behind exactly one reverse proxy that terminates TLS. Minimal nginx example:
+The app assumes it runs as a single Node process on a VPS / Docker host, behind exactly one reverse proxy that terminates TLS. Production uses Caddy (`deploy/Caddyfile`, see [deployment.md](./deployment.md)), which keeps `Host` and sets `X-Forwarded-For` to the client's address. A minimal nginx equivalent:
 
 ```nginx
 location / {

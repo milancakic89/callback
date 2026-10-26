@@ -14,6 +14,7 @@
 | `/dashboard` | Authenticated | Same job list, plus the Applied column and filter, and the Save job heart column. |
 | `/saved-jobs` | Authenticated | The dashboard table scoped to the jobs the user saved (same columns, search, filters and description sheet). Unticking a heart removes the row. Jobs the scraper has taken down stay listed as Expired. See [features/saved-jobs.md](../features/saved-jobs.md). |
 | `/api/jobs/descriptions` | Public (Route Handler, `GET`) | Job descriptions, fetched client-side after the table renders. |
+| `/api/health` | Public (Route Handler, `GET`) | What the deploy checks after a restart; answers 500 when the environment is invalid. See [deployment.md](./deployment.md). |
 | `/applications` | Authenticated | Table of the jobs the user applied to: Label, Company, Applied date and a Status dropdown. Jobs the scraper has taken down stay listed as Expired. See [features/applied.md](../features/applied.md). |
 | `/{company}` (`/test`) | Authenticated, employer accounts | The company's workspace: its own sidebar and a dashboard that offers to create a first job. Any other slug is a 404. See [features/companies.md](../features/companies.md). |
 | `/{company}/jobs/new` | Authenticated, employer accounts | The job form: title and description with a live candidate preview. Nothing is stored yet. |

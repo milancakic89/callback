@@ -1,0 +1,16 @@
+# Caddy in front of the Next.js server (project-overview/deployment.md). It gets and renews the
+# HTTPS certificates itself (Let's Encrypt), redirects http to https, and is the one reverse proxy
+# the app assumes (project-overview/security.md "Reverse Proxy Requirements"): it keeps Host as sent
+# and sets X-Forwarded-For to the client's address, which src/lib/rate-limit.ts relies on. Don't put
+# another proxy or CDN (e.g. Cloudflare's orange cloud) in front without changing getClientIp().
+callback.rs {
+	reverse_proxy 127.0.0.1:3000 {
+		# Next streams pages (Suspense, partial prerendering): hand each chunk on right away
+		# instead of buffering the response.
+		flush_interval -1
+	}
+}
+
+www.callback.rs {
+	redir https://callback.rs{uri} permanent
+}

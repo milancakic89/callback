@@ -43,3 +43,6 @@ next-env.d.ts
 
 # scraper output
 /scraper/data/
+
+# personal deploy notes (server address, progress): never committed
+/deploy-notes.local.md
