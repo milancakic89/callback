@@ -35,7 +35,7 @@ The build happens on GitHub, so the server only runs `node server.js`; its memor
 |---|---|
 | `next.config.ts` | `output: "standalone"`: the build produces a self-contained `.next/standalone` with its own `server.js`. |
 | `src/app/api/health/route.ts` | What the deploy checks after a restart. It reads the validated environment at request time, so a release with a missing variable answers 500 (the prerendered pages would still answer 200). |
-| `.github/workflows/deploy.yml` | Lint, build, upload and activate on every push to `main`, or by hand. |
+| `.github/workflows/deploy.yml` | Two jobs. `test` runs the lint and the tests on every push to `main` and on pull requests; `deploy` waits for it, and only on `main` builds, uploads and activates the release. Can also be run by hand. |
 | `deploy/activate-release.sh` | Runs on the server: unpacks the release, repoints `/srv/callback/current`, restarts, checks health, and goes back on failure. |
 | `deploy/callback.service` | The systemd unit. The app listens on `127.0.0.1:3000` only. |
 | `deploy/Caddyfile` | HTTPS for `callback.rs`, and `www` redirecting to it. |
@@ -96,15 +96,16 @@ On the server:
    - Wrap any value containing a space or `#` in double quotes: the build, Node and your editor all read this file.
    - Use a new `AUTH_COOKIE_SECRET` for production rather than the development one.
    - `REVALIDATE_SECRET` is optional ([security.md](./security.md)). Set it, and the same value plus `APP_URL=https://callback.rs` in your local `.env.local`, if you want `npm run scrape -- publish` to refresh the live job list at once.
-6. **Deploy.** Push to `main`, or run the workflow by hand (Actions → Deploy → Run workflow). The first run builds, uploads, starts the service, and fails the job if `/api/health` doesn't answer.
+6. **Deploy.** Push to `main`, or run the workflow by hand (Actions → Test and deploy → Run workflow). The first run builds, uploads, starts the service, and fails the job if `/api/health` doesn't answer.
 7. **Check it.** Open `https://callback.rs`, then sign up and confirm that the activation email arrives and its link opens on `callback.rs`. From your computer, `ssh deploy@<IP> journalctl -u callback -n 50` shows the app's log.
 
 ## What a deploy does
-1. Installs with `npm ci`, runs `npm run lint`, and builds with the real environment (the build validates it and prerenders pages from the live job list).
-2. Packs `.next/standalone` with `public/` and `.next/static` into one archive, and uploads it with the environment over SSH.
-3. On the server, unpacks it into `releases/<sha>`, points `current` at it, restarts the service, and waits for `/api/health` (up to about 30 seconds).
-4. If that fails, it prints the service log, points `current` back at the previous release, restarts, deletes the failed release and fails the job.
-5. Keeps the three newest releases.
+1. **The `test` job** installs with `npm ci` and runs `npm run lint` and `npm test` ([testing.md](./testing.md)). If either fails, the `deploy` job doesn't start, and nothing is built or uploaded.
+2. **The `deploy` job** installs again and builds with the real environment (the build validates it and prerenders pages from the live job list).
+3. Packs `.next/standalone` with `public/` and `.next/static` into one archive, and uploads it with the environment over SSH.
+4. On the server, unpacks it into `releases/<sha>`, points `current` at it, restarts the service, and waits for `/api/health` (up to about 30 seconds).
+5. If that fails, it prints the service log, points `current` back at the previous release, restarts, deletes the failed release and fails the job.
+6. Keeps the three newest releases.
 
 `NEXT_DEPLOYMENT_ID` is the commit hash: a browser that still has the previous release open reloads on its next navigation, instead of calling Server Actions that no longer exist.
 

@@ -1,31 +1,58 @@
-# Builds the app on every push to main and ships it to the VPS (project-overview/deployment.md).
-# Needs five repository secrets: PRODUCTION_ENV, DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY and
-# DEPLOY_KNOWN_HOSTS. Nothing else runs on the server but the unpacked build.
-name: Deploy
+# Tests the app on every push to main and on pull requests, and ships it to the VPS only when the
+# tests pass, and only from main (project-overview/deployment.md, project-overview/testing.md).
+# Deploying needs five repository secrets: PRODUCTION_ENV, DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY
+# and DEPLOY_KNOWN_HOSTS. The test job needs none.
+name: Test and deploy
 
 on:
   push:
     branches: [main]
+  # Tests (never a deploy) for a pull request, so a change is checked before it is merged.
+  pull_request:
+    branches: [main]
   # A manual run, e.g. to redeploy after changing PRODUCTION_ENV.
   workflow_dispatch:
-
-# One deploy at a time; a newer push waits for the running one rather than cancelling it halfway.
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
 
 permissions:
   contents: read
 
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  # The scraper's dev dependency; the app and its tests never need a browser.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
 jobs:
+  test:
+    # Pinned to the server's Ubuntu: `ubuntu-latest` moves to 26.04 during November 2026
+    # (github.com/actions/runner-images/issues/14748), and the deploy job ships binaries built here.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # Fails when a test fails, and also when no test is found at all (vitest.config.mts).
+      - run: npm test
+
   deploy:
+    # `needs` makes this wait for the test job and skip itself if that job fails or is skipped.
+    needs: test
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # One deploy at a time; a newer push waits for the running one rather than cancelling it halfway.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     env:
-      NEXT_TELEMETRY_DISABLED: "1"
-      # The scraper's dev dependency; the app never needs a browser.
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       # Next.js version-skew protection: a browser that opened the previous release reloads instead of
       # calling Server Actions or fetching chunks that no longer exist.
       NEXT_DEPLOYMENT_ID: ${{ github.sha }}
@@ -38,8 +65,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - run: npm run lint
 
       # `next build` validates the environment (src/lib/env.ts) and prerenders pages that read the
       # public job list from Supabase, so it needs the real variables. umask 077: owner-only file.

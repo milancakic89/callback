@@ -3,8 +3,17 @@ import { cn } from "cn";
 import { formatUsd, periodCents, type BillingPeriod, type PricingPlan } from "./pricing-plans";
 import { ctaClass } from "./ui";
 
-// One plan. Plain component (no hooks): the billing period comes from PricingTable.
-export function PricingCard({ plan, billing }: { plan: PricingPlan; billing: BillingPeriod }) {
+// One plan. Plain component (no hooks): the billing period comes from PricingTable. `stacked` is for a
+// lone card, which stays one narrow column at every width instead of splitting on tablets.
+export function PricingCard({
+  plan,
+  billing,
+  stacked = false,
+}: {
+  plan: PricingPlan;
+  billing: BillingPeriod;
+  stacked?: boolean;
+}) {
   const cents = periodCents(plan, billing);
   const free = plan.monthlyCents === 0;
   const note = free
@@ -16,12 +25,13 @@ export function PricingCard({ plan, billing }: { plan: PricingPlan; billing: Bil
   // Phones: one card per row, stacked. Tablets (md to lg): still one per row, but each card splits into
   // price on the left and features on the right, since three columns would be too narrow to read.
   // Desktop: three columns, with min-heights on the text above the price so prices and CTAs line up
-  // across cards even when a tagline or billing note wraps.
+  // across cards even when a tagline or billing note wraps (not needed for a lone `stacked` card).
   return (
     <article
       aria-labelledby={`plan-${plan.id}`}
       className={cn(
-        "relative flex flex-col rounded-2xl border p-6 sm:p-8 md:max-lg:grid md:max-lg:grid-cols-2 md:max-lg:gap-x-10",
+        "relative flex flex-col rounded-2xl border p-6 sm:p-8",
+        !stacked && "md:max-lg:grid md:max-lg:grid-cols-2 md:max-lg:gap-x-10",
         plan.recommended
           ? "border-(--l-lime)/35 bg-(--l-surface-2) shadow-[0_30px_80px_-40px_rgb(198_242_78/0.25)]"
           : "border-(--l-line-strong) bg-(--l-surface)",
@@ -44,7 +54,7 @@ export function PricingCard({ plan, billing }: { plan: PricingPlan; billing: Bil
         <h3 id={`plan-${plan.id}`} className="text-lg font-medium tracking-[-0.01em]">
           {plan.name}
         </h3>
-        <p className="mt-1.5 text-[14.5px] leading-relaxed text-(--l-fg-muted) lg:min-h-[3.25em]">
+        <p className={cn("mt-1.5 text-[14.5px] leading-relaxed text-(--l-fg-muted)", !stacked && "lg:min-h-[3.25em]")}>
           {plan.tagline}
         </p>
 
@@ -52,16 +62,25 @@ export function PricingCard({ plan, billing }: { plan: PricingPlan; billing: Bil
           <span className="text-[2.6rem] leading-none font-semibold tracking-[-0.04em] tabular-nums">
             {formatUsd(cents)}
           </span>
-          <span className="text-[14px] text-(--l-fg-subtle)">/{billing === "monthly" ? "month" : "year"}</span>
+          {!free && (
+            <span className="text-[14px] text-(--l-fg-subtle)">/{billing === "monthly" ? "month" : "year"}</span>
+          )}
         </p>
-        <p className="mt-2.5 text-[13px] leading-snug text-(--l-fg-subtle) lg:min-h-[2.75em]">{note}</p>
+        <p className={cn("mt-2.5 text-[13px] leading-snug text-(--l-fg-subtle)", !stacked && "lg:min-h-[2.75em]")}>
+          {note}
+        </p>
 
         <a href={plan.cta.href} className={ctaClass(plan.recommended ? "primary" : "secondary", "mt-6 w-full")}>
           {plan.cta.label}
         </a>
       </div>
 
-      <ul className="mt-8 flex flex-col gap-3 border-t border-(--l-line) pt-6 md:max-lg:mt-12 md:max-lg:border-t-0 md:max-lg:pt-0">
+      <ul
+        className={cn(
+          "mt-8 flex flex-col gap-3 border-t border-(--l-line) pt-6",
+          !stacked && "md:max-lg:mt-12 md:max-lg:border-t-0 md:max-lg:pt-0",
+        )}
+      >
         {plan.features.map((feature) => (
           <li key={feature} className="flex gap-2.5 text-[14.5px] leading-snug text-(--l-fg-muted)">
             <CheckIcon

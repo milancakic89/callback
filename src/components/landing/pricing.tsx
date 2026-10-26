@@ -1,8 +1,8 @@
 import { PricingTable } from "./pricing-table";
 import { AvailabilityTag, Container, SectionHeading } from "./ui";
 
-// Planned employer pricing (features/landing.md). Tagged "Coming soon" like the rest of the employer
-// side: nothing can be bought yet, and the note under the cards says so.
+// The employer side's plan (features/landing.md): just a Free plan for now, since pricing isn't being
+// built. Tagged "Coming soon" like the rest of the employer side, and the note under the card says so.
 export function Pricing() {
   return (
     <section id="pricing" className="border-t border-(--l-line)">
@@ -11,10 +11,10 @@ export function Pricing() {
           align="center"
           eyebrow="Pricing"
           tag={<AvailabilityTag status="soon" />}
-          title="Start free. Upgrade when you hire more."
+          title="Start free."
           className="mx-auto"
         >
-          Plans for the employer tools, from a single open role to a team screening every week.
+          The employer tools will start with a free plan.
         </SectionHeading>
 
         <div data-reveal className="mt-12 sm:mt-14">
@@ -22,8 +22,7 @@ export function Pricing() {
         </div>
 
         <p data-reveal className="mx-auto mt-10 max-w-2xl text-center text-[13px] leading-relaxed text-(--l-fg-subtle)">
-          Prices in US dollars. Plans open when the employer tools launch; pricing may change before then, and
-          nothing is charged on Callback today.
+          The plan opens when the employer tools launch. Nothing is charged on Callback today.
         </p>
       </Container>
     </section>

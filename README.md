@@ -50,7 +50,7 @@ Job hunting means a lot of tabs, a lot of applications and, far too often, no an
 | **What you get** | Search 6,500+ open roles, filter them, save and track applications | A company workspace and a job form with a live candidate preview |
 | **Coming next** | Automatic status updates for jobs posted on Callback | Saved job postings, a careers page, application forms, applicant review |
 
-> The product vision (Smart Screening, Fast Manual Mode, automated candidate updates, pricing) is on the landing page, clearly marked **Coming soon**. This README describes what is actually built.
+> The product vision (Smart Screening, Fast Manual Mode, automated candidate updates, a free plan) is on the landing page, clearly marked **Coming soon**. This README describes what is actually built.
 
 <br>
 
@@ -193,6 +193,7 @@ npm run scrape -- boards               # remote jobs from the job boards
 npm run dev       # development server
 npm run build     # production build (standalone output)
 npm run lint      # ESLint
+npm test          # unit tests (Vitest); `npm run test:watch` re-runs them as you edit
 ```
 
 <br>
@@ -239,7 +240,7 @@ Security is part of the design, not an afterthought. The full baseline is in [`p
 
 Callback is built to run as **one Node process on a small VPS**, behind Caddy for automatic HTTPS. Its rate limit and cache live in the server's memory, so it isn't meant for serverless hosting.
 
-A push to `main` triggers the GitHub Actions workflow, which lints, builds a standalone release, ships it over SSH, restarts the service, checks `/api/health` and **rolls back automatically** if the new release doesn't come up healthy. Everything needed, from ordering the server to the secrets to add, is in [`project-overview/deployment.md`](project-overview/deployment.md).
+A push to `main` triggers the GitHub Actions workflow, which lints and runs the tests first and, only if they pass, builds a standalone release, ships it over SSH, restarts the service, checks `/api/health` and **rolls back automatically** if the new release doesn't come up healthy. Everything needed, from ordering the server to the secrets to add, is in [`project-overview/deployment.md`](project-overview/deployment.md).
 
 <br>
 
@@ -250,6 +251,7 @@ A push to `main` triggers the GitHub Actions workflow, which lints, builds a sta
 | [Architecture](project-overview/architecture.md) | Routes, layout, request pipeline, data model |
 | [Security](project-overview/security.md) | The baseline and the rules for future code |
 | [Deployment](project-overview/deployment.md) | Server, DNS, secrets and the pipeline |
+| [Testing](project-overview/testing.md) | What the tests cover, what they don't, and how the deploy uses them |
 | [Roadmap](project-overview/roadmap.md) | Phases, and what is deliberately deferred |
 | [Job scraper](features/job-scraper.md) · [Job boards](features/job-boards.md) | Where the jobs come from |
 | [Dashboard](features/dashboard.md) · [Applied](features/applied.md) · [Saved jobs](features/saved-jobs.md) | The candidate side |

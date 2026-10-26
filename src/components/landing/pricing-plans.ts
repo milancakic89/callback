@@ -1,7 +1,11 @@
-// Plan data for the landing page's pricing section (features/landing.md). Planned pricing for the
-// employer tools, which are not built yet: there is no checkout, so every CTA follows the page's
-// placeholder rule for employer actions and points at the employer section. Swap `cta.href` for a
-// real route once plans can be bought.
+// Plan data for the landing page's pricing section (features/landing.md). For now there is a single
+// Free plan: pricing isn't being built, so the Starter and Pro plans were taken out (their text is kept
+// in features/landing.md). There is no checkout, so the CTA follows the page's placeholder rule for
+// employer actions and points at the employer section. Swap `cta.href` for a real route once the
+// employer tools exist.
+//
+// Adding a plan with a price brings back the Monthly / Yearly switch and the three-column layout by
+// itself (PricingTable); the helpers below price it.
 
 export type BillingPeriod = "monthly" | "yearly";
 
@@ -25,38 +29,8 @@ export const PRICING_PLANS: PricingPlan[] = [
     name: "Free",
     tagline: "For individuals exploring Callback.",
     monthlyCents: 0,
-    features: ["1 active job", "Basic candidate management", "Manual candidate review", "CV and cover letter preview"],
+    features: ["Basic candidate management", "Manual candidate review", "CV and cover letter preview"],
     cta: { label: "Get started free", href: "#employers" },
-  },
-  {
-    id: "starter",
-    name: "Starter",
-    tagline: "For small teams hiring occasionally.",
-    monthlyCents: 1900,
-    features: [
-      "Up to 3 active jobs",
-      "Unlimited manual candidate review",
-      "Side-by-side original CV and cover letter",
-      "Previous / Next candidate navigation",
-      "Candidate status management",
-    ],
-    cta: { label: "Choose Starter", href: "#employers" },
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    tagline: "For teams that want a faster screening process.",
-    monthlyCents: 4900,
-    features: [
-      "Up to 10 active jobs",
-      "Everything in Starter",
-      "AI-assisted candidate screening",
-      "Candidate ranking and filtering",
-      "Fast Manual Review mode",
-      "Higher AI screening limits",
-    ],
-    cta: { label: "Choose Pro", href: "#employers" },
-    recommended: true,
   },
 ];
 
