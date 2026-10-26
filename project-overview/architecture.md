@@ -65,6 +65,16 @@ One row per (user, job) the user saved: `user_id`, `job_id` (references `jobs.id
 - RLS: `authenticated` can `select`, `insert` and `delete` only their own rows (`user_id = auth.uid()`). Saving toggles both ways, so unlike `applications` there is a delete policy. There is no update policy or grant.
 - A third `select` policy on `jobs` ("Users can read jobs they saved") lets a user read a saved job even after the scraper sets `active = false`, so `/saved-jobs` can show it as Expired.
 
+### Employer tables (`companies`, `candidate_profiles`, `job_postings`, `job_applications`)
+Applied to Supabase on 2026-10-26. Migration: `supabase/migrations/20261026210000_employer_jobs.sql`; the design is in [features/demo-job.md](../features/demo-job.md).
+
+- `companies`: one row per employer account (`owner_id`, unique, → `auth.users`), `name` (null until onboarding) and `demo_seeded_at`. Made by the RPC below on the first dashboard visit.
+- `candidate_profiles`: what an employer sees of a candidate (`user_id`, `full_name`, `location`, `is_mock`, a unique `sample_key` that ties a mock candidate to `src/lib/candidates/mock-candidates.ts`). Only the mock candidates have one for now, written by `npm run seed:mock-candidates`.
+- `job_postings`: a company's own jobs (`company_id`, `title`, `description`, `location_raw`, `work_mode`, `is_demo`), separate from the scraped `jobs`. Deleting one cascades to its applications.
+- `job_applications`: `job_posting_id` and `candidate_id` (→ `candidate_profiles.user_id`, so a query can join the two), `applied_at`, unique per pair. Separate from `applications`, the candidate-side tracker.
+- **RPC `ensure_employer_workspace()`** (security definer, executable by `authenticated` only): refuses anyone whose JWT isn't an employer, creates the company, and once, under a row lock, makes the demo job with one application from each of three mock candidates. It leaves `demo_seeded_at` null while the mock candidates don't exist, so the demo job appears after the seed.
+- RLS: a company reads and (for jobs) deletes only its own rows, and reads only the profiles of candidates who applied to its jobs. There is no insert or update grant for clients anywhere here.
+
 ### `rate_limits` (Phase 1, draft)
 Replaces the in-memory rate-limit counters. Likely columns: key (primary key), count, reset_at. It's updated through a single atomic SQL function (upsert + increment) called only from the server with the service role key, never exposed to clients.
 

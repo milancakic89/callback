@@ -2,7 +2,7 @@
 
 **Status:** Unit tests exist for the code that has no framework in it, and the deploy workflow runs them before it ships anything. There are no integration or end-to-end tests yet.
 
-`npm test` runs 107 tests in about a fifth of a second. `npm run test:watch` re-runs them as you edit.
+`npm test` runs 126 tests in about a fifth of a second. `npm run test:watch` re-runs them as you edit.
 
 ## What is covered
 
@@ -17,6 +17,8 @@ Tests sit next to the code they test (`*.test.ts`), run with [Vitest](https://vi
 | Rate limiting | `src/lib/rate-limit.test.ts` | The client IP is the proxy's (last) `X-Forwarded-For` entry, which a client can't forge; the fixed window and what happens when it ends |
 | Accounts | `src/lib/auth/account-type.test.ts`, `schemas.test.ts` | Anything unknown is a candidate, each type's home, and the sign-in, sign-up and password-reset rules |
 | Companies | `src/lib/companies/company.test.ts` | Only the exact slug is a company, so anything else is a 404 |
+| Mock candidates | `src/lib/candidates/mock-candidates.test.ts` | Exactly three, unique keys and emails, every email on `example.com` (the seed must never touch a real address), and each has its CV and letter in the landing demo |
+| Deleting a job | `src/app/(employer)/[company]/actions.test.ts` | `deleteJobPosting`: refuses an id that isn't a uuid, needs an employer account, answers "Job not found" when row level security deletes nothing, deletes and refreshes, and the 30 a minute limit. The Supabase client and the session are mocks |
 | Pricing | `src/components/landing/pricing-plans.test.ts` | The yearly discount and how prices are written |
 
 **The tests were checked against the code, not just run.** Breaking the code on purpose in four places (taking the first `X-Forwarded-For` entry, dropping the Callback-first sort, allowing 2000 filter rules, and adding the fake job outside development) made tests fail each time.
@@ -34,8 +36,8 @@ To make `main` itself refuse a merge when `test` fails, turn on a branch protect
 
 ## What is not covered
 
-- **Server Actions and pages**, which need Next.js and Supabase: the sign-up flow with its account-type dialog, `markApplied`, `setSaved`, the proxy's redirects.
-- **The database:** the row level security policies that make applying irreversible and keep users out of each other's data. Testing them needs a Postgres with the migrations applied, for example a local Supabase. It would be the most valuable integration test.
+- **Pages and most Server Actions**, which need Next.js and Supabase: the sign-up flow with its account-type dialog, `markApplied`, `setSaved`, the proxy's redirects, the employer dashboard. (`deleteJobPosting` is covered above, with its dependencies mocked.)
+- **The database:** the row level security policies that make applying irreversible and keep users out of each other's data. Testing them needs a Postgres with the migrations applied, for example a local Supabase. It would be the most valuable integration test. The employer tables (`companies`, `job_postings`, `job_applications`, `candidate_profiles`) and `ensure_employer_workspace()` were checked once by hand, in a throwaway Postgres with stand-ins for Supabase's `auth` schema ([features/demo-job.md](../features/demo-job.md#verification)); that script is not saved as a test.
 - **The scraper** (`scraper/`): ATS adapters, extraction and normalisation. The pure parts are easy to test next. A workflow that fetches live sites should not be part of the gate.
 - **The deploy scripts:** `deploy/activate-release.sh` was checked by hand against a fake `systemctl` and a fake health endpoint (first deploy, a healthy deploy, a failed one rolling back, keeping three releases), but those checks are not saved as tests.
 - **The browser:** no end-to-end test drives the app. Playwright is already a dependency, and could cover sign-in, routing by account type and `/api/health`.

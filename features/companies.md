@@ -1,8 +1,19 @@
 # Feature: Companies (Employer Workspace and Native Jobs)
 
-**Status:** Implemented (the first step only: no database). `npx tsc --noEmit`, `npm run lint` and `npm run build` pass, and the pages were checked in Chromium on the dev server with a signed-out visitor and an employer test account. **Not checked:** the candidate's `/dashboard` (no candidate account was used), the production server (`npm start`) itself, and the landing page, where the dev fixture also counts toward the open-roles number. See [Verification](#verification).
+**Status:** Implemented (the first step only: no database). The next step is written, applied to the database and seeded, but not yet pushed to `main`: see [demo-job.md](./demo-job.md). `npx tsc --noEmit`, `npm run lint` and `npm run build` pass, and the pages were checked in Chromium on the dev server with a signed-out visitor and an employer test account. **Not checked:** the candidate's `/dashboard` (no candidate account was used), the production server (`npm start`) itself, and the landing page, where the dev fixture also counts toward the open-roles number. See [Verification](#verification).
 
 Each employer gets a workspace under their company's slug (`/test`, `/test/jobs/new`). The employer home offers "Create your first job", which opens a job editor with a live candidate preview. Jobs posted on Callback ("native" jobs) are listed first in the candidate job table and highlighted. There is no database work in this step: the one company and one test job live in code.
+
+## Where this stands
+
+| Step | State | Where |
+|---|---|---|
+| The employer workspace under the company's slug (`/test`), the "Create your first job" dashboard, the job form with its live preview | **Done** | [Implementation](#implementation), sections 1 to 3 |
+| Jobs posted on Callback listed first and highlighted in the candidate list (a development-only fixture stands in for them) | **Done** | [Implementation](#implementation), section 4 |
+| Per-company data: a `companies` table, a demo job with three mock candidates, deleting a job | **Written, applied and seeded, not yet pushed** (the dashboard itself is not checked in a browser) | [demo-job.md](./demo-job.md) |
+| The editor saving jobs, native jobs from the database, a careers page, the application form, reviewing applications | Later | [Later phases](#later-phases) |
+
+When asked to implement "the plan", **don't redo the Implementation sections below**: sections 1 to 4 are finished. Implement the step the request names; the next one is [demo-job.md](./demo-job.md).
 
 ## Context
 
@@ -160,11 +171,11 @@ Where the code differs from the plan first written for this step:
 - The landing page in development, where the open-roles count includes the fixture.
 
 ## Later phases
-1. **A `companies` table.**
+1. **A `companies` table.** (A first version, one row per employer account without a name or slug, is written in [demo-job.md](./demo-job.md); the part below is what comes after it.)
    - Columns: `owner_id`, a unique `slug`, and a list of reserved slugs (`admin`, `api`, `jobs`, `careers`, …).
    - The slug goes into `app_metadata`, so proxy and `homeFor` read it from the JWT.
    - Membership checks replace the single fixture company.
-2. **`job_postings`.** The editor saves to it; the dashboard shows the company's jobs, or the CTA.
+2. **`job_postings`.** The editor saves to it; the dashboard shows the company's jobs, or the CTA. (The table itself, the dashboard list and deleting a job are written in [demo-job.md](./demo-job.md); what is left here is the editor saving a new job.)
 3. **Native jobs in the candidate list come from the database** instead of the fixture. Saving them works again.
 4. **A public careers page, `/careers/{slug}`.** It carries the company's branding (logo, colour) and lists open positions.
 5. **The application form.**

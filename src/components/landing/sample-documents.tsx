@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { MOCK_CANDIDATES, type MockCandidateKey } from "@/lib/candidates/mock-candidates";
 
 // Fictional candidates and documents for the landing page's review demos (features/landing.md).
 // Every name, company, school and address here is invented; emails use the reserved example.com
@@ -298,32 +299,20 @@ function PriyaRamanLetter() {
   );
 }
 
-export const SAMPLE_CANDIDATES: SampleCandidate[] = [
-  {
-    id: "ana-novak",
-    name: "Ana Novak",
-    location: "Belgrade, Serbia",
-    cvFile: "Ana_Novak_CV.pdf",
-    letterFile: "Cover_letter_Ana_Novak.pdf",
-    Cv: AnaNovakCv,
-    Letter: AnaNovakLetter,
-  },
-  {
-    id: "jonas-weber",
-    name: "Jonas Weber",
-    location: "Hamburg, Germany",
-    cvFile: "Jonas-Weber-Resume.pdf",
-    letterFile: "Jonas-Weber-Letter.pdf",
-    Cv: JonasWeberCv,
-    Letter: JonasWeberLetter,
-  },
-  {
-    id: "priya-raman",
-    name: "Priya Raman",
-    location: "Lisbon, Portugal",
-    cvFile: "priya_raman_cv_2026.pdf",
-    letterFile: "priya_raman_cover.pdf",
-    Cv: PriyaRamanCv,
-    Letter: PriyaRamanLetter,
-  },
-];
+// The candidates themselves (name, files, email) live in src/lib/candidates/mock-candidates.ts, which
+// the seed script and the employer dashboard share; this only adds the document components. The
+// Record makes a candidate without documents a type error.
+const DOCUMENTS: Record<MockCandidateKey, Pick<SampleCandidate, "Cv" | "Letter">> = {
+  "ana-novak": { Cv: AnaNovakCv, Letter: AnaNovakLetter },
+  "jonas-weber": { Cv: JonasWeberCv, Letter: JonasWeberLetter },
+  "priya-raman": { Cv: PriyaRamanCv, Letter: PriyaRamanLetter },
+};
+
+export const SAMPLE_CANDIDATES: SampleCandidate[] = MOCK_CANDIDATES.map((candidate) => ({
+  id: candidate.key,
+  name: candidate.name,
+  location: candidate.location,
+  cvFile: candidate.cvFile,
+  letterFile: candidate.letterFile,
+  ...DOCUMENTS[candidate.key],
+}));

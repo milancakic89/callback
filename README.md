@@ -196,6 +196,8 @@ npm run lint      # ESLint
 npm test          # unit tests (Vitest); `npm run test:watch` re-runs them as you edit
 ```
 
+`npm run seed:mock-candidates` creates the three fictional candidates that every company's demo job starts with ([`features/demo-job.md`](features/demo-job.md)). It writes to the Supabase project, so run it once, after the `employer_jobs` migration.
+
 <br>
 
 ## 📁 Project structure
@@ -213,6 +215,7 @@ src/
 ├─ lib/                 jobs (filter engine, queries), auth, supabase, rate limiting, mail
 └─ proxy.ts             session refresh, route gating, global rate limit
 scraper/                standalone job scraper: ats/, boards/, extract/, stages/
+scripts/                one-off scripts (the mock-candidate seed)
 supabase/migrations/    the database, as SQL
 features/               one spec per feature: decisions, constraints, verification
 project-overview/       architecture, roadmap, security, deployment
@@ -255,7 +258,7 @@ A push to `main` triggers the GitHub Actions workflow, which lints and runs the 
 | [Roadmap](project-overview/roadmap.md) | Phases, and what is deliberately deferred |
 | [Job scraper](features/job-scraper.md) · [Job boards](features/job-boards.md) | Where the jobs come from |
 | [Dashboard](features/dashboard.md) · [Applied](features/applied.md) · [Saved jobs](features/saved-jobs.md) | The candidate side |
-| [Account types](features/account-types.md) · [Companies](features/companies.md) | The employer side |
+| [Account types](features/account-types.md) · [Companies](features/companies.md) · [Demo job](features/demo-job.md) | The employer side |
 | [Landing page](features/landing.md) · [Visual continuity](features/visual-continuity.md) | Design decisions |
 
 Each feature doc records its **decisions, the constraints it ran into, and how it was verified**, including what was not.

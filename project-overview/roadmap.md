@@ -69,7 +69,9 @@ See [features/companies.md](../features/companies.md).
 
 **Done (first step, no database):** the employer workspace under the company's slug (`/test`), a "Create your first job" dashboard, a job form with a live candidate preview, and jobs posted on Callback listed first and highlighted in the candidate table (a dev-only fixture stands in for them).
 
-**Deferred:** a `companies` table and slugs from accounts; `job_postings` and saving from the editor; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; reviewing applications. The order is in the feature doc.
+**Built, not yet pushed ([features/demo-job.md](../features/demo-job.md)):** every company gets its own row, and a demo job with three mock candidates (real accounts in the database) on its first dashboard visit, which it can delete. The migration is applied and the mock candidates are seeded; what is left is a look at the dashboard in a browser, and the push to `main`.
+
+**Deferred:** a company name and slugs from accounts; `job_postings` and saving from the editor; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; reviewing applications. The order is in the feature doc.
 
 ## Phase 5 — Application Tracking Source
 **Status:** manual entry (the Applied checkbox, Phase 2) is decided and shipped. Automated entry

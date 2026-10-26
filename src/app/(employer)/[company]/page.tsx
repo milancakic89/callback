@@ -3,19 +3,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { JobCard } from "@/components/employer/job-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAccountType } from "@/lib/auth/dal";
 import type { Company } from "@/lib/companies/company";
 import { getCompanyOrNotFound } from "@/lib/companies/get-company";
+import { ensureEmployerWorkspace, getCompanyJobs } from "@/lib/companies/workspace";
 
 export const metadata: Metadata = { title: "Dashboard | Callback" };
 
 type Params = Promise<{ company: string }>;
 
-// The employer home (features/companies.md). Jobs can't be stored yet, so a company always has
-// none and the page offers to create the first one. The heading is static. The slug and the account
-// check are per-request data, so the page passes `params` down and both are read inside Suspense.
+// The employer home (features/companies.md, features/demo-job.md): the company's jobs with their
+// applicants, or an offer to create the first one. The heading is static. The slug, the account
+// check and the jobs are per-request data, so the page passes `params` down and all are read inside
+// Suspense.
 export default function EmployerDashboardPage({ params }: { params: Params }) {
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +34,22 @@ async function AuthedEmployerDashboard({ params }: { params: Params }) {
   const company = await getCompanyOrNotFound(params);
   await connection();
   await requireAccountType("employer");
-  return <EmptyState company={company} />;
+
+  // The first visit makes the company and its demo job, so this has to run before the read.
+  await ensureEmployerWorkspace();
+  const jobs = await getCompanyJobs();
+  if (jobs.length === 0) return <EmptyState company={company} />;
+
+  return (
+    <div className="flex flex-col items-start gap-4">
+      {jobs.map((job) => (
+        <JobCard key={job.id} job={job} />
+      ))}
+      <Link href={`/${company.slug}/jobs/new`} className={buttonVariants({ variant: "outline" })}>
+        <PlusIcon aria-hidden /> Create job
+      </Link>
+    </div>
+  );
 }
 
 function EmptyState({ company }: { company: Company }) {

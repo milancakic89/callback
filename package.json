@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "scrape": "node --import tsx scraper/index.ts",
-    "jobs:refresh": "npm run scrape -- refresh"
+    "jobs:refresh": "npm run scrape -- refresh",
+    "seed:mock-candidates": "node --import tsx scripts/seed-mock-candidates.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

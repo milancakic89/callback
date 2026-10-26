@@ -80,6 +80,12 @@ See [features/dashboard.md](../features/dashboard.md).
   - For emails that already have an account the cookie is a decoy, so sign-up still doesn't reveal accounts.
   - `chooseAccountType` is limited to 10/h per IP and 5/h per email.
   - `public.account_for_email` is executable by `service_role` only.
+- **Employer jobs and the mock candidates** ([features/demo-job.md](../features/demo-job.md)).
+  - `companies`, `candidate_profiles`, `job_postings` and `job_applications` have row level security on and every privilege revoked from `anon` and `authenticated`. `authenticated` gets `select` on all four and `delete` on `job_postings` only: a client can't insert or update anything.
+  - A company's rows are the ones whose company it owns (`owner_id = auth.uid()`). It reads the profile of a candidate only through an application to one of its jobs. The chain of policies (profiles → applications → jobs → companies) has no cycle.
+  - **`ensure_employer_workspace()`** is `security definer` with `search_path = ''`, executable by `authenticated` only, and refuses any JWT whose `app_metadata.account_type` isn't `employer` (which users can't edit).
+  - **`deleteJobPosting`** (`src/app/(employer)/[company]/actions.ts`) validates the id as a uuid, re-checks `requireAccountType("employer")`, is limited to 30/min per user (key `delete-job:<userId>`), and deletes through the user's own client, so row level security answers "Job not found" for another company's job.
+  - **The mock candidates are real accounts, made unable to sign in:** `app_metadata.mock = true`, a random password nobody sees, `email_confirm`, and a 100-year ban. Their addresses are on `example.com`. The seed script refuses to touch an account at one of those addresses that isn't marked `mock`.
 - **`POST /api/jobs/revalidate`** (`src/app/api/jobs/revalidate/route.ts`) lets the scraper drop the cached job list after `publish`/`boards`.
   - It requires `Authorization: Bearer $REVALIDATE_SECRET`, at least 32 characters, shared with the scraper through `.env.local`. The secret is compared as SHA-256 digests with `timingSafeEqual`.
   - It is rate-limited at 10/min per IP. It returns 404 while `REVALIDATE_SECRET` is unset.
