@@ -76,6 +76,8 @@ Each stage's own staleness window (above) means running everything daily isn't w
 17 3 * * * cd /path/to/job-manager && npm run jobs:refresh >> scraper/data/cron.log 2>&1
 ```
 
+**On the VPS it is a systemd timer instead** (every day at 05:00 Belgrade time, about an hour per run, logging to the journal), with the code shipped by the deploy workflow and the state in `/srv/callback/job-scraper/scraper/data`. See [deployment.md](../project-overview/deployment.md#the-daily-job-refresh), including why the state has to be copied there once before the timer does anything.
+
 `jobs:refresh` (`npm run scrape -- refresh`) runs every step in one process:
 
 1. `companies → careers → jobs`, the same as `all` (`jobs` finalizes on its own at the end).

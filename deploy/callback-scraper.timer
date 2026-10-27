@@ -1,0 +1,14 @@
+# Starts callback-scraper.service every morning (project-overview/deployment.md, "The daily job
+# refresh"). Installed as /etc/systemd/system/callback-scraper.timer by deploy/setup-server.sh.
+[Unit]
+Description=Run the Callback job scraper every morning
+
+[Timer]
+# Belgrade time, whatever the server's own time zone is, so "morning" stays morning across the
+# clock change. Change the time here and run `systemctl daemon-reload` after copying the file.
+OnCalendar=*-*-* 05:00:00 Europe/Belgrade
+# A run missed because the server was off or rebooting happens at the next boot instead.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

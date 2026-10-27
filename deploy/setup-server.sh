@@ -57,9 +57,19 @@ install -d -m 755 -o deploy -g deploy /srv/callback /srv/callback/releases
 install -d -m 700 -o deploy -g deploy /srv/callback/incoming
 
 install -m 644 "$HERE/callback.service" /etc/systemd/system/callback.service
+
+# The daily job refresh (project-overview/deployment.md, "The daily job refresh"). Its code is shipped
+# by the deploy workflow into /srv/callback/job-scraper, and its state (scraper/data) is copied there
+# by hand. The timer is safe to enable now: the unit does nothing until that state exists.
+install -d -m 755 -o deploy -g deploy /srv/callback/job-scraper /srv/callback/job-scraper/scraper \
+  /srv/callback/job-scraper/scraper/data
+install -m 644 "$HERE/callback-scraper.service" /etc/systemd/system/callback-scraper.service
+install -m 644 "$HERE/callback-scraper.timer" /etc/systemd/system/callback-scraper.timer
+
 systemctl daemon-reload
 # Only enabled: there is nothing to run until the first deploy has put a release in place.
 systemctl enable callback
+systemctl enable --now callback-scraper.timer
 
 # The one thing `deploy` may do as root.
 echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart callback' >/etc/sudoers.d/callback-deploy

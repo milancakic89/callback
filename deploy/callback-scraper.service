@@ -1,0 +1,40 @@
+# systemd unit for the daily job refresh (project-overview/deployment.md, "The daily job refresh"):
+# `npm run jobs:refresh`, started every morning by callback-scraper.timer. Installed as
+# /etc/systemd/system/callback-scraper.service by deploy/setup-server.sh.
+[Unit]
+Description=Callback job scraper (npm run jobs:refresh)
+After=network-online.target
+Wants=network-online.target
+# The scraper's state is the JSON in scraper/data: `finalize` takes each job's first_seen_at from the
+# previous jobs.json and `publish` writes it to the database. A run that starts from nothing would
+# stamp every job as first seen today, so the unit does nothing until that state has been copied here
+# (deployment.md). A skipped run shows up in the journal as "Condition check resulted in ... skipped".
+ConditionPathExists=/srv/callback/job-scraper/scraper/data/jobs.json
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+# The code is shipped here by the deploy workflow (deploy/update-scraper.sh). The scraper finds its
+# data at scraper/data relative to this directory, as it does in a checkout.
+WorkingDirectory=/srv/callback/job-scraper
+# The same file the app reads: the scraper only needs SUPABASE_URL and SUPABASE_SECRET_KEY, and, to
+# refresh the live job list at once, APP_URL and REVALIDATE_SECRET. Optional: HIMALAYAS_API_KEY.
+EnvironmentFile=/srv/callback/.env
+# Chromium lives next to the code instead of in the home directory, so the update script and this
+# unit find the same copy.
+Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/callback/job-scraper/browsers
+# update-scraper.sh holds the same lock while it swaps the code and the dependencies, so neither
+# happens under a running scrape. It only ever waits for a deploy's `npm ci`, a few minutes.
+ExecStart=/usr/bin/flock -w 1800 /srv/callback/job-scraper/.lock /usr/bin/npm run jobs:refresh
+# A run takes about an hour. Three times that means something hangs: on the timeout the scraper stops
+# after the companies in progress and saves, and the next run continues from there.
+TimeoutStartSec=3h
+KillSignal=SIGTERM
+TimeoutStopSec=2min
+# The app shares this server: never let the scraper starve it. A run peaks at about 1.2 GB.
+Nice=10
+MemoryMax=3G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full

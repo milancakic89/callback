@@ -112,3 +112,51 @@ jobs:
         run: |
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 \
             "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$GITHUB_SHA" < deploy/activate-release.sh
+
+  # The daily job refresh runs on the server (deploy/callback-scraper.timer), from code shipped here:
+  # the standalone release has no scraper in it. A separate job, after the app is live, so a problem
+  # here never holds back or rolls back a release. Its own concurrency group, because a newer pending
+  # job replaces an older pending one in the same group, and that must not be able to drop a deploy.
+  scraper:
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # update-scraper.sh waits up to 90 minutes for a scrape in progress, then `npm ci` runs.
+    timeout-minutes: 120
+    concurrency:
+      group: scraper-sync
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      # package-lock.json is what `npm ci` on the server installs from. scraper/data is gitignored,
+      # so it is never in a checkout; the exclude is there so it can never ship.
+      - name: Package the scraper
+        run: tar -czf scraper.tgz --exclude=scraper/data package.json package-lock.json scraper
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Upload the scraper
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 \
+            scraper.tgz "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/scraper-$GITHUB_SHA.tgz"
+
+      # Swaps the code (never scraper/data), runs `npm ci` if the lockfile changed, and checks Chromium.
+      - name: Update the scraper on the server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 \
+            "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$GITHUB_SHA" < deploy/update-scraper.sh

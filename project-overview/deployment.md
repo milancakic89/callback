@@ -35,11 +35,13 @@ The build happens on GitHub, so the server only runs `node server.js`; its memor
 |---|---|
 | `next.config.ts` | `output: "standalone"`: the build produces a self-contained `.next/standalone` with its own `server.js`. |
 | `src/app/api/health/route.ts` | What the deploy checks after a restart. It reads the validated environment at request time, so a release with a missing variable answers 500 (the prerendered pages would still answer 200). |
-| `.github/workflows/deploy.yml` | Two jobs. `test` runs the lint and the tests on every push to `main` and on pull requests; `deploy` waits for it, and only on `main` builds, uploads and activates the release. Can also be run by hand. |
+| `.github/workflows/deploy.yml` | Three jobs. `test` runs the lint and the tests on every push to `main` and on pull requests; `deploy` waits for it, and only on `main` builds, uploads and activates the release; `scraper` runs after `deploy` and ships the scraper's code to the server ([the daily job refresh](#the-daily-job-refresh)). Can also be run by hand. |
 | `deploy/activate-release.sh` | Runs on the server: unpacks the release, repoints `/srv/callback/current`, restarts, checks health, and goes back on failure. |
 | `deploy/callback.service` | The systemd unit. The app listens on `127.0.0.1:3000` only. |
+| `deploy/callback-scraper.timer`, `callback-scraper.service` | The daily job refresh: the timer starts the service every morning, and the service runs `npm run jobs:refresh`. |
+| `deploy/update-scraper.sh` | Runs on the server after each deploy: puts the scraper's code and dependencies in `/srv/callback/job-scraper`, and never touches its data. |
 | `deploy/Caddyfile` | HTTPS for `callback.rs`, and `www` redirecting to it. |
-| `deploy/setup-server.sh` | One-time server setup: Node 24, Caddy, a `deploy` user, the service, the firewall. |
+| `deploy/setup-server.sh` | One-time server setup: Node 24, Caddy, a `deploy` user, the service and the scraper's timer, the firewall. |
 
 On the server:
 ```
@@ -48,6 +50,8 @@ On the server:
   current -> releases/<git sha>
   releases/         the three newest releases
   incoming/         where the workflow uploads to
+  job-scraper/      the daily job refresh: package.json, node_modules, browsers/ (Chromium),
+                    scraper/ (the code) and scraper/data/ (its state, gitignored in the repo)
 ```
 
 ## Setting it up
@@ -108,6 +112,46 @@ On the server:
 6. Keeps the three newest releases.
 
 `NEXT_DEPLOYMENT_ID` is the commit hash: a browser that still has the previous release open reloads on its next navigation, instead of calling Server Actions that no longer exist.
+
+## The daily job refresh
+`npm run jobs:refresh` (the scraper: companies, careers, jobs, descriptions, publish, discover and the job boards, [job-scraper.md](../features/job-scraper.md#keeping-it-up-to-date)) runs on the server **every day at 05:00 Belgrade time** and takes about an hour. It writes to the same Supabase project the app reads, and, with `APP_URL` and `REVALIDATE_SECRET` in `PRODUCTION_ENV`, tells the app to drop its cached job list at once.
+
+**How it is put together**
+- **The release has no scraper in it.** It is a standalone build: no `scraper/`, no `tsx`, no Playwright. So the workflow's `scraper` job, after a successful `deploy`, uploads `package.json`, `package-lock.json` and `scraper/` (never `scraper/data`) with the same SSH key, and `deploy/update-scraper.sh` unpacks them into `/srv/callback/job-scraper`. It runs `npm ci` only when the lockfile changed, and installs Chromium (`PLAYWRIGHT_BROWSERS_PATH=/srv/callback/job-scraper/browsers`). It is a separate job so a problem there never holds back or rolls back a release.
+- **A systemd timer, not cron:** `callback-scraper.timer` has `OnCalendar=*-*-* 05:00:00 Europe/Belgrade` and `Persistent=true` (a run missed while the server was off happens at the next boot). It starts `callback-scraper.service`, a `Type=oneshot` unit that runs as `deploy`, reads `/srv/callback/.env`, and has a 3 hour timeout, `Nice=10` and `MemoryMax=3G` so it can't starve the app. The log is in the journal.
+- **One lock** (`/srv/callback/job-scraper/.lock`) is held by a run, and by `update-scraper.sh` while it swaps the code and installs. A deploy that lands during a run waits for it, up to 90 minutes, and then fails visibly; a run that starts during an install waits up to 30 minutes.
+- **The unit does nothing until `scraper/data/jobs.json` exists** (`ConditionPathExists`). The scraper's state is that JSON: `finalize` takes each job's `firstSeenAt` from the previous `jobs.json`, `publish` writes it to the database as `first_seen_at`, and what a scrape no longer finds is closed from it. A first run from nothing would stamp all of the ~6,700 jobs as first seen today, which ruins the "newest" order. So the state of the machine that has been running the scraper has to be copied over once.
+
+**Setting it up** (the server from [Setting it up](#setting-it-up) already exists; these are the steps for it)
+1. **Install the units.** From your computer, copy `deploy/` over again and re-run the setup as root; it is safe to run again, and now also installs the timer and creates `/srv/callback/job-scraper`:
+   ```bash
+   scp -r deploy root@<IP>:~/deploy
+   ssh root@<IP>
+   bash ~/deploy/setup-server.sh "ssh-ed25519 AAAA… github-actions-callback"
+   ```
+   The argument is the same public key as in step 3 of [Setting it up](#setting-it-up).
+2. **Push to `main`.** After the deploy, the `scraper` job puts the code in place. Its log shows whether Chromium starts. If it warns, run once, as root on the server (Playwright's own list of system libraries for this OS):
+   ```bash
+   /srv/callback/job-scraper/node_modules/.bin/playwright install-deps chromium
+   ```
+3. **Copy the state**, from the repository on the machine that has run the scraper:
+   ```bash
+   scp -i ~/.ssh/callback_deploy scraper/data/*.json deploy@<IP>:/srv/callback/job-scraper/scraper/data/
+   ```
+   `jobs.json` has to be there for the timer to run. (`jobs-raw.json` is the largest, about 26 MB.) The server's scraper, not the computer's, should be the only one publishing from then on, or two copies of the state will drift.
+4. **Run it once by hand** instead of waiting for the morning, as root on the server, and watch it. `--no-block` is needed: starting a oneshot unit otherwise waits for the whole hour.
+   ```bash
+   systemctl start --no-block callback-scraper
+   journalctl -u callback-scraper -f          # Ctrl+C stops watching, not the run
+   ```
+   If the journal says "Condition check resulted in … being skipped", `scraper/data/jobs.json` is not there yet.
+
+**Operating it**
+- **When it runs next, and the last result:** `systemctl list-timers callback-scraper.timer` and `systemctl status callback-scraper`. A run where a step failed exits 1, and the unit shows `failed`; the other steps still ran ([job-scraper.md](../features/job-scraper.md#keeping-it-up-to-date)).
+- **Its log:** `journalctl -u callback-scraper -n 200` (the `deploy` user may read it).
+- **A different time:** edit `OnCalendar` in `deploy/callback-scraper.timer`, and copy it to the server and `systemctl daemon-reload` (the setup script does both).
+- **Stopping it:** as root, `systemctl disable --now callback-scraper.timer` (and `systemctl stop callback-scraper` for a run in progress: the scraper finishes the companies it is on and saves).
+- **Extra settings** for the scraper, such as `HIMALAYAS_API_KEY`, go in `PRODUCTION_ENV` like any other, followed by a deploy.
 
 ## Hardening the login (after the first deploy works)
 `root` can log in with a password from anywhere, and bots try common passwords on every public address. The `deploy` user can't (it has only the key). Once you have confirmed that `ssh deploy@<IP>` works with the key, either choose a long random root password or, better, turn password login off:
