@@ -29,9 +29,9 @@ export async function runFinalize(): Promise<void> {
   const previous = await readData("jobs.json", jobsFileSchema, []);
 
   const companyById = new Map(companies.map((company) => [company.jobertyId, company]));
-  const firstSeen = new Map(previous.map((job) => [job.id, job.firstSeenAt]));
-  // The `descriptions` stage backfills this after finalize runs; a plain re-scrape must not erase it.
-  const previousDescription = new Map(previous.map((job) => [job.id, job.description]));
+  // The `descriptions` stage backfills the description and the posting date after finalize runs, and
+  // marks the job as checked; a plain re-scrape must not erase any of that.
+  const previousById = new Map(previous.map((job) => [job.id, job]));
   const jobs = new Map<string, Job>();
   let seen = 0;
   let dropped = 0;
@@ -58,10 +58,12 @@ export async function runFinalize(): Promise<void> {
       remoteScope: placement.remoteScope,
       department: raw.department,
       url: raw.url,
-      description: raw.description ?? previousDescription.get(id) ?? null,
+      description: raw.description ?? previousById.get(id)?.description ?? null,
       source,
-      postedAt: raw.postedAt,
-      firstSeenAt: firstSeen.get(id) ?? seenAt,
+      // What the source's own list says wins; else a date a job page gave earlier.
+      postedAt: raw.postedAt ?? previousById.get(id)?.postedAt ?? null,
+      detailsCheckedAt: previousById.get(id)?.detailsCheckedAt ?? null,
+      firstSeenAt: previousById.get(id)?.firstSeenAt ?? seenAt,
       lastSeenAt: seenAt,
       active: true,
     });

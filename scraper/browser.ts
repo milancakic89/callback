@@ -99,6 +99,20 @@ export function renderPage(url: string): Promise<RenderedPage> {
 }
 
 export async function closeBrowser(): Promise<void> {
-  if (browser) await (await browser).close().catch(() => {});
+  const launching = browser;
   browser = null;
+  if (!launching) return;
+
+  let launched: Browser;
+  try {
+    launched = await launching;
+  } catch (error) {
+    // A browser that never started (a missing system library, say) is a rejected promise, so there is
+    // nothing to close. Each page that needed it was skipped on its own; say so once, and don't turn a
+    // finished run into a crash.
+    const reason = (error instanceof Error ? error.message : String(error)).split("\n")[0];
+    console.error(`[browser] Chromium didn't start, so pages that need a browser were skipped: ${reason}`);
+    return;
+  }
+  await launched.close().catch(() => {});
 }

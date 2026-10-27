@@ -293,7 +293,7 @@ Frontend Engineer (Vue)    Fivetran    1w ago     Remote      [ ]
 ## Open questions
 The plan uses these defaults. Each one is easy to change.
 1. **Label** is the job title.
-2. **Posted** falls back to `first_seen_at` when `posted_at` is missing (76% of jobs). After the first scrape all of them show 2026-10-22. The value only becomes meaningful for jobs that appear later.
+2. **Posted** falls back to `first_seen_at` when `posted_at` is missing (76% of jobs when this was written). After the first scrape all of them showed 2026-10-22. Since 2026-10-27 the scraper reads the posting date from the job's own page or ATS detail call where there is one, so the fallback is for the jobs whose source gives no date ([job-scraper.md](./job-scraper.md#posting-dates)).
 3. **Unknown work mode stays `—`** (about 55% of jobs) instead of guessing `ON_SITE` from a city name.
 4. **Signed-in visitors on `/`** are redirected to `/dashboard` instead of seeing the public view.
 5. **Paging** is client-side with 50 rows per page by default, and the default sort is Posted, newest first.

@@ -38,7 +38,7 @@ export function htmlToText(html: string | null | undefined): string | null {
   return text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS)}…` : text;
 }
 
-function collectJobPostings(node: unknown, out: Record<string, unknown>[]): void {
+export function collectJobPostings(node: unknown, out: Record<string, unknown>[]): void {
   const items = Array.isArray(node) ? node : [node];
   for (const item of items) {
     const record = asRecord(item);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { htmlToText } from "../extract/description";
+import { normalizePostedAt } from "../extract/posted-at";
 import { getJson } from "../http";
 import { cleanText } from "../text";
 import { expectOk, joinLocations, type AtsAdapter } from "./adapter";
@@ -22,14 +23,16 @@ const listSchema = z.object({
 });
 
 const detailSchema = z.object({
-  result: z.object({ jobOpening: z.object({ description: z.string().nullish() }) }),
+  result: z.object({
+    jobOpening: z.object({ description: z.string().nullish(), datePosted: z.string().nullish() }),
+  }),
 });
 
 export const bamboohr: AtsAdapter = {
   name: "bamboohr",
   boardUrl: (slug) => `https://${slug}.bamboohr.com/careers`,
 
-  // The list has no description or date; `descriptions` fetches each job's detail (fetchDescription).
+  // The list has no description or date; `descriptions` fetches each job's detail (fetchDetails).
   async fetchJobs(slug) {
     const res = await getJson(`https://${slug}.bamboohr.com/careers/list`);
     expectOk(res.status, `bamboohr ${slug}`);
@@ -49,11 +52,13 @@ export const bamboohr: AtsAdapter = {
     }));
   },
 
-  async fetchDescription({ externalId, url }) {
+  async fetchDetails({ externalId, url }) {
     const slug = url ? /^https:\/\/([a-z0-9-]+)\.bamboohr\.com\//i.exec(url)?.[1] : null;
     if (!slug) return null;
     const res = await getJson(`https://${slug}.bamboohr.com/careers/${encodeURIComponent(externalId)}/detail`);
     const detail = detailSchema.safeParse(res.data);
-    return res.status === 200 && detail.success ? htmlToText(detail.data.result.jobOpening.description) : null;
+    if (res.status !== 200 || !detail.success) return null;
+    const opening = detail.data.result.jobOpening;
+    return { description: htmlToText(opening.description), postedAt: normalizePostedAt(opening.datePosted) };
   },
 };

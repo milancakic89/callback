@@ -43,14 +43,28 @@ npm run jobs:refresh                 # everything, for cron: all, descriptions, 
   --concurrency <n>  companies in parallel (default 10)
 ```
 
+### Posting dates
+`postedAt` is the day the posting's own source says it went up, never when the scraper saw it. The dashboard shows `posted_at`, and only for a job with none falls back to `firstSeenAt` (when the scraper first saw it), so the aim is a real date for as many jobs as the sources have one. Where it comes from:
+
+- **In the job list itself:** Greenhouse, Lever, Ashby, Recruitee, Personio, Workable, SmartRecruiters, Breezy, and every job board.
+- **From the job's own detail, in the same request that fetches the description** (the `descriptions` stage, `fetchDetails()` on the adapter): Workday (`jobPostingInfo.startDate`, an exact day; the list only says "Posted 5 Days Ago"), BambooHR (`jobOpening.datePosted`) and SuccessFactors (`itemprop="datePosted"` on the job page).
+- **From the job's own page, for everything else** (`dom`, `network`, `jsonld`, TalentLyft, and any ATS without a detail call): the `datePosted` of the schema.org `JobPosting` JSON-LD that sites publish for Google for Jobs, else `itemprop="datePosted"` (`extractPostedAt()` in `scraper/extract/posted-at.ts`). A bare `<time>` tag is not used, because it could as well be a closing date.
+- **Not available:** Joberty (its API and pages have no date), python.org's feed, and the company pages that publish no structured date. Those jobs keep `postedAt` null and show the first-seen date, marked as such.
+
+What the scraper accepts as a date is strict (`normalizePostedAt()`), because a job with no date shows an honest first-seen date, while a misread one does not. ISO dates and times, with or without an offset (without one is UTC), and Java's `Date.toString()` are read. Refused rather than guessed: `01.10.2026` (1 October or 10 January?), `Oct 1, 2026` (read in the zone the machine happens to be in), relative text such as "5 days ago", a day that doesn't exist (`Date.parse` turns 31 February into 3 March), a year before 2000, and a date more than a day ahead. A page that shows two different dates is treated as having none, since it is probably a list and which one is ours is unknown.
+
+- **A date from the source's own list is never replaced** by one read from a page. A date read from a page is kept when a later re-scrape's list doesn't have one (`finalize` keeps the old value, as it does for descriptions).
+- **A job is read at most once every 14 days** (`detailsCheckedAt` in `jobs.json`, set when its page or detail call was actually read, whether or not it had a date). Without it the daily run would fetch about a thousand company pages again every morning, to be told the same thing. A page that couldn't be read gets no mark and is tried again the next run.
+- **Measured on 2026-10-27:** of about 6,200 active jobs in the database, about 1,270 had no date, all from company sites: `dom` 838, `network` 185, TalentLyft 70, Workday 53, BambooHR 52, SuccessFactors 43, Joberty 27, python.org 6. Every job-board and ATS-list source already had 100%. On live pages, the detail calls gave a date for 5 of 5 Workday and 5 of 5 BambooHR jobs, SuccessFactors pages for 6 of 6, TalentLyft's for 7 of 8, and `dom` pages for 9 of 25 and `network` pages for 7 of 15 (6 more needed a browser). A trial run of the stage over 80 jobs (a copy of the data, nothing published) found a date for 25: all 16 BambooHR jobs, 8 of 54 `dom` jobs. The dates were genuinely old (median 258 days, where first-seen had said October).
+
 ### Job descriptions
 Every `Job` and `RawJob` carries a `description` field: the full posting text, HTML stripped, capped at 15,000 characters. Where it comes from depends on the source:
 
 - **Free, fetched as part of `jobs`** (same API call, no extra request): Greenhouse (`?content=true` on the list call), Lever, Ashby, Recruitee, Personio, Workable. A re-scrape never loses a previously backfilled description — `finalize` keeps the old value when the new scrape doesn't have one.
 - **One extra request per job, via `descriptions`:**
-  - SmartRecruiters, Workday, Breezy: each adapter's `fetchDescription()` calls that ATS's own per-job detail endpoint, parsing the company/tenant/board straight out of the job's own `url` (no dependency on `careers.json`).
+  - SmartRecruiters, Workday, Breezy, BambooHR, SuccessFactors: each adapter's `fetchDescription()` (or, for Workday, BambooHR and SuccessFactors, `fetchDetails()`, which also returns the posting date) calls that ATS's own per-job detail endpoint, parsing the company/tenant/board straight out of the job's own `url` (no dependency on `careers.json`).
   - Everything else (`dom`, `network`, `jsonld`, `joberty`, and any ATS without a `fetchDescription`): a generic fallback (`extractJsonLdDescription` / `extractMainContentText` in `scraper/extract/description.ts`) fetches the job's own page and pulls out its schema.org `JobPosting` JSON-LD, or failing that, whichever element looks most like "the description" by class/id, with chrome (breadcrumbs, share buttons, galleries, apply buttons) stripped first.
-- `descriptions` only fetches jobs that don't have one yet (skip unless `--force`), so it's cheap to run repeatedly.
+- `descriptions` only fetches jobs that lack a description or a posting date, and that haven't been read in the last 14 days (`--force` and `--company` read them regardless). A description the list already gave is not replaced by text guessed from the page, except on `--force`. So it's cheap to run repeatedly.
 
 Ctrl+C stops after the companies in progress and saves; the next run continues where it stopped. Without `--force`, `careers` skips companies checked in the last 30 days and `jobs` skips companies scraped in the last 12 hours.
 
@@ -218,7 +232,7 @@ Types live in `scraper/types.ts` and are validated with zod on read and write. T
 { "id": "greenhouse:123456", "companyJobertyId": 2130, "companyName": "Fivetran Serbia", "title": "...",
   "locationRaw": "Novi Sad, South Bačka, Serbia, EMEA", "country": "RS", "isRemote": false, "remoteScope": null,
   "department": "...", "url": "...", "source": "greenhouse|lever|...|html|network|joberty",
-  "postedAt": null, "firstSeenAt": "...", "lastSeenAt": "...", "active": true }
+  "postedAt": null, "detailsCheckedAt": null, "firstSeenAt": "...", "lastSeenAt": "...", "active": true }
 ```
 
 - `jobs-raw.json`: every job before filtering, for debugging and tuning the location rules.

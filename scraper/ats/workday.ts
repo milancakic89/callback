@@ -2,6 +2,7 @@ import { z } from "zod";
 import { htmlToText } from "../extract/description";
 import { getJson } from "../http";
 import { isSerbianPlace } from "../normalize";
+import { normalizePostedAt } from "../extract/posted-at";
 import { cleanText } from "../text";
 import type { RawJob } from "../types";
 import { expectOk, type AtsAdapter } from "./adapter";
@@ -9,8 +10,11 @@ import { expectOk, type AtsAdapter } from "./adapter";
 // From a job's own url: "https://{tenant}.{wdN}.myworkdayjobs.com/{site}/job/...".
 const JOB_URL = /^https:\/\/([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com\/([a-z0-9_-]+)(\/job\/.*)$/i;
 
+// `startDate` is the day the job was posted ("2026-10-22"); the list only has "Posted 5 Days Ago".
 const jobDetailSchema = z.object({
-  jobPostingInfo: z.object({ jobDescription: z.string().nullish() }).nullish(),
+  jobPostingInfo: z
+    .object({ jobDescription: z.string().nullish(), startDate: z.string().nullish() })
+    .nullish(),
 });
 
 const PAGE_SIZE = 20;
@@ -121,7 +125,7 @@ export const workday: AtsAdapter = {
     return jobs;
   },
 
-  async fetchDescription(job) {
+  async fetchDetails(job) {
     const match = job.url ? JOB_URL.exec(job.url) : null;
     if (!match) return null;
     const [, tenant, wd, site, externalPath] = match;
@@ -130,6 +134,9 @@ export const workday: AtsAdapter = {
     );
     if (res.status !== 200) return null;
     const detail = jobDetailSchema.safeParse(res.data);
-    return detail.success ? htmlToText(detail.data.jobPostingInfo?.jobDescription) : null;
+    // A 200 without the posting's info isn't a detail with nothing in it: don't count it as read.
+    const info = detail.success ? detail.data.jobPostingInfo : null;
+    if (!info) return null;
+    return { description: htmlToText(info.jobDescription), postedAt: normalizePostedAt(info.startDate) };
   },
 };

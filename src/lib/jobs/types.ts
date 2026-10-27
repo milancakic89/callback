@@ -75,8 +75,9 @@ export function sourceLabel(source: string): string {
   return SOURCE_LABELS[source] ?? source.charAt(0).toUpperCase() + source.slice(1);
 }
 
-// `posted_at` is missing for most rows (see features/dashboard.md); fall back to when the
-// scraper first saw the posting so sorting and the Posted filter always have a value.
+// `posted_at` is the date the posting's own source gives (an ATS, the job's page, a job board). It
+// is missing only where the source has none, so then fall back to when the scraper first saw the
+// posting, and sorting and the Posted filter always have a value.
 export function jobDate(job: Pick<JobListItem, "postedAt" | "firstSeenAt">): string {
   return job.postedAt ?? job.firstSeenAt;
 }

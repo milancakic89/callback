@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { htmlToText } from "../extract/description";
+import { extractPostedAt } from "../extract/posted-at";
 import { fetchHtml } from "../http";
 import { cleanText, shortHash } from "../text";
 import type { RawJob } from "../types";
@@ -51,11 +52,13 @@ export const successfactors: AtsAdapter = {
     return [...jobs.values()];
   },
 
-  async fetchDescription({ url }) {
+  // The job page has both: the description, and the date as `itemprop="datePosted"`. The search
+  // list's own `.jobDate` is only there on some sites.
+  async fetchDetails({ url }) {
     if (!url) return null;
     const res = await fetchHtml(url);
     if (!res.usable) return null;
     const html = cheerio.load(res.html)("[itemprop=description], .jobdescription").first().html();
-    return htmlToText(html);
+    return { description: htmlToText(html), postedAt: extractPostedAt(res.html) };
   },
 };

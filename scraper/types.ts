@@ -123,6 +123,10 @@ export const jobSchema = z.object({
   description: z.string().nullable().default(null),
   source: z.string(),
   postedAt: z.string().nullable(),
+  // When the `descriptions` stage last read this job's own page or detail call, whether or not it
+  // found anything, so a page with no date isn't fetched again every day. Defaulted so files written
+  // before this field existed still parse.
+  detailsCheckedAt: z.string().nullable().default(null),
   firstSeenAt: z.string(),
   lastSeenAt: z.string(),
   active: z.boolean(),

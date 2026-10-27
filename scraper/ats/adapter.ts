@@ -8,6 +8,10 @@ export type AtsProbe = {
   jobCount: number | null;
 };
 
+// What one call to a job's own detail gives that the job list doesn't. `postedAt` is an ISO
+// timestamp (extract/posted-at.ts), or null when the detail has no date.
+export type JobDetails = { description: string | null; postedAt: string | null };
+
 export type AtsAdapter = {
   name: AtsName;
   boardUrl(slug: string): string;
@@ -18,6 +22,10 @@ export type AtsAdapter = {
   // Only for ATSs whose job list omits the description (one extra request per job).
   // Takes the job's own url, since that alone identifies it on these boards.
   fetchDescription?(job: { externalId: string; url: string | null }): Promise<string | null>;
+  // The same, for ATSs whose detail call also carries the posting date, so one request gives both
+  // (used in place of fetchDescription). Null when the call failed, as opposed to a detail with no
+  // description and no date.
+  fetchDetails?(job: { externalId: string; url: string | null }): Promise<JobDetails | null>;
 };
 
 export function expectOk(status: number, what: string): void {
