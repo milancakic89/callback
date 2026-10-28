@@ -7,7 +7,7 @@ import { extractInlineJson } from "../extract/inline-json";
 import { extractJsonLdJobs } from "../extract/json-ld";
 import { findOpeningsLink } from "../extract/links";
 import { extractNetworkJobs, type CapturedJson } from "../extract/network-json";
-import { fetchHtml, robotsAllowed } from "../http";
+import { crawlPolicy, fetchHtml, robotsAllowed } from "../http";
 import { isSerbianPlace } from "../normalize";
 import { logProgress, selectCompanies, type StageOptions } from "../options";
 import { forEachLimit } from "../pool";
@@ -140,6 +140,12 @@ async function scrapeCompany(
     scrapedAt,
   });
   if (!url) return manual("no careers URL");
+
+  // From here the company's own pages are walked (an ATS API, above, is not): only where robots.txt
+  // forbids nothing (http.ts). The reason is kept, so `finalize` can tell a site that said no from
+  // one that couldn't be asked.
+  const policy = await crawlPolicy(url);
+  if (!policy.allowed) return manual(policy.error);
 
   const needsLocation = company.offices.some((office) => !isSerbianPlace(office));
   const fromStatic = await scrapeStatic(url, 1);

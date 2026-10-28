@@ -1,3 +1,4 @@
+import { isRobotsDisallowed } from "../http";
 import { placeJob } from "../normalize";
 import { readData, writeData } from "../store";
 import { plain } from "../text";
@@ -82,10 +83,15 @@ export async function runFinalize(): Promise<void> {
   }
 
   // A job missing from a successful scrape is closed; after a failed scrape it stays as it was.
+  // The exception is a company whose robots.txt forbids us (http.ts): nothing is read from its pages
+  // any more, so what was read earlier is closed too. Joberty's own list is a public API, unaffected.
   for (const old of previous) {
     if (jobs.has(old.id)) continue;
+    const scrape = scrapes[old.companyJobertyId];
     const refreshed =
-      old.source === "joberty" ? joberty.fetchedAt !== null : scrapes[old.companyJobertyId]?.status === "ok";
+      old.source === "joberty"
+        ? joberty.fetchedAt !== null
+        : scrape?.status === "ok" || isRobotsDisallowed(scrape?.error);
     jobs.set(old.id, refreshed ? { ...old, active: false } : old);
   }
 

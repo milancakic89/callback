@@ -55,12 +55,17 @@ const previousJob = (overrides: Partial<Job> = {}): Job => ({
   ...overrides,
 });
 
-function files(scrapedJobs: RawJob[], previous: Job[]) {
+function files(scrapedJobs: RawJob[], previous: Job[], scrape: Record<string, unknown> = {}, jobertyJobs: RawJob[] = []) {
   const data: Record<string, unknown> = {
     "companies.json": [company],
     "careers.json": {},
-    "jobs-raw.json": { "1": { status: "ok", source: "dom", ats: null, atsSlug: null, pageUrl: null, jobs: scrapedJobs, error: null, scrapedAt: SEEN_AT } },
-    "joberty-jobs.json": { fetchedAt: null, jobs: [] },
+    "jobs-raw.json": {
+      "1": { status: "ok", source: "dom", ats: null, atsSlug: null, pageUrl: null, jobs: scrapedJobs, error: null, scrapedAt: SEEN_AT, ...scrape },
+    },
+    "joberty-jobs.json": {
+      fetchedAt: jobertyJobs.length ? SEEN_AT : null,
+      jobs: jobertyJobs.map((job) => ({ ...job, companyJobertyId: 1, companyName: "Acme" })),
+    },
     "jobs.json": previous,
   };
   readData.mockImplementation(async (name: string) => data[name]);
@@ -128,5 +133,62 @@ describe("a re-scrape of a job the descriptions stage already filled in", () => 
       postedAt: "2026-10-20T00:00:00.000Z",
       detailsCheckedAt: "2026-10-26T06:00:00.000Z",
     });
+  });
+});
+
+// A site whose robots.txt forbids something is no longer walked (http.ts). What was read from its
+// pages before can't stay on the site as if it were current, so those jobs are closed. A site that
+// merely couldn't be asked (403, a failing server) is a bad minute, and its jobs stay as they were.
+describe("a company whose pages the robots.txt policy refuses", () => {
+  const refused = (error: string) => ({ status: "needs_manual", source: null, jobs: [], error });
+  const open = (id: string, source: string) => previousJob({ id, source, postedAt: "2026-10-20T00:00:00.000Z" });
+
+  it("has its jobs closed, whatever their source, when the site said no", async () => {
+    files([], [open("dom:1", "dom"), open("network:2", "network"), open("successfactors:3", "successfactors")], refused("blocked by robots.txt: Disallow /wp-admin/"));
+
+    await runFinalize();
+
+    expect(written().map((job) => [job.id, job.active])).toEqual([
+      ["dom:1", false],
+      ["network:2", false],
+      ["successfactors:3", false],
+    ]);
+    // Closed, not forgotten: the row keeps what it had, so a later change of the rule can reopen it.
+    expect(written()[0]).toMatchObject({ postedAt: "2026-10-20T00:00:00.000Z", firstSeenAt: "2026-10-01T00:00:00.000Z" });
+  });
+
+  it("also when the refusal arrived as an error from an adapter that walks pages (TalentLyft's hosted site)", async () => {
+    files([], [open("talentlyft:1", "talentlyft")], { status: "error", error: "talentlyft acme: blocked by robots.txt: Disallow /api/" });
+
+    await runFinalize();
+
+    expect(written()[0].active).toBe(false);
+  });
+
+  it("keeps its jobs as they were when the site couldn't be asked", async () => {
+    files([], [open("dom:1", "dom")], refused("robots.txt not readable: HTTP 403"));
+
+    await runFinalize();
+
+    expect(written()[0]).toMatchObject({ id: "dom:1", active: true });
+  });
+
+  it("still closes a job missing from a successful scrape, and keeps one after any other failure", async () => {
+    files([], [open("dom:1", "dom")]);
+    await runFinalize();
+    expect(written()[0].active).toBe(false);
+
+    writeData.mockReset();
+    files([], [open("dom:1", "dom")], { status: "error", error: "timeout" });
+    await runFinalize();
+    expect(written()[0].active).toBe(true);
+  });
+
+  it("leaves Joberty's own list alone: it is a public API, not a page of the company", async () => {
+    files([], [open("joberty:9", "joberty")], refused("blocked by robots.txt: Disallow /"), [raw({ externalId: "9", title: "Developer" })]);
+
+    await runFinalize();
+
+    expect(written().find((job) => job.id === "joberty:9")).toMatchObject({ active: true });
   });
 });

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { launch } = vi.hoisted(() => ({ launch: vi.fn() }));
+const { launch, crawlPolicy } = vi.hoisted(() => ({ launch: vi.fn(), crawlPolicy: vi.fn() }));
 vi.mock("playwright", () => ({ chromium: { launch } }));
+vi.mock("./http", () => ({ USER_AGENT: "test-agent", crawlPolicy }));
 
 // `browser` is module state, so each test gets a fresh copy of the module.
 async function freshBrowserModule() {
@@ -11,6 +12,8 @@ async function freshBrowserModule() {
 
 beforeEach(() => {
   launch.mockReset();
+  crawlPolicy.mockReset();
+  crawlPolicy.mockResolvedValue({ allowed: true, error: null });
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -67,5 +70,30 @@ describe("closeBrowser when Chromium started", () => {
 
     await expect(withPage("https://example.com", async () => "never")).rejects.toThrow();
     await expect(closeBrowser()).resolves.toBeUndefined();
+  });
+});
+
+// Every page the browser opens goes through withPage, so this is where robots.txt (http.ts) is kept.
+describe("withPage on a site whose robots.txt forbids something", () => {
+  it("opens nothing, not even a browser, and says why", async () => {
+    crawlPolicy.mockResolvedValue({ allowed: false, error: "blocked by robots.txt: Disallow /wp-admin/" });
+    const { withPage, closeBrowser } = await freshBrowserModule();
+    const fn = vi.fn();
+
+    await expect(withPage("https://acme.example/careers", fn)).rejects.toThrow("blocked by robots.txt: Disallow /wp-admin/");
+
+    expect(crawlPolicy).toHaveBeenCalledWith("https://acme.example/careers");
+    expect(launch).not.toHaveBeenCalled();
+    expect(fn).not.toHaveBeenCalled();
+    await expect(closeBrowser()).resolves.toBeUndefined();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it("opens a page on a site that forbids nothing, as before", async () => {
+    launch.mockResolvedValue({ newContext: vi.fn().mockRejectedValue(new Error("no context in a test")), close: vi.fn() });
+    const { withPage } = await freshBrowserModule();
+
+    await expect(withPage("https://open.example/careers", async () => "never")).rejects.toThrow("no context");
+    expect(launch).toHaveBeenCalledOnce();
   });
 });

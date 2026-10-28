@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { z } from "zod";
-import { API_INTERVAL_MS, getJson, request } from "../http";
+import { API_INTERVAL_MS, crawlPolicy, getJson, request } from "../http";
 import { cleanText, shortHash } from "../text";
 import type { RawJob } from "../types";
 import { expectOk, type AtsAdapter } from "./adapter";
@@ -73,6 +73,9 @@ async function fetchWidgetJobs(companyId: string): Promise<RawJob[]> {
 // A hosted site renders its list from this HTML fragment, which answers only XHR-style requests.
 async function fetchHostedJobs(subdomain: string): Promise<RawJob[]> {
   const origin = `https://${subdomain}.talentlyft.com`;
+  // Unlike the widget's API, this is the company's career site itself, walked page by page.
+  const policy = await crawlPolicy(origin);
+  if (!policy.allowed) throw new Error(`talentlyft ${subdomain}: ${policy.error}`);
   const jobs = new Map<string, RawJob>();
   for (let page = 1; page <= MAX_PAGES; page++) {
     const query = new URLSearchParams({

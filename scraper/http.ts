@@ -109,8 +109,9 @@ export type HtmlPage = {
 };
 
 export async function fetchHtml(url: string): Promise<HtmlPage> {
-  if (!(await robotsAllowed(url))) {
-    return { status: 0, url, html: "", usable: false, blocked: true, error: "blocked by robots.txt" };
+  const policy = await crawlPolicy(url);
+  if (!policy.allowed) {
+    return { status: 0, url, html: "", usable: false, blocked: true, error: policy.error };
   }
   try {
     // No retry: a dead company website would otherwise cost two full timeouts.
@@ -131,38 +132,72 @@ export async function fetchHtml(url: string): Promise<HtmlPage> {
   }
 }
 
-type RobotsRule = { allow: boolean; pattern: RegExp; length: number };
+// ——— robots.txt: which sites the scraper goes through ———
+//
+// Where the scraper walks a company's own pages to find its jobs (the homepage and careers search,
+// the careers page, a job's page, anything it opens in the browser), it does so only on a site whose
+// robots.txt forbids nothing to us. Any non-empty `Disallow` for `*` is enough to leave the site
+// alone, even for a path we never needed (`/wp-admin/`): the aim is a position that can be stated
+// without exceptions. A site we couldn't read the file of (403, a failing server) hasn't told us what
+// it allows, so it is left alone too. No file at all (404) is no rules, as in RFC 9309.
+//
+// The public APIs of ATS vendors and job boards, and Joberty's, are not walked pages and don't come
+// through here: they use `getJson`/`request` directly.
+export const ROBOTS_DISALLOWED = "blocked by robots.txt";
+export const ROBOTS_UNREADABLE = "robots.txt not readable";
 
-const robotsCache = new Map<string, Promise<RobotsRule[]>>();
+// A refusal for a site that said so, as opposed to one we couldn't ask. The first is final: its jobs
+// are closed (stages/finalize.ts). The second may be a bad minute, so they are left as they were.
+export const isRobotsDisallowed = (error: string | null | undefined): boolean => Boolean(error?.includes(ROBOTS_DISALLOWED));
+export const isRobotsRefusal = (error: string | null | undefined): boolean =>
+  isRobotsDisallowed(error) || Boolean(error?.includes(ROBOTS_UNREADABLE));
+
+export type CrawlPolicy = { allowed: true; error: null } | { allowed: false; error: string };
+
+const policyCache = new Map<string, Promise<CrawlPolicy>>();
+
+// One answer per site (origin) per run.
+export function crawlPolicy(url: string): Promise<CrawlPolicy> {
+  const { origin } = new URL(url);
+  let policy = policyCache.get(origin);
+  if (!policy) {
+    policy = loadPolicy(origin);
+    policyCache.set(origin, policy);
+  }
+  return policy;
+}
 
 export async function robotsAllowed(url: string): Promise<boolean> {
-  const { origin, pathname, search } = new URL(url);
-  let rules = robotsCache.get(origin);
-  if (!rules) {
-    rules = loadRobots(origin);
-    robotsCache.set(origin, rules);
-  }
-  const target = pathname + search;
-  let best: RobotsRule | null = null;
-  for (const rule of await rules) {
-    if (!rule.pattern.test(target)) continue;
-    if (!best || rule.length > best.length || (rule.length === best.length && rule.allow)) best = rule;
-  }
-  return best?.allow ?? true;
+  return (await crawlPolicy(url)).allowed;
 }
 
-async function loadRobots(origin: string): Promise<RobotsRule[]> {
+async function loadPolicy(origin: string): Promise<CrawlPolicy> {
+  let res: HttpResponse;
   try {
-    const res = await request(`${origin}/robots.txt`, { timeoutMs: 8000, retries: 0 });
-    return res.status < 400 ? parseRobots(res.text) : [];
-  } catch {
-    return [];
+    res = await request(`${origin}/robots.txt`, { timeoutMs: 8000, retries: 0 });
+  } catch (error) {
+    return { allowed: false, error: `${ROBOTS_UNREADABLE}: ${describeError(error)}` };
   }
+  // 401 and 403 aren't "no file": the site turned us away from it, and 429 asks us to slow down. A
+  // 5xx is a server that may be failing, and RFC 9309 says to assume nothing is allowed then.
+  if (res.status === 401 || res.status === 403 || res.status === 429 || res.status >= 500) {
+    return { allowed: false, error: `${ROBOTS_UNREADABLE}: HTTP ${res.status}` };
+  }
+  if (res.status >= 400) return { allowed: true, error: null };
+  // A single-page app answers every path, /robots.txt included, with its HTML.
+  if (/html/i.test(res.contentType) && /<(!doctype|html)/i.test(res.text.slice(0, 500))) {
+    return { allowed: true, error: null };
+  }
+  const disallowed = disallowedPaths(res.text);
+  if (!disallowed.length) return { allowed: true, error: null };
+  const shown = disallowed.slice(0, 3).join(" ");
+  return { allowed: false, error: `${ROBOTS_DISALLOWED}: Disallow ${shown}${disallowed.length > 3 ? " …" : ""}` };
 }
 
-// Only the "*" group applies to us; longest matching rule wins, as in RFC 9309.
-export function parseRobots(text: string): RobotsRule[] {
-  const rules: RobotsRule[] = [];
+// The non-empty `Disallow` values of the "*" group, which is the only group that applies to us. A
+// group for a named bot (GPTBot, CCBot…) says nothing about us, and an empty `Disallow:` allows all.
+export function disallowedPaths(text: string): string[] {
+  const paths: string[] = [];
   let agents: string[] = [];
   let readingAgents = false;
   for (const rawLine of text.split(/\r?\n/)) {
@@ -177,17 +212,7 @@ export function parseRobots(text: string): RobotsRule[] {
       continue;
     }
     readingAgents = false;
-    if ((key === "allow" || key === "disallow") && value && agents.includes("*")) {
-      rules.push({ allow: key === "allow", pattern: robotsPattern(value), length: value.length });
-    }
+    if (key === "disallow" && value && agents.includes("*")) paths.push(value);
   }
-  return rules;
-}
-
-function robotsPattern(path: string): RegExp {
-  const anchored = path.endsWith("$");
-  const body = (anchored ? path.slice(0, -1) : path)
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*/g, ".*");
-  return new RegExp(`^${body}${anchored ? "$" : ""}`);
+  return paths;
 }

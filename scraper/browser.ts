@@ -1,6 +1,6 @@
 import { chromium, type Browser, type Page } from "playwright";
 import type { CapturedJson } from "./extract/network-json";
-import { USER_AGENT } from "./http";
+import { crawlPolicy, USER_AGENT } from "./http";
 
 const MAX_PAGES = 4;
 const MAX_JSON_BYTES = 3_000_000;
@@ -37,6 +37,11 @@ export async function withPage<T>(
   url: string,
   fn: (page: Page, capture: PageCapture) => Promise<T>,
 ): Promise<T> {
+  // Every page the browser opens goes through here, so the robots.txt policy (http.ts) is kept in
+  // one place. The requests a page then makes itself, to its own backend or to a public API (the
+  // `network` source reads those), are the page's and are not checked one by one.
+  const policy = await crawlPolicy(url);
+  if (!policy.allowed) throw new Error(policy.error);
   await acquire();
   try {
     browser ??= chromium.launch({ headless: true });

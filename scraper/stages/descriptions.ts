@@ -27,7 +27,8 @@ type Details = {
 async function fetchPageHtml(url: string, useBrowser: boolean): Promise<string | null> {
   const page = await fetchHtml(url);
   let html = page.usable ? page.html : null;
-  if (!html && useBrowser) {
+  // robots.txt binds the browser too: a page fetchHtml refused for it is not rendered instead.
+  if (!html && useBrowser && !page.blocked) {
     html = (await renderPage(url).catch(() => null))?.html ?? null;
   }
   return html;

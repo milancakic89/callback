@@ -119,6 +119,17 @@ describe("a job with no posting date", () => {
     expect(savedJob("dom:acme-1").postedAt).toBe("2026-09-01T00:00:00.000Z");
   });
 
+  // fetchHtml refuses a page that robots.txt disallows; rendering it in the browser instead would
+  // read the very page the site asked robots not to.
+  it("is not rendered in the browser when robots.txt disallows it", async () => {
+    fetchHtml.mockResolvedValue({ usable: false, html: "", blocked: true, error: "blocked by robots.txt" });
+
+    await run([job()], options({ browser: true }));
+
+    expect(renderPage).not.toHaveBeenCalled();
+    expect(savedJob("dom:acme-1")).toMatchObject({ postedAt: null, detailsCheckedAt: null });
+  });
+
   it("keeps a date it can't trust out of the data", async () => {
     fetchHtml.mockResolvedValue(pageWith(jobPosting("01.10.2026")));
 

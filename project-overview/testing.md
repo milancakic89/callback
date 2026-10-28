@@ -2,7 +2,7 @@
 
 **Status:** Unit tests exist for the code that has no framework in it, and the deploy workflow runs them before it ships anything. There are no integration or end-to-end tests yet.
 
-`npm test` runs 173 tests in about a fifth of a second. `npm run test:watch` re-runs them as you edit.
+`npm test` runs 205 tests in about a fifth of a second. `npm run test:watch` re-runs them as you edit.
 
 ## What is covered
 
@@ -19,6 +19,7 @@ Tests sit next to the code they test (`*.test.ts`), run with [Vitest](https://vi
 | Companies | `src/lib/companies/company.test.ts` | Only the exact slug is a company, so anything else is a 404 |
 | Posting dates | `scraper/extract/posted-at.test.ts`, `scraper/ats/details.test.ts` | The strict date parser (ISO with and without an offset, Java's `Date.toString()`; refuses `01.10.2026`, `Oct 1, 2026`, 31 February, years before 2000, dates a day ahead), `datePosted` from JSON-LD and `itemprop` (never a bare `<time>`; two different dates count as none), and Workday, BambooHR and SuccessFactors giving the description and the date from one call, with a failed call distinct from a detail that has no date |
 | Reading job pages | `scraper/stages/descriptions.test.ts`, `scraper/stages/finalize.test.ts` | Which jobs are read (lacking a date or a description, not read in the last 14 days; `--force` reads all), that a page that couldn't be read gets no mark, that a date or description the source gave is never replaced, and that `finalize` keeps a date read from a page across a re-scrape |
+| robots.txt policy | `scraper/http.test.ts`, `scraper/browser.test.ts`, `scraper/stages/jobs.test.ts`, `scraper/stages/careers.test.ts`, `scraper/ats/talentlyft.test.ts`, `scraper/stages/finalize.test.ts` | Any `Disallow` for `*` refuses a site (even `/wp-admin/`), while an empty one, `Allow`, another bot's group, no file and an HTML answer don't; 401/403/429/5xx/no answer refuse it too but not as "said no"; one answer per site; `fetchHtml`, the browser and TalentLyft's hosted site don't touch a refused site; the jobs stage doesn't walk its careers page but still reads an ATS's public API; a refused recheck keeps the earlier careers result; `finalize` closes the jobs of a site that said no, keeps those of one that couldn't be asked, and leaves Joberty's list alone |
 | Scraper's browser | `scraper/browser.test.ts` | A Chromium that never started (a missing system library on the server) doesn't crash a finished run in `closeBrowser()`: it says so once, and a browser that did start is closed once. Playwright is a mock |
 | Mock candidates | `src/lib/candidates/mock-candidates.test.ts` | Exactly three, unique keys and emails, every email on `example.com` (the seed must never touch a real address), and each has its CV and letter in the landing demo |
 | Deleting a job | `src/app/(employer)/[company]/actions.test.ts` | `deleteJobPosting`: refuses an id that isn't a uuid, needs an employer account, answers "Job not found" when row level security deletes nothing, deletes and refreshes, and the 30 a minute limit. The Supabase client and the session are mocks |

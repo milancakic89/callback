@@ -4,7 +4,7 @@ import { guessAts } from "../ats/guess";
 import { getAdapter } from "../ats/registry";
 import { renderPage } from "../browser";
 import { looksLikeCareersUrl, pickCareersLink } from "../extract/links";
-import { fetchHtml, request, robotsAllowed } from "../http";
+import { fetchHtml, isRobotsRefusal, request, robotsAllowed } from "../http";
 import { logProgress, selectCompanies, type StageOptions } from "../options";
 import { forEachLimit } from "../pool";
 import { createSaver, readData, writeData } from "../store";
@@ -171,6 +171,16 @@ function summary(found: CareersResult): string {
   return `${found.status}${found.via ? ` via ${found.via}` : ""}${ats} ${found.careersUrl ?? found.error ?? ""}`;
 }
 
+// A recheck of a site whose robots.txt now forbids us (or can't be read) must not erase what an
+// earlier visit found. Its ATS, if it has one, is read from the vendor's public API, which needs no
+// visit to the site; and a careers page is only walked when the policy allows it, at `jobs` time.
+// The date is renewed, so the next look is in 30 days and not on every run.
+export function reusePrevious(found: CareersResult, previous: CareersResult | undefined): CareersResult {
+  const refused = found.status === "error" && isRobotsRefusal(found.error);
+  const worthKeeping = previous && (previous.status === "found" || previous.status === "ambiguous");
+  return refused && worthKeeping ? { ...previous, checkedAt: found.checkedAt } : found;
+}
+
 export async function runCareers(options: StageOptions): Promise<void> {
   const companies = await readData("companies.json", companiesFileSchema, []);
   if (!companies.length) throw new Error("companies.json is empty; run `npm run scrape -- companies` first");
@@ -193,6 +203,7 @@ export async function runCareers(options: StageOptions): Promise<void> {
       } catch (error) {
         found = result({ status: "error", error: describeError(error) });
       }
+      found = reusePrevious(found, careers[company.jobertyId]);
       careers[company.jobertyId] = found;
       logProgress("careers", ++done, targets.length, company.name, summary(found));
       if (done % 20 === 0) await save();
