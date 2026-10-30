@@ -71,7 +71,13 @@ See [features/companies.md](../features/companies.md).
 
 **Built, not yet pushed ([features/demo-job.md](../features/demo-job.md)):** every company gets its own row, and a demo job with three mock candidates (real accounts in the database) on its first dashboard visit, which it can delete. The migration is applied and the mock candidates are seeded; what is left is a look at the dashboard in a browser, and the push to `main`.
 
-**Deferred:** a company name and slugs from accounts; `job_postings` and saving from the editor; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; reviewing applications. The order is in the feature doc.
+**Built, migration applied, not yet pushed ([features/post-job.md](../features/post-job.md)):** the job form saves a job (title, description, location, work mode) to `job_postings` and returns to the dashboard; the candidate preview has an Upload CV button that does nothing yet.
+
+**Built, migration applied, not yet pushed ([features/job-publishing.md](../features/job-publishing.md)):** a company can edit any of its jobs, and publish or unpublish them from the dashboard card. A new job is a draft; unpublishing a job with applicants asks whether to withdraw their applications, move them to another job, or keep them. Published jobs are not on the job board yet.
+
+**Built, migration applied, not yet pushed ([features/job-filters.md](../features/job-filters.md)):** the job form takes CV filters, "Required" and "Nice-to-have" chips, stored with the job and never shown to candidates. This only stores them. **Next step: CV upload and matching**, so an employer sees which candidates meet every required filter (nice-to-have ones only rank).
+
+**Deferred:** a company name and slugs from accounts; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; reviewing applications. The order is in the feature doc.
 
 ## Phase 5 — Application Tracking Source
 **Status:** manual entry (the Applied checkbox, Phase 2) is decided and shipped. Automated entry

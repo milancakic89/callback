@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { JobCard } from "@/components/employer/job-card";
+import { JOB_CARD_WIDTH, JobCard } from "@/components/employer/job-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAccountType } from "@/lib/auth/dal";
@@ -19,14 +19,37 @@ type Params = Promise<{ company: string }>;
 // applicants, or an offer to create the first one. The heading is static. The slug, the account
 // check and the jobs are per-request data, so the page passes `params` down and all are read inside
 // Suspense.
+//
+// Create job sits in the heading's row, so it stays where it is however many jobs there are. The
+// jobs are cards of one size in a row that wraps, three to a row at most. How many fit follows the
+// width of this area, not the screen's (container queries on the wrapper below; the widths are
+// JOB_CARD_WIDTH in job-card.tsx). 92rem is three cards at their widest (30rem) and two gaps (1rem).
 export default function EmployerDashboardPage({ params }: { params: Params }) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Employer dashboard</h1>
-      <Suspense fallback={<Skeleton className="h-52 max-w-2xl rounded-xl" />}>
-        <AuthedEmployerDashboard params={params} />
-      </Suspense>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Employer dashboard</h1>
+        {/* Needs the slug for its link, so it streams in on its own; the fallback is its size. */}
+        <Suspense fallback={<Skeleton className="h-8 w-28 rounded-lg" />}>
+          <CreateJobLink params={params} />
+        </Suspense>
+      </div>
+      <div className="@container w-full max-w-[92rem]">
+        <Suspense fallback={<Skeleton className={`h-52 rounded-xl ${JOB_CARD_WIDTH}`} />}>
+          <AuthedEmployerDashboard params={params} />
+        </Suspense>
+      </div>
     </div>
+  );
+}
+
+async function CreateJobLink({ params }: { params: Params }) {
+  const company = await getCompanyOrNotFound(params);
+
+  return (
+    <Link href={`/${company.slug}/jobs/new`} className={buttonVariants({ variant: "outline" })}>
+      <PlusIcon aria-hidden /> Create job
+    </Link>
   );
 }
 
@@ -41,13 +64,19 @@ async function AuthedEmployerDashboard({ params }: { params: Params }) {
   if (jobs.length === 0) return <EmptyState company={company} />;
 
   return (
-    <div className="flex flex-col items-start gap-4">
+    <div className="flex flex-wrap gap-4">
       {jobs.map((job) => (
-        <JobCard key={job.id} job={job} />
+        <JobCard
+          key={job.id}
+          job={job}
+          companySlug={company.slug}
+          // Where this job's applicants can go if it is unpublished: the other real jobs, which
+          // the list already has. The demo job is private and never a target.
+          moveTargets={jobs
+            .filter((other) => other.id !== job.id && !other.isDemo)
+            .map((other) => ({ id: other.id, title: other.title, published: other.publishedAt !== null }))}
+        />
       ))}
-      <Link href={`/${company.slug}/jobs/new`} className={buttonVariants({ variant: "outline" })}>
-        <PlusIcon aria-hidden /> Create job
-      </Link>
     </div>
   );
 }

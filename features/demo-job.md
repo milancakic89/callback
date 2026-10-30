@@ -39,7 +39,7 @@ Today every employer account shares the fixture company `test`, and nothing abou
 - **The demo job is created on the first dashboard visit, once per company**, and never comes back after it is deleted. Existing employer accounts, the test account included, get it on their next visit.
 - **The "Create job" form still stores nothing.** Saving new jobs is a separate step.
 - **The demo job is private:** it is never on `/jobs`, and on the dashboard it carries a **Demo** badge. Its title is "Senior Product Designer", the role the landing documents were written for (the letters mention the company "Halden", which is fine for a demo).
-- **The dashboard shows the job and how many people applied, not who they are.** The card has the title, the **Demo** badge, the count, and a **Run manual mode** button that does nothing yet. Who the applicants are, and their CVs, belong to the review feature that button will start.
+- **The dashboard shows the job and how many people applied, not who they are.** The card has the title, the **Demo** badge, the count, and a **Lets start** button that does nothing yet (and is disabled while the job has no active applicants). Who the applicants are, and their CVs, belong to the review feature that button will start.
 
 ## Plan
 
@@ -80,8 +80,8 @@ It follows the existing migrations (`saved_jobs.sql`, `applications_status.sql`)
   - `getCompanyJobs()` reads `job_postings` with `job_applications(count)`, an aggregate embed that answers `[{ count: n }]`. Row level security makes sure they are only that company's jobs, and only the applications to them.
 - **`src/app/(employer)/[company]/page.tsx`:** inside the existing component under `Suspense` (after `requireAccountType("employer")`) it calls `ensureEmployerWorkspace()` and then `getCompanyJobs()`.
   - No jobs: the existing `EmptyState` with "Create your first job".
-  - Jobs: a list of cards, with a "Create job" link below.
-- **New `src/components/employer/job-card.tsx`:** the title, a **Demo** badge, a short note ("A sample job with fictional applicants. Delete it whenever you like."), the number of applicants, and a **Run manual mode** button. The button has no handler, like the Apply button in the job editor's preview, until the review feature exists.
+  - Jobs: cards of one size in a `flex flex-wrap` row, at most three to a row. The width is a share of the row, so three fit however wide the screen is, and it follows the width of the dashboard area (container queries, `JOB_CARD_WIDTH` in `job-card.tsx`): one to a row below 36rem, two from 36rem, three from 56rem, a card never wider than 30rem (the row is capped at 92rem, which is three cards and two gaps). A fourth job goes to the next row. The "Create job" link is not below them but at the top, in the row of the "Employer dashboard" heading (right-aligned), so it doesn't move as jobs are added. With no jobs, the empty state's "Create your first job" is shown as well as that link.
+- **New `src/components/employer/job-card.tsx`:** the title, a **Demo** badge, a short note ("A sample job with fictional applicants. Delete it whenever you like."), the number of applicants, and a **Lets start** button. The button has no handler, like the Apply button in the job editor's preview, until the review feature exists.
 - **New `src/components/employer/delete-job-button.tsx`** (client): a confirmation in the existing `AlertDialog`, then the action, with a pending state and an error.
 - **New `src/app/(employer)/[company]/actions.ts`**, the action `deleteJobPosting(jobId)`:
   - zod (uuid) and `requireAccountType("employer")`;
@@ -163,7 +163,7 @@ If the code reached production before the migration, the dashboard would fail on
    - a second run creates nothing new;
    - signing in with a mock account fails (banned).
 4. **As an employer (the test account) on `/test`:**
-   - the demo job with "3 applicants" and the Run manual mode button;
+   - the demo job with "3 applicants" and the Lets start button;
    - "Delete" with its confirmation removes it, and it doesn't come back after a reload;
    - the mock accounts and profiles are still in the database;
    - `demo_seeded_at` is set.
@@ -171,7 +171,7 @@ If the code reached production before the migration, the dashboard would fail on
 6. **The candidate side:** the demo job doesn't appear on `/jobs` or `/dashboard`.
 
 ## Out of scope
-- Saving jobs from the "Create job" form.
+- Saving jobs from the "Create job" form (done in [post-job.md](./post-job.md)).
 - A company name and a real slug.
 - Opening a candidate's CV and letter, and changing an application's status: the review feature, built on this data.
 - Real candidates applying to a company's jobs.

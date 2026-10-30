@@ -10,11 +10,24 @@ type ChipsInputProps = {
   placeholder?: string;
   maxValues?: number;
   maxLength?: number;
+  // For the inner <input>, so a <Label htmlFor> and a field error can point at it.
+  id?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 };
 
 // Enter or comma adds the current text as a value (a chip); Backspace in an empty box removes the
 // last one. See features/dashboard.md "Text values are chips."
-export function ChipsInput({ values, onChange, placeholder, maxValues = 20, maxLength = 100 }: ChipsInputProps) {
+export function ChipsInput({
+  values,
+  onChange,
+  placeholder,
+  maxValues = 20,
+  maxLength = 100,
+  id,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
+}: ChipsInputProps) {
   const [draft, setDraft] = useState("");
 
   function commit(raw: string) {
@@ -34,7 +47,9 @@ export function ChipsInput({ values, onChange, placeholder, maxValues = 20, maxL
   }
 
   return (
-    <div className="flex min-h-8 min-w-48 flex-1 flex-wrap items-center gap-1 rounded-lg border border-input bg-transparent px-1.5 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+    <div
+      className="flex min-h-8 min-w-48 flex-1 flex-wrap items-center gap-1 rounded-lg border border-input bg-transparent px-1.5 py-1 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 has-[input[aria-invalid=true]]:border-destructive has-[input[aria-invalid=true]]:ring-3 has-[input[aria-invalid=true]]:ring-destructive/20 dark:has-[input[aria-invalid=true]]:border-destructive/50 dark:has-[input[aria-invalid=true]]:ring-destructive/40"
+    >
       {values.map((value) => (
         <Badge key={value} variant="secondary" className="h-6 gap-1 rounded-md pr-1">
           {value}
@@ -49,6 +64,9 @@ export function ChipsInput({ values, onChange, placeholder, maxValues = 20, maxL
         </Badge>
       ))}
       <input
+        id={id}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={handleKeyDown}

@@ -11,7 +11,10 @@ Each employer gets a workspace under their company's slug (`/test`, `/test/jobs/
 | The employer workspace under the company's slug (`/test`), the "Create your first job" dashboard, the job form with its live preview | **Done** | [Implementation](#implementation), sections 1 to 3 |
 | Jobs posted on Callback listed first and highlighted in the candidate list (a development-only fixture stands in for them) | **Done** | [Implementation](#implementation), section 4 |
 | Per-company data: a `companies` table, a demo job with three mock candidates, deleting a job | **Written, applied and seeded, not yet pushed** (the dashboard itself is not checked in a browser) | [demo-job.md](./demo-job.md) |
-| The editor saving jobs, native jobs from the database, a careers page, the application form, reviewing applications | Later | [Later phases](#later-phases) |
+| The editor saving jobs | **Done and migrated, not yet pushed** (the form is not checked in a browser) | [post-job.md](./post-job.md) |
+| Editing a job, and publishing or unpublishing it from the dashboard | **Done and migrated, not yet pushed** (the dialogs are not checked in a browser) | [job-publishing.md](./job-publishing.md) |
+| CV filters on a job: required and nice-to-have chips, stored with the job and private to the company | **Done, migrated and checked in a browser, not yet pushed** | [job-filters.md](./job-filters.md) |
+| Native jobs from the database, a careers page, the application form, reviewing applications, checking CVs against the filters | Later | [Later phases](#later-phases) |
 
 When asked to implement "the plan", **don't redo the Implementation sections below**: sections 1 to 4 are finished. Implement the step the request names; the next one is [demo-job.md](./demo-job.md).
 
@@ -175,7 +178,7 @@ Where the code differs from the plan first written for this step:
    - Columns: `owner_id`, a unique `slug`, and a list of reserved slugs (`admin`, `api`, `jobs`, `careers`, …).
    - The slug goes into `app_metadata`, so proxy and `homeFor` read it from the JWT.
    - Membership checks replace the single fixture company.
-2. **`job_postings`.** The editor saves to it; the dashboard shows the company's jobs, or the CTA. (The table itself, the dashboard list and deleting a job are written in [demo-job.md](./demo-job.md); what is left here is the editor saving a new job.)
+2. **`job_postings`.** The editor saves to it; the dashboard shows the company's jobs, or the CTA. (The table itself, the dashboard list and deleting a job are written in [demo-job.md](./demo-job.md); the editor saving a new job is written in [post-job.md](./post-job.md).)
 3. **Native jobs in the candidate list come from the database** instead of the fixture. Saving them works again.
 4. **A public careers page, `/careers/{slug}`.** It carries the company's branding (logo, colour) and lists open positions.
 5. **The application form.**
