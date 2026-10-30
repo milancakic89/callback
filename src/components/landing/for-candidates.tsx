@@ -24,7 +24,7 @@ export function ForCandidates({ openRoles, jobs }: { openRoles: string; jobs: Jo
 
   return (
     <section id="candidates" className="border-t border-(--l-line)">
-      <Container className="grid grid-cols-1 gap-16 py-24 sm:py-32 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:gap-20">
+      <Container className="grid grid-cols-1 gap-16 py-24 sm:py-32 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-20">
         <div>
           <SectionHeading
             eyebrow="For candidates"
