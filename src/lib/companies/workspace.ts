@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { MOCK_CANDIDATES } from "@/lib/candidates/mock-candidates";
 import type { WorkMode } from "@/lib/jobs/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -49,6 +50,42 @@ type JobDetailsRow = {
   optional_filters: string[];
   is_demo: boolean;
 };
+
+// One active application to a job, as the review screen shows it (features/applicant-review.md).
+// The documents are only named here: the files are opened through the document route, and their
+// paths in the bucket never reach the browser.
+export type JobApplicant = {
+  id: string;
+  name: string;
+  location: string | null;
+  appliedAt: string;
+  viewed: boolean;
+  liked: boolean;
+  // The job's filters the CV meets; null until the application has been checked.
+  matchedFilters: string[] | null;
+  // The file names to show, or null when the application has no such document.
+  cvFileName: string | null;
+  coverLetterFileName: string | null;
+};
+
+type ApplicantRow = {
+  id: string;
+  applied_at: string;
+  viewed_at: string | null;
+  liked_at: string | null;
+  matched_filters: string[] | null;
+  cv_path: string | null;
+  cover_letter_path: string | null;
+  candidate: { full_name: string; location: string | null; sample_key: string | null } | null;
+};
+
+// A mock candidate's documents carry the file names the landing demo shows; a real one's are named by
+// the last part of their path.
+function fileName(path: string | null, sampleKey: string | null, kind: "cvFile" | "letterFile"): string | null {
+  if (!path) return null;
+  const mock = MOCK_CANDIDATES.find((candidate) => candidate.key === sampleKey);
+  return mock ? mock[kind] : (path.split("/").at(-1) ?? path);
+}
 
 // Makes the signed-in employer's company if it has none and, once, its demo job with three
 // applicants (supabase/migrations/20261026210000_employer_jobs.sql). Safe to call on every visit.
@@ -112,4 +149,41 @@ export async function getCompanyJob(jobId: string): Promise<CompanyJobDetails | 
     optionalFilters: data.optional_filters,
     isDemo: data.is_demo,
   };
+}
+
+// The active (not withdrawn) applications to one of the company's jobs, first come first, for the
+// review screen. Row level security answers only the company's own applications and the profiles of
+// its applicants, so another company's job id gives an empty list. Applications made in the same
+// instant (the demo job's three) are ordered by name, so the list is the same on every visit.
+export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
+  if (!z.uuid().safeParse(jobId).success) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("job_applications")
+    .select(
+      "id, applied_at, viewed_at, liked_at, matched_filters, cv_path, cover_letter_path, candidate:candidate_profiles(full_name, location, sample_key)",
+    )
+    .eq("job_posting_id", jobId)
+    .is("withdrawn_at", null)
+    .order("applied_at", { ascending: true })
+    .returns<ApplicantRow[]>();
+  if (error) throw new Error(`getJobApplicants: ${error.message}`);
+
+  return (data ?? [])
+    .map((row) => {
+      const sampleKey = row.candidate?.sample_key ?? null;
+      return {
+        id: row.id,
+        name: row.candidate?.full_name ?? "Unknown candidate",
+        location: row.candidate?.location ?? null,
+        appliedAt: row.applied_at,
+        viewed: row.viewed_at !== null,
+        liked: row.liked_at !== null,
+        matchedFilters: row.matched_filters,
+        cvFileName: fileName(row.cv_path, sampleKey, "cvFile"),
+        coverLetterFileName: fileName(row.cover_letter_path, sampleKey, "letterFile"),
+      };
+    })
+    .sort((a, b) => a.appliedAt.localeCompare(b.appliedAt) || a.name.localeCompare(b.name));
 }

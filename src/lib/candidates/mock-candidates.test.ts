@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { SAMPLE_CANDIDATES } from "@/components/landing/sample-documents";
+import { demoDocumentFile, type DocumentKind } from "@/lib/review/documents";
 import { MOCK_CANDIDATES } from "./mock-candidates";
 
 // The seed script makes one account per entry and the demo job gives each of them an application,
@@ -32,5 +34,23 @@ describe("the mock candidates", () => {
       expect(typeof sample?.Letter, candidate.key).toBe("function");
     }
     expect(SAMPLE_CANDIDATES).toHaveLength(MOCK_CANDIDATES.length);
+  });
+
+  // The seed script uploads these, and public.demo_applicants() points the demo job's applications at
+  // them: a CV for everyone, and a cover letter for all but Priya Raman.
+  it("have their demo job's documents committed as PDFs", () => {
+    expect(MOCK_CANDIDATES.filter((c) => !c.demoCoverLetter).map((c) => c.key)).toEqual(["priya-raman"]);
+
+    for (const candidate of MOCK_CANDIDATES) {
+      const kinds: DocumentKind[] = candidate.demoCoverLetter ? ["cv", "cover-letter"] : ["cv"];
+      for (const kind of kinds) {
+        const file = demoDocumentFile(candidate.key, kind);
+        expect(existsSync(file), file).toBe(true);
+        expect(readFileSync(file).subarray(0, 5).toString(), file).toBe("%PDF-");
+      }
+      if (!candidate.demoCoverLetter) {
+        expect(existsSync(demoDocumentFile(candidate.key, "cover-letter")), candidate.key).toBe(false);
+      }
+    }
   });
 });

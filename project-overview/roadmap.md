@@ -75,9 +75,11 @@ See [features/companies.md](../features/companies.md).
 
 **Built, migration applied, not yet pushed ([features/job-publishing.md](../features/job-publishing.md)):** a company can edit any of its jobs, and publish or unpublish them from the dashboard card. A new job is a draft; unpublishing a job with applicants asks whether to withdraw their applications, move them to another job, or keep them. Published jobs are not on the job board yet.
 
-**Built, migration applied, not yet pushed ([features/job-filters.md](../features/job-filters.md)):** the job form takes CV filters, "Required" and "Nice-to-have" chips, stored with the job and never shown to candidates. This only stores them. **Next step: CV upload and matching**, so an employer sees which candidates meet every required filter (nice-to-have ones only rank).
+**Built, migration applied, not yet pushed ([features/job-filters.md](../features/job-filters.md)):** the job form takes CV filters, "Required" and "Nice-to-have" chips, stored with the job and never shown to candidates. This only stores them.
 
-**Deferred:** a company name and slugs from accounts; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; reviewing applications. The order is in the feature doc.
+**Built, migration applied, checked in a browser, committed, not yet pushed ([features/applicant-review.md](../features/applicant-review.md)):** Lets start opens the applicant review, Fast Manual Mode on real applications: playlist, the original CV and cover letter (PDFs from a private bucket, opened through an access-checked route), a screening overview against the filters, Next (marks viewed) and a heart (likes). Nothing is rejected automatically. The demo job's three applicants have real PDFs and hand-written matches. **Next steps:** candidates applying with a CV (the application form), then status changes and telling the candidate, then real matching.
+
+**Deferred:** a company name and slugs from accounts; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; CV parsing and matching. The order is in the feature doc.
 
 ## Phase 5 — Application Tracking Source
 **Status:** manual entry (the Applied checkbox, Phase 2) is decided and shipped. Automated entry

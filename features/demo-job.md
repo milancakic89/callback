@@ -2,6 +2,8 @@
 
 **Status:** Implemented. The migration is applied to Supabase and the seed has run (2026-10-26), but **nothing is pushed to `main` yet**. An employer has already visited the dashboard (the demo job exists, see below), but the page has **not been looked at in a browser by Claude**, so the card, the delete dialog and the empty state are unchecked. `npm test` (126 tests), `npm run lint` and `npm run build` pass. See [Verification](#verification) for what was checked and what was not.
 
+**Since (2026-10-31):** Lets start opens the applicant review, and the demo job has filters and its three applications have real PDFs and hand-written matches ([applicant-review.md](./applicant-review.md)). The decisions below describe the job as first built.
+
 When an employer first opens their dashboard, they already have **one demo job with three applicants**: fictional candidates who are real accounts in the database. The employer can delete the demo job. The three candidates stay in the database and serve every company that registers later. It prepares the ground for reviewing applicants (CV and cover letter, Fast Manual Mode) as the next feature.
 
 **Scope when asked to implement "the plan":** only this document. The first step in [companies.md](./companies.md) (workspace, dashboard button, job form, Callback jobs first in the list) is **done**; its sections 1 to 4 need no work. What this document adds was the list under [Not in place yet](#not-in-place-yet): all of it now exists, and what is left is the push and a look in the browser.

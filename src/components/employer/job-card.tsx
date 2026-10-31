@@ -12,7 +12,8 @@ import { UnpublishJobButton, type MoveTarget } from "./unpublish-job-button";
 // Every card is the same size, and the row it is in holds three at most. The width is a share of the
 // row, not a fixed number, so three fit however wide the screen is: one to a row on a narrow
 // container, two from 36rem, three from 56rem, never wider than 30rem. The shares assume the row's
-// `gap-4` (1rem). The row (src/app/(employer)/[company]/page.tsx) is the `@container` these query.
+// `gap-4` (1rem). The row (src/app/(employer)/[company]/(workspace)/page.tsx) is the `@container` these
+// query.
 export const JOB_CARD_WIDTH =
   "w-full max-w-[30rem] @xl:w-[calc((100%_-_1rem)/2)] @4xl:w-[calc((100%_-_2rem)/3)]";
 
@@ -20,8 +21,8 @@ const START_HINT ="“Lets start” will be available once the job has applicant
 
 // One of the company's jobs on its dashboard (features/demo-job.md, features/job-publishing.md): the
 // title with its state (Published or Draft), how many people applied (and how many were withdrawn),
-// and the buttons: Edit, Publish or Unpublish, and the one that will start reviewing the applicants
-// (disabled while there are none, with an info icon that says why).
+// and the buttons: Edit, Publish or Unpublish, and Lets start, which opens the applicant review
+// (features/applicant-review.md; disabled while there are none, with an info icon that says why).
 // Who they are is for the review itself. The demo job is private and fixed, so it has no Edit and no
 // Publish; it can still be deleted. `moveTargets` are the company's other jobs the applicants of this
 // one can be moved to when it is unpublished.
@@ -85,12 +86,18 @@ export function JobCard({
               )}
             </>
           )}
-          {/* Reviewing applicants is the next feature: like the Upload CV button in the job editor's
-              preview, this does nothing yet. With no active applicants there is nothing to start. */}
+          {/* With no active applicants there is nothing to review, so it is a disabled button, not a
+              link. */}
           <span className="inline-flex items-center gap-1.5">
-            <Button type="button" disabled={noApplicants}>
-              Lets start
-            </Button>
+            {noApplicants ? (
+              <Button type="button" disabled>
+                Lets start
+              </Button>
+            ) : (
+              <Link href={`/${companySlug}/jobs/${job.id}/review`} className={buttonVariants()}>
+                Lets start
+              </Link>
+            )}
             {/* A button of its own, so it takes the focus (a disabled button can't) and the hint opens
                 from the keyboard too; the label gives a screen reader the same text. */}
             {noApplicants && (

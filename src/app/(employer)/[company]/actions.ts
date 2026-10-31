@@ -244,3 +244,47 @@ export async function unpublishJobPosting(input: UnpublishJobInput): Promise<Job
   refresh();
   return { ok: true };
 }
+
+export type ReviewMarkResult = { ok: true } | { ok: false; error: string };
+
+// The review screen's two marks on an application (features/applicant-review.md), called straight
+// from it, not from a form. The screen shows the change at once and puts it back if this fails, so
+// nothing is refreshed. The update policy only matches active applications to the caller's own jobs
+// and the column grant only covers viewed_at and liked_at, so any other id changes no row and answers
+// "Application not found.". Both share one limit, far above what clicking through applicants needs.
+async function setReviewMark(
+  applicationId: string,
+  values: { viewed_at: string } | { liked_at: string | null },
+): Promise<ReviewMarkResult> {
+  const parsed = z.uuid().safeParse(applicationId);
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+
+  const user = await requireAccountType("employer");
+
+  const { success } = await rateLimit({
+    key: `review-mark:${user.id}`,
+    limit: 120,
+    windowMs: 60_000,
+    store: postgresStore,
+  });
+  if (!success) return { ok: false, error: "Too many changes. Try again in a minute." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("job_applications").update(values).eq("id", parsed.data).select("id");
+  if (error) return { ok: false, error: "Could not save. Try again." };
+  if (!data?.length) return { ok: false, error: "Application not found." };
+
+  return { ok: true };
+}
+
+// Next on the review screen. `viewed_at` is when it was last marked; the screen only calls this for
+// an application it doesn't show as viewed yet.
+export async function markApplicationViewed(applicationId: string): Promise<ReviewMarkResult> {
+  return setReviewMark(applicationId, { viewed_at: new Date().toISOString() });
+}
+
+// The heart next to Next: a note for later ("we liked this one"), nothing more.
+export async function setApplicationLiked(applicationId: string, liked: boolean): Promise<ReviewMarkResult> {
+  if (typeof liked !== "boolean") return { ok: false, error: "Invalid request." };
+  return setReviewMark(applicationId, { liked_at: liked ? new Date().toISOString() : null });
+}

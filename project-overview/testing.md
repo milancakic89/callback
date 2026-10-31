@@ -2,7 +2,7 @@
 
 **Status:** Unit tests exist for the code that has no framework in it, and the deploy workflow runs them before it ships anything. There are no integration or end-to-end tests yet.
 
-`npm test` runs 205 tests in about a fifth of a second. `npm run test:watch` re-runs them as you edit.
+`npm test` runs 299 tests in about a second. `npm run test:watch` re-runs them as you edit.
 
 ## What is covered
 
@@ -21,8 +21,11 @@ Tests sit next to the code they test (`*.test.ts`), run with [Vitest](https://vi
 | Reading job pages | `scraper/stages/descriptions.test.ts`, `scraper/stages/finalize.test.ts` | Which jobs are read (lacking a date or a description, not read in the last 14 days; `--force` reads all), that a page that couldn't be read gets no mark, that a date or description the source gave is never replaced, and that `finalize` keeps a date read from a page across a re-scrape |
 | robots.txt policy | `scraper/http.test.ts`, `scraper/browser.test.ts`, `scraper/stages/jobs.test.ts`, `scraper/stages/careers.test.ts`, `scraper/ats/talentlyft.test.ts`, `scraper/stages/finalize.test.ts` | Any `Disallow` for `*` refuses a site (even `/wp-admin/`), while an empty one, `Allow`, another bot's group, no file and an HTML answer don't; 401/403/429/5xx/no answer refuse it too but not as "said no"; one answer per site; `fetchHtml`, the browser and TalentLyft's hosted site don't touch a refused site; the jobs stage doesn't walk its careers page but still reads an ATS's public API; a refused recheck keeps the earlier careers result; `finalize` closes the jobs of a site that said no, keeps those of one that couldn't be asked, and leaves Joberty's list alone |
 | Scraper's browser | `scraper/browser.test.ts` | A Chromium that never started (a missing system library on the server) doesn't crash a finished run in `closeBrowser()`: it says so once, and a browser that did start is closed once. Playwright is a mock |
-| Mock candidates | `src/lib/candidates/mock-candidates.test.ts` | Exactly three, unique keys and emails, every email on `example.com` (the seed must never touch a real address), and each has its CV and letter in the landing demo |
+| Mock candidates | `src/lib/candidates/mock-candidates.test.ts` | Exactly three, unique keys and emails, every email on `example.com` (the seed must never touch a real address), each has its CV and letter in the landing demo, and the demo job's PDFs are committed (Priya Raman's cover letter left out on purpose) |
+| Applicant review | `src/lib/review/navigation.test.ts`, `matches.test.ts`, `src/lib/companies/workspace.test.ts` | Next goes to the next applicant not viewed yet, wrapping round, and answers "everyone viewed"; where the screen opens; the screening overview's counts (case-insensitive, "not checked" when matches are null); `getJobApplicants` answering file names, never storage paths, in a stable order |
+| Opening an application's document | `src/app/api/applications/[applicationId]/documents/[kind]/route.test.ts` | Bad id or kind, a browser navigation (`Sec-Fetch-Dest` other than `empty`), a candidate, no application under row level security and a missing file each answer 404; no session 401; the file is read only after the caller's own client found an active application; `private, no-store`; 240 a minute. Supabase and the session are mocks |
 | Deleting a job | `src/app/(employer)/[company]/actions.test.ts` | `deleteJobPosting`: refuses an id that isn't a uuid, needs an employer account, answers "Job not found" when row level security deletes nothing, deletes and refreshes, and the 30 a minute limit. The Supabase client and the session are mocks |
+| Review marks | `src/app/(employer)/[company]/actions.test.ts` | `markApplicationViewed` and `setApplicationLiked`: a uuid and a boolean, an employer account, only `viewed_at` or `liked_at` on that application, no refresh, "Application not found" when row level security updates nothing, and a shared limit of 120 a minute |
 | Pricing | `src/components/landing/pricing-plans.test.ts` | The yearly discount and how prices are written |
 
 **The tests were checked against the code, not just run.** Breaking the code on purpose in four places (taking the first `X-Forwarded-For` entry, dropping the Callback-first sort, allowing 2000 filter rules, and adding the fake job outside development) made tests fail each time.
@@ -44,7 +47,7 @@ To make `main` itself refuse a merge when `test` fails, turn on a branch protect
 - **The database:** the row level security policies that make applying irreversible and keep users out of each other's data. Testing them needs a Postgres with the migrations applied, for example a local Supabase. It would be the most valuable integration test. The employer tables (`companies`, `job_postings`, `job_applications`, `candidate_profiles`) and `ensure_employer_workspace()` were checked once by hand, in a throwaway Postgres with stand-ins for Supabase's `auth` schema ([features/demo-job.md](../features/demo-job.md#verification)); that script is not saved as a test.
 - **The scraper** (`scraper/`): ATS adapters, extraction and normalisation. The pure parts are easy to test next. A workflow that fetches live sites should not be part of the gate.
 - **The deploy scripts:** `deploy/activate-release.sh` was checked by hand against a fake `systemctl` and a fake health endpoint (first deploy, a healthy deploy, a failed one rolling back, keeping three releases), but those checks are not saved as tests.
-- **The browser:** no end-to-end test drives the app. Playwright is already a dependency, and could cover sign-in, routing by account type and `/api/health`.
+- **The browser:** no end-to-end test drives the app. Playwright is already a dependency, and could cover sign-in, routing by account type and `/api/health`. The applicant review was driven once by hand with a throwaway Playwright script ([features/applicant-review.md](../features/applicant-review.md#verification)); it is not saved as a test.
 
 ## Writing a test
 

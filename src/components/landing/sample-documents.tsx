@@ -301,8 +301,9 @@ function PriyaRamanLetter() {
 
 // The candidates themselves (name, files, email) live in src/lib/candidates/mock-candidates.ts, which
 // the seed script and the employer dashboard share; this only adds the document components. The
-// Record makes a candidate without documents a type error.
-const DOCUMENTS: Record<MockCandidateKey, Pick<SampleCandidate, "Cv" | "Letter">> = {
+// Record makes a candidate without documents a type error. The demo job's PDFs are printed from these
+// (src/app/dev/documents/page.tsx, scripts/build-demo-documents.ts).
+export const SAMPLE_DOCUMENTS: Record<MockCandidateKey, Pick<SampleCandidate, "Cv" | "Letter">> = {
   "ana-novak": { Cv: AnaNovakCv, Letter: AnaNovakLetter },
   "jonas-weber": { Cv: JonasWeberCv, Letter: JonasWeberLetter },
   "priya-raman": { Cv: PriyaRamanCv, Letter: PriyaRamanLetter },
@@ -314,5 +315,5 @@ export const SAMPLE_CANDIDATES: SampleCandidate[] = MOCK_CANDIDATES.map((candida
   location: candidate.location,
   cvFile: candidate.cvFile,
   letterFile: candidate.letterFile,
-  ...DOCUMENTS[candidate.key],
+  ...SAMPLE_DOCUMENTS[candidate.key],
 }));

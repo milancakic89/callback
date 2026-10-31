@@ -49,7 +49,9 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from, rpc
 import {
   createJobPosting,
   deleteJobPosting,
+  markApplicationViewed,
   publishJobPosting,
+  setApplicationLiked,
   unpublishJobPosting,
   updateJobPosting,
 } from "./actions";
@@ -532,5 +534,92 @@ describe("unpublishJobPosting", () => {
       error: "Job not found.",
     });
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+const APPLICATION_ID = "3d6f8a2b-1c4e-4f7a-9b2d-5e8c1a3f6b9d";
+
+describe("the review marks", () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("refuse an id that isn't a uuid, before anything else runs", async () => {
+    for (const id of ["", "1", "not-a-uuid", `${APPLICATION_ID}; drop table job_applications`]) {
+      expect(await markApplicationViewed(id), id).toEqual({ ok: false, error: "Invalid request." });
+      expect(await setApplicationLiked(id, true), id).toEqual({ ok: false, error: "Invalid request." });
+    }
+    expect(requireAccountType).not.toHaveBeenCalled();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("refuse a liked value that isn't a boolean", async () => {
+    expect(await setApplicationLiked(APPLICATION_ID, "yes" as unknown as boolean)).toEqual({
+      ok: false,
+      error: "Invalid request.",
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("need an employer account", async () => {
+    const redirected = new Error("NEXT_REDIRECT");
+    requireAccountType.mockRejectedValue(redirected);
+
+    await expect(markApplicationViewed(APPLICATION_ID)).rejects.toBe(redirected);
+    await expect(setApplicationLiked(APPLICATION_ID, true)).rejects.toBe(redirected);
+    expect(requireAccountType).toHaveBeenCalledWith("employer");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("mark an application viewed: only viewed_at, on that application, without a refresh", async () => {
+    expect(await markApplicationViewed(APPLICATION_ID)).toEqual({ ok: true });
+
+    expect(from).toHaveBeenCalledWith("job_applications");
+    expect(update).toHaveBeenCalledOnce();
+    const [values] = update.mock.calls[0];
+    expect(Object.keys(values)).toEqual(["viewed_at"]);
+    expect(values.viewed_at).toMatch(ISO);
+    expect(updateEq).toHaveBeenCalledExactlyOnceWith("id", APPLICATION_ID);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("like and unlike an application: only liked_at", async () => {
+    expect(await setApplicationLiked(APPLICATION_ID, true)).toEqual({ ok: true });
+    const [liked] = update.mock.calls[0];
+    expect(Object.keys(liked)).toEqual(["liked_at"]);
+    expect(liked.liked_at).toMatch(ISO);
+
+    expect(await setApplicationLiked(APPLICATION_ID, false)).toEqual({ ok: true });
+    expect(update).toHaveBeenLastCalledWith({ liked_at: null });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("say the application wasn't found when row level security updates nothing", async () => {
+    updateSelect.mockResolvedValue({ data: [], error: null });
+
+    expect(await markApplicationViewed(APPLICATION_ID)).toEqual({ ok: false, error: "Application not found." });
+    expect(await setApplicationLiked(APPLICATION_ID, true)).toEqual({ ok: false, error: "Application not found." });
+  });
+
+  it("report a database error", async () => {
+    updateSelect.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    expect(await markApplicationViewed(APPLICATION_ID)).toEqual({ ok: false, error: "Could not save. Try again." });
+  });
+
+  it("share one limit, 120 a minute per employer", async () => {
+    await markApplicationViewed(APPLICATION_ID);
+    await setApplicationLiked(APPLICATION_ID, true);
+    expect(hit).toHaveBeenNthCalledWith(1, "review-mark:user-1", 60_000);
+    expect(hit).toHaveBeenNthCalledWith(2, "review-mark:user-1", 60_000);
+
+    hit.mockResolvedValue({ count: 120, resetAt: Date.now() + 60_000 });
+    expect(await markApplicationViewed(APPLICATION_ID)).toEqual({ ok: true });
+
+    hit.mockResolvedValue({ count: 121, resetAt: Date.now() + 60_000 });
+    update.mockClear();
+    expect(await setApplicationLiked(APPLICATION_ID, true)).toEqual({
+      ok: false,
+      error: "Too many changes. Try again in a minute.",
+    });
+    expect(update).not.toHaveBeenCalled();
   });
 });

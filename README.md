@@ -47,8 +47,8 @@ Job hunting means a lot of tabs, a lot of applications and, far too often, no an
 | | Candidates | Employers |
 |---|---|---|
 | **Status** | ✅ Live in the app | 🚧 Early mock |
-| **What you get** | Search 6,500+ open roles, filter them, save and track applications | A company workspace and a job form with a live candidate preview |
-| **Coming next** | Automatic status updates for jobs posted on Callback | Saved job postings, a careers page, application forms, applicant review |
+| **What you get** | Search 6,500+ open roles, filter them, save and track applications | A company workspace, a job form with a live candidate preview, and applicant review (CV and cover letter side by side, Next, like) on a demo job |
+| **Coming next** | Automatic status updates for jobs posted on Callback | A careers page, application forms, status changes that reach the candidate |
 
 > The product vision (Smart Screening, Fast Manual Mode, automated candidate updates, a free plan) is on the landing page, clearly marked **Coming soon**. This README describes what is actually built.
 

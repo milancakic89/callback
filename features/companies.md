@@ -14,7 +14,8 @@ Each employer gets a workspace under their company's slug (`/test`, `/test/jobs/
 | The editor saving jobs | **Done and migrated, not yet pushed** (the form is not checked in a browser) | [post-job.md](./post-job.md) |
 | Editing a job, and publishing or unpublishing it from the dashboard | **Done and migrated, not yet pushed** (the dialogs are not checked in a browser) | [job-publishing.md](./job-publishing.md) |
 | CV filters on a job: required and nice-to-have chips, stored with the job and private to the company | **Done, migrated and checked in a browser, not yet pushed** | [job-filters.md](./job-filters.md) |
-| Native jobs from the database, a careers page, the application form, reviewing applications, checking CVs against the filters | Later | [Later phases](#later-phases) |
+| Reviewing a job's applicants: playlist, CV and cover letter side by side, screening overview, Next and a heart | **Done, migrated, seeded and checked in a browser, committed, not yet pushed** | [applicant-review.md](./applicant-review.md) |
+| Native jobs from the database, a careers page, the application form, changing an application's status, checking CVs against the filters | Later | [Later phases](#later-phases) |
 
 When asked to implement "the plan", **don't redo the Implementation sections below**: sections 1 to 4 are finished. Implement the step the request names; the next one is [demo-job.md](./demo-job.md).
 

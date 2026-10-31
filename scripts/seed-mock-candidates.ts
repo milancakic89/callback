@@ -1,12 +1,20 @@
 import { randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MOCK_CANDIDATES, type MockCandidate } from "../src/lib/candidates/mock-candidates";
+import {
+  demoDocumentFile,
+  DOCUMENTS_BUCKET,
+  mockDocumentPath,
+  type DocumentKind,
+} from "../src/lib/review/documents";
 import { createAdminClient, loadEnv } from "../scraper/supabase";
 
 // Makes the three mock candidates of features/demo-job.md: real Supabase accounts (candidate type,
-// sign-in blocked) with a row in candidate_profiles. Run once with `npm run seed:mock-candidates`,
-// after the employer_jobs migration; local development and production share one project. Running
-// it again creates nothing new, so it is also how a half-finished run is completed.
+// sign-in blocked) with a row in candidate_profiles, and uploads the demo job's documents for them
+// (features/applicant-review.md). Run with `npm run seed:mock-candidates` after the employer_jobs and
+// applicant_review migrations; local development and production share one project. Running it again
+// creates nothing new, so it is also how a half-finished run is completed.
 
 // The longest ban the auth API takes is in hours; this is a hundred years.
 const BAN_DURATION = "876000h";
@@ -66,6 +74,26 @@ async function main() {
     );
     if (error) throw new Error(`candidate_profiles(${candidate.key}): ${error.message}`);
     console.log(`${candidate.name} <${candidate.email}> ${userId}`);
+
+    await uploadDocuments(supabase, candidate);
+  }
+}
+
+// The demo job's documents (features/applicant-review.md): the committed PDFs, into the private
+// bucket made by the applicant_review migration, at the paths public.demo_applicants() points at.
+// `upsert`, so a second run replaces them with the same files.
+async function uploadDocuments(supabase: SupabaseClient, candidate: MockCandidate) {
+  const kinds: DocumentKind[] = candidate.demoCoverLetter ? ["cv", "cover-letter"] : ["cv"];
+  for (const kind of kinds) {
+    const file = await readFile(demoDocumentFile(candidate.key, kind));
+    const objectPath = mockDocumentPath(candidate.key, kind);
+    const { error } = await supabase.storage
+      .from(DOCUMENTS_BUCKET)
+      .upload(objectPath, file, { contentType: "application/pdf", upsert: true });
+    if (error) {
+      throw new Error(`upload ${objectPath} (is the applicant_review migration applied?): ${error.message}`);
+    }
+    console.log(`  ${DOCUMENTS_BUCKET}/${objectPath}`);
   }
 }
 

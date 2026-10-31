@@ -11,6 +11,10 @@ export type MockCandidate = {
   email: string;
   cvFile: string;
   letterFile: string;
+  // Whether the demo job's application carries the cover letter (features/applicant-review.md). One
+  // doesn't, so the review shows that case; the landing demo still shows every letter. Must agree
+  // with public.demo_applicants() in supabase/migrations/20261031120000_applicant_review.sql.
+  demoCoverLetter: boolean;
 };
 
 export const MOCK_CANDIDATES = [
@@ -21,6 +25,7 @@ export const MOCK_CANDIDATES = [
     email: "ana.novak@example.com",
     cvFile: "Ana_Novak_CV.pdf",
     letterFile: "Cover_letter_Ana_Novak.pdf",
+    demoCoverLetter: true,
   },
   {
     key: "jonas-weber",
@@ -29,6 +34,7 @@ export const MOCK_CANDIDATES = [
     email: "jonas.weber@example.com",
     cvFile: "Jonas-Weber-Resume.pdf",
     letterFile: "Jonas-Weber-Letter.pdf",
+    demoCoverLetter: true,
   },
   {
     key: "priya-raman",
@@ -37,6 +43,7 @@ export const MOCK_CANDIDATES = [
     email: "priya.raman@example.com",
     cvFile: "priya_raman_cv_2026.pdf",
     letterFile: "priya_raman_cover.pdf",
+    demoCoverLetter: false,
   },
 ] as const satisfies readonly MockCandidate[];
 

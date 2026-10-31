@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "scrape": "node --import tsx scraper/index.ts",
     "jobs:refresh": "npm run scrape -- refresh",
-    "seed:mock-candidates": "node --import tsx scripts/seed-mock-candidates.ts"
+    "seed:mock-candidates": "node --import tsx scripts/seed-mock-candidates.ts",
+    "demo:documents": "node --import tsx scripts/build-demo-documents.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -22,6 +23,7 @@
     "lucide-react": "^1.61.0",
     "next": "16.4.2",
     "nodemailer": "^10.1.7",
+    "pdfjs-dist": "^6.4.299",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
