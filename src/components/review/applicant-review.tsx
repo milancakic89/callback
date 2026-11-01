@@ -437,13 +437,27 @@ function CoverLetterPane({
 }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const paneRef = useRef<HTMLElement>(null);
+  // Whether the mouse is over the pane, and whether it was closed while it was (Esc, or Next from the
+  // keyboard): then it stays closed until the mouse leaves, instead of opening again on the next move.
+  const inside = useRef(false);
+  const held = useRef(false);
+  const wasOpen = useRef(open);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  useEffect(() => {
+    if (wasOpen.current && !open && inside.current) held.current = true;
+    wasOpen.current = open;
+  }, [open]);
+
   function schedule(next: boolean, delay: number) {
     clearTimeout(timer.current);
+    timer.current = undefined;
     if (next && (!expandable || !window.matchMedia(SIDE_BY_SIDE).matches)) return;
-    timer.current = setTimeout(() => onOpenChange(next), delay);
+    timer.current = setTimeout(() => {
+      timer.current = undefined;
+      onOpenChange(next);
+    }, delay);
   }
 
   return (
@@ -451,10 +465,22 @@ function CoverLetterPane({
       ref={paneRef}
       aria-label="Cover letter"
       onPointerEnter={(event) => {
-        if (event.pointerType === "mouse") schedule(true, OPEN_DELAY_MS);
+        if (event.pointerType !== "mouse") return;
+        inside.current = true;
+        schedule(true, OPEN_DELAY_MS);
+      }}
+      // The pane can appear under a mouse that is already there (Lets start sits where the letter
+      // opens), and then no pointerenter comes: the first move inside counts as one.
+      onPointerMove={(event) => {
+        if (event.pointerType !== "mouse") return;
+        inside.current = true;
+        if (!open && !held.current && timer.current === undefined) schedule(true, OPEN_DELAY_MS);
       }}
       onPointerLeave={(event) => {
-        if (event.pointerType === "mouse") schedule(false, CLOSE_DELAY_MS);
+        if (event.pointerType !== "mouse") return;
+        inside.current = false;
+        held.current = false;
+        schedule(false, CLOSE_DELAY_MS);
       }}
       onFocus={() => schedule(true, 0)}
       onBlur={(event) => {
