@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { JobApplicant } from "@/lib/companies/workspace";
 import { documentUrl } from "@/lib/review/documents";
 import { summarizeFilters } from "@/lib/review/matches";
-import { initialIndex, nextUnviewed } from "@/lib/review/navigation";
+import { initialIndex, nextTarget, nextUnviewed, previousTarget } from "@/lib/review/navigation";
 import { ApplicantSummary, NoAutoRejectNote, ReviewActions, ScreeningOverview } from "./ats-panel";
 import { CandidatePlaylist, type PlaylistFilter, type PlaylistItem } from "./candidate-playlist";
 import { usePdfDocuments } from "./pdf";
@@ -23,7 +23,8 @@ import { ReviewTopBar, type ReviewJob } from "./review-frame";
 // at the bottom.
 //
 // Next marks the open applicant viewed and opens the next one not viewed yet; the heart likes them.
-// Both show at once and are saved in the background, and put back with a note if saving fails. The
+// Next and ← keep to the applicants the playlist shows (All or Liked), and once all of those are
+// viewed Next goes down the list in order, for another look. Both marks show at once and are saved in the background, and put back with a note if saving fails. The
 // documents of the applicants Next and ← would open are loaded ahead, so moving on is immediate.
 //
 // The cover letter starts smaller than the CV so all of it fits on one screen. Hovering it (after a
@@ -94,11 +95,16 @@ export function ApplicantReview({
   const cvUrl = current.cvFileName ? documentUrl(current.id, "cv") : null;
   const letterUrl = current.coverLetterFileName ? documentUrl(current.id, "cover-letter") : null;
 
+  // What Next and ← open, among the applicants the playlist shows. At the end of the liked ones,
+  // while others are still new, Next carries on with those (and the playlist goes back to All).
+  const shows = (item: { liked: boolean }) => filter === "all" || item.liked;
+  const nextInList = nextTarget(items, index, shows);
+  const nextIndex = nextInList ?? (filter === "liked" ? nextUnviewed(items, index) : null);
+  const previousIndex = previousTarget(items, index, shows);
+
   // Load ahead what Next and ← would open; close everything else.
   useEffect(() => {
-    const around = [index, nextUnviewed(items, index), index + 1, index - 1].filter(
-      (i): i is number => i !== null && i >= 0 && i < items.length,
-    );
+    const around = [index, nextIndex, previousIndex].filter((i): i is number => i !== null);
     const urls = new Set<string>();
     for (const i of around) {
       const item = items[i];
@@ -106,7 +112,7 @@ export function ApplicantReview({
       if (item.coverLetterFileName) urls.add(documentUrl(item.id, "cover-letter"));
     }
     keep([...urls]);
-  }, [items, index, keep]);
+  }, [items, index, nextIndex, previousIndex, keep]);
 
   // The open applicant is in the URL, so a reload comes back to them (Next reads native
   // history.replaceState into useSearchParams).
@@ -135,6 +141,8 @@ export function ApplicantReview({
   }
 
   function next() {
+    // While the end screen is up, Next waits for a choice on it.
+    if (complete) return;
     if (!current.viewed) {
       const id = current.id;
       setMark(id, { viewed: true });
@@ -151,20 +159,17 @@ export function ApplicantReview({
         },
       );
     }
-    const target = nextUnviewed(
-      items.map((item, i) => (i === index ? { ...item, viewed: true } : item)),
-      index,
-    );
-    if (target === null) {
+    if (nextIndex === null) {
       setComplete(true);
       setLetterOpen(false);
       return;
     }
-    go(target, "next");
+    if (nextInList === null) setFilter("all");
+    go(nextIndex, "next");
   }
 
   function previous() {
-    go((index - 1 + items.length) % items.length, "prev");
+    if (previousIndex !== null) go(previousIndex, "prev");
   }
 
   function toggleLike() {
@@ -201,6 +206,11 @@ export function ApplicantReview({
     const firstLiked = items.findIndex((item) => item.liked);
     if (firstLiked !== -1) go(firstLiked, "next");
     if (!window.matchMedia(WITH_PLAYLIST).matches) setPlaylistOpen(true);
+  }
+
+  function startOver() {
+    setFilter("all");
+    go(0, "next");
   }
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
@@ -353,7 +363,7 @@ export function ApplicantReview({
               likedCount={likedCount}
               companySlug={companySlug}
               onShowLiked={showLiked}
-              onStartOver={() => go(0, "next")}
+              onStartOver={startOver}
             />
           )}
         </div>

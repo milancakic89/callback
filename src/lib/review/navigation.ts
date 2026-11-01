@@ -13,6 +13,36 @@ export function nextUnviewed(items: readonly Item[], from: number): number | nul
   return null;
 }
 
+// Where Next goes from `from` among the applicants `shown` keeps (the playlist's All or Liked): the
+// next one not viewed yet, as above. Once they are all viewed, Next on one that already was (a second
+// pass: Start from the top, Show liked, a reload) opens the next one down instead. Null at the end:
+// Next has just viewed the last new one, or there is no one further down.
+export function nextTarget<T extends Item>(
+  items: readonly T[],
+  from: number,
+  shown: (item: T) => boolean,
+): number | null {
+  for (let step = 1; step < items.length; step += 1) {
+    const index = (from + step) % items.length;
+    if (shown(items[index]) && !items[index].viewed) return index;
+  }
+  if (!items[from]?.viewed) return null;
+  for (let index = from + 1; index < items.length; index += 1) {
+    if (shown(items[index])) return index;
+  }
+  return null;
+}
+
+// Where ← goes from `from`: the one above it among those `shown` keeps, wrapping round to the
+// bottom. Null when there is no other one.
+export function previousTarget<T>(items: readonly T[], from: number, shown: (item: T) => boolean): number | null {
+  for (let step = 1; step < items.length; step += 1) {
+    const index = (from - step + items.length) % items.length;
+    if (shown(items[index])) return index;
+  }
+  return null;
+}
+
 // Where the screen opens: the applicant the URL names (a reload keeps the place), else the first one
 // not viewed yet, else the first one.
 export function initialIndex(items: readonly (Item & { id: string })[], requestedId?: string | null): number {
