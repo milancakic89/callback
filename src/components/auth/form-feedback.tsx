@@ -1,4 +1,5 @@
 import { CircleCheckIcon } from "lucide-react";
+import { cn } from "cn";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { AuthFormState } from "@/app/(auth)/actions";
 
@@ -24,10 +25,10 @@ export function FormAlert({ state }: { state: AuthFormState }) {
   return null;
 }
 
-export function FieldError({ id, errors }: { id: string; errors?: string[] }) {
+export function FieldError({ id, errors, className }: { id: string; errors?: string[]; className?: string }) {
   if (!errors?.length) return null;
   return (
-    <p id={id} className="text-sm text-destructive">
+    <p id={id} className={cn("text-sm text-destructive", className)}>
       {errors[0]}
     </p>
   );
