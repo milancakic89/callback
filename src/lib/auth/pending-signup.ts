@@ -1,5 +1,6 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { io } from "next/cache";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
 
@@ -36,6 +37,9 @@ export async function setPendingSignup(pending: PendingSignup) {
 export async function readPendingSignup(): Promise<PendingSignup | null> {
   const value = (await cookies()).get(COOKIE)?.value;
   if (!value) return null;
+  // The expiry check reads the clock. Prefetches render the session's App Shell with cookies but not
+  // the clock, so the dialog waits for the navigation instead.
+  await io();
   try {
     const [iv, tag, sealed] = value.split(".").map((part) => Buffer.from(part, "base64url"));
     const decipher = createDecipheriv("aes-256-gcm", KEY, iv);
