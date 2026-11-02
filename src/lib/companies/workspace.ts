@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { MOCK_CANDIDATES } from "@/lib/candidates/mock-candidates";
 import type { WorkMode } from "@/lib/jobs/types";
+import type { HiringStage } from "@/lib/review/stages";
 import { createClient } from "@/lib/supabase/server";
 
 export type CompanyJob = {
@@ -61,6 +62,7 @@ export type JobApplicant = {
   appliedAt: string;
   viewed: boolean;
   liked: boolean;
+  stage: HiringStage;
   // The job's filters the CV meets; null until the application has been checked.
   matchedFilters: string[] | null;
   // The file names to show, or null when the application has no such document.
@@ -73,6 +75,7 @@ type ApplicantRow = {
   applied_at: string;
   viewed_at: string | null;
   liked_at: string | null;
+  stage: HiringStage;
   matched_filters: string[] | null;
   cv_path: string | null;
   cover_letter_path: string | null;
@@ -162,7 +165,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
   const { data, error } = await supabase
     .from("job_applications")
     .select(
-      "id, applied_at, viewed_at, liked_at, matched_filters, cv_path, cover_letter_path, candidate:candidate_profiles(full_name, location, sample_key)",
+      "id, applied_at, viewed_at, liked_at, stage, matched_filters, cv_path, cover_letter_path, candidate:candidate_profiles(full_name, location, sample_key)",
     )
     .eq("job_posting_id", jobId)
     .is("withdrawn_at", null)
@@ -180,6 +183,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
         appliedAt: row.applied_at,
         viewed: row.viewed_at !== null,
         liked: row.liked_at !== null,
+        stage: row.stage,
         matchedFilters: row.matched_filters,
         cvFileName: fileName(row.cv_path, sampleKey, "cvFile"),
         coverLetterFileName: fileName(row.cover_letter_path, sampleKey, "letterFile"),

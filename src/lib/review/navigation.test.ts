@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialIndex, nextTarget, nextUnviewed, previousTarget } from "./navigation";
+import { initialIndex, matchesPlaylist, nextTarget, nextUnviewed, previousTarget } from "./navigation";
 
 const list = (...viewed: boolean[]) => viewed.map((v, i) => ({ id: `a${i}`, viewed: v }));
 const all = () => true;
@@ -7,6 +7,43 @@ const all = () => true;
 const marked = (...marks: string[]) =>
   marks.map((m, i) => ({ id: `a${i}`, viewed: m.includes("v"), liked: m.includes("l") }));
 const liked = (item: { liked: boolean }) => item.liked;
+
+describe("matchesPlaylist", () => {
+  const ana = { liked: true, stage: "INTERVIEW" } as const;
+  const jonas = { liked: false, stage: "REJECTED" } as const;
+
+  it("shows everyone in All with any status", () => {
+    expect(matchesPlaylist(ana, "all", "any")).toBe(true);
+    expect(matchesPlaylist(jonas, "all", "any")).toBe(true);
+  });
+
+  it("narrows by the heart and by the status", () => {
+    expect(matchesPlaylist(ana, "liked", "any")).toBe(true);
+    expect(matchesPlaylist(jonas, "liked", "any")).toBe(false);
+    expect(matchesPlaylist(jonas, "all", "REJECTED")).toBe(true);
+    expect(matchesPlaylist(ana, "all", "REJECTED")).toBe(false);
+  });
+
+  it("needs both when both are set", () => {
+    expect(matchesPlaylist(ana, "liked", "INTERVIEW")).toBe(true);
+    expect(matchesPlaylist(ana, "liked", "OFFER")).toBe(false);
+    expect(matchesPlaylist(jonas, "liked", "REJECTED")).toBe(false);
+  });
+
+  it("gives Next and ← the same list when used as their filter", () => {
+    const items = [
+      { id: "a", viewed: true, liked: false, stage: "REJECTED" },
+      { id: "b", viewed: true, liked: false, stage: "INTERVIEW" },
+      { id: "c", viewed: true, liked: true, stage: "REJECTED" },
+      { id: "d", viewed: true, liked: false, stage: "INTERVIEW" },
+    ] as const;
+    const interview = (item: (typeof items)[number]) => matchesPlaylist(item, "all", "INTERVIEW");
+
+    expect(nextTarget(items, 1, interview)).toBe(3);
+    expect(nextTarget(items, 3, interview)).toBeNull();
+    expect(previousTarget(items, 3, interview)).toBe(1);
+  });
+});
 
 describe("nextUnviewed", () => {
   it("goes to the next applicant not viewed yet, skipping viewed ones", () => {

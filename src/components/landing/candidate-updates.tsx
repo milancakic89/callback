@@ -27,7 +27,7 @@ const STEPS = [
     body: "It lands in the employer's applicant list, ready to screen.",
     artifact: (
       <div className="flex flex-wrap items-center gap-1">
-        {["New", "Screening", "Interview", "Offer"].map((stage, i) => (
+        {["Applied", "Screening", "Interview", "Offer"].map((stage, i) => (
           <span
             key={stage}
             className={cn(

@@ -1,7 +1,22 @@
+import type { HiringStage } from "./stages";
+
 // Moving through a job's applicants on the review screen (features/applicant-review.md). The list is
 // in the order the playlist shows it; `viewed` is the company's own mark, set by Next.
 
 type Item = { viewed: boolean };
+
+export type PlaylistFilter = "all" | "liked";
+export type StageFilter = HiringStage | "any";
+
+// Whether the playlist shows an applicant: its All / Liked choice and its status filter together. The
+// playlist and Next and ← all ask this, so they can't disagree (features/application-status.md).
+export function matchesPlaylist(
+  item: { liked: boolean; stage: HiringStage },
+  filter: PlaylistFilter,
+  stageFilter: StageFilter,
+): boolean {
+  return (filter === "all" || item.liked) && (stageFilter === "any" || item.stage === stageFilter);
+}
 
 // Where Next goes from `from`: the first applicant after it that isn't viewed yet, wrapping round to
 // the top. `from` itself never counts (Next has just marked it). Null when everyone has been viewed.

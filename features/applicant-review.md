@@ -2,6 +2,8 @@
 
 **Status:** Implemented (2026-10-31). The migration is applied to Supabase (`applicant_review`, through `apply_migration`) and checked with SQL, and `npm run seed:mock-candidates` has uploaded the demo documents. The screen was driven in a headless Chromium (Playwright) as the test employer, against `next dev` and against a production build, and the screenshots were looked at. `npm test` (299 tests), `npm run lint`, `npx tsc --noEmit` and `npm run build` pass. Committed, **not pushed**. See [Verification](#verification).
 
+**Since (2026-11-02):** each applicant has a status, set on this screen, and the playlist can be narrowed by it ([application-status.md](./application-status.md)). The decisions below describe the screen as first built.
+
 **Lets start** on a job's card opens `/{company}/jobs/{jobId}/review`: a dark screen where one person goes through the applicants of a job. On one screen it shows the playlist of applicants, the original CV, the cover letter (if there is one) and a small screening overview against the job's filters. **Next** marks the applicant viewed and opens the next one. The **heart** likes them. Nothing is rejected automatically.
 
 It also starts the CV access model agreed for Callback: the files sit in a private bucket no client can read, every open goes through a route that checks access, there is no download button, and a withdrawn application can't be opened.
@@ -142,7 +144,7 @@ Rejected applications, closed jobs and the 60-day limit will be refused in the s
 ## Out of scope
 - Candidates uploading CVs, and the application form.
 - Parsing and real matching (the ATS).
-- Changing an application's status (reject, interview) and telling the candidate.
+- Telling the candidate about a status. (Changing the status itself is [application-status.md](./application-status.md).)
 - A watermark in the viewer.
 - The 60-day limit and closing a job.
 - Viewed and liked counts on the job card.

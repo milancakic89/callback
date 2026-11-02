@@ -8,6 +8,7 @@ import { companyHome, TEST_COMPANY } from "@/lib/companies/company";
 import { jobPostingSchema } from "@/lib/companies/job-posting";
 import { ensureEmployerWorkspace } from "@/lib/companies/workspace";
 import { rateLimit } from "@/lib/rate-limit";
+import { HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
 import { createClient } from "@/lib/supabase/server";
 
@@ -247,14 +248,17 @@ export async function unpublishJobPosting(input: UnpublishJobInput): Promise<Job
 
 export type ReviewMarkResult = { ok: true } | { ok: false; error: string };
 
-// The review screen's two marks on an application (features/applicant-review.md), called straight
-// from it, not from a form. The screen shows the change at once and puts it back if this fails, so
-// nothing is refreshed. The update policy only matches active applications to the caller's own jobs
-// and the column grant only covers viewed_at and liked_at, so any other id changes no row and answers
-// "Application not found.". Both share one limit, far above what clicking through applicants needs.
+// The review screen's marks on an application (features/applicant-review.md), called straight from
+// it, not from a form. The screen shows the change at once and puts it back if this fails, so nothing
+// is refreshed. The update policy only matches active applications to the caller's own jobs and the
+// column grant only covers these columns, so any other id changes no row and answers "Application not
+// found.". They share one limit, far above what clicking through applicants needs.
 async function setReviewMark(
   applicationId: string,
-  values: { viewed_at: string } | { liked_at: string | null },
+  values:
+    | { viewed_at: string }
+    | { liked_at: string | null }
+    | { stage: HiringStage; stage_changed_at: string },
 ): Promise<ReviewMarkResult> {
   const parsed = z.uuid().safeParse(applicationId);
   if (!parsed.success) return { ok: false, error: "Invalid request." };
@@ -287,4 +291,12 @@ export async function markApplicationViewed(applicationId: string): Promise<Revi
 export async function setApplicationLiked(applicationId: string, liked: boolean): Promise<ReviewMarkResult> {
   if (typeof liked !== "boolean") return { ok: false, error: "Invalid request." };
   return setReviewMark(applicationId, { liked_at: liked ? new Date().toISOString() : null });
+}
+
+// The status control on the review screen (features/application-status.md). Any status can change to
+// any other, and the candidate isn't told anything yet.
+export async function setApplicationStage(applicationId: string, stage: HiringStage): Promise<ReviewMarkResult> {
+  const parsed = z.enum(HIRING_STAGES).safeParse(stage);
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+  return setReviewMark(applicationId, { stage: parsed.data, stage_changed_at: new Date().toISOString() });
 }

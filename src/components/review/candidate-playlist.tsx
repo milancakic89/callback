@@ -4,10 +4,15 @@ import { CheckIcon, HeartIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { cn } from "cn";
 import { Initials } from "@/components/landing/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { matchesPlaylist, type PlaylistFilter, type StageFilter } from "@/lib/review/navigation";
+import { HIRING_STAGE_LABELS, HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
+import { StageDot } from "./ats-panel";
 
 // The applicants of the job as a playlist (features/applicant-review.md): who is open now, who has
-// been viewed (Next marks them), who was liked, and how many required filters each one's CV meets.
-// Any row opens that applicant, and Next carries on from there. All / Liked narrows the list.
+// been viewed (Next marks them), their status (features/application-status.md), who was liked, and
+// how many required filters each one's CV meets. Any row opens that applicant, and Next carries on
+// from there. All / Liked and the status select narrow the list together.
 
 export type PlaylistItem = {
   id: string;
@@ -15,35 +20,51 @@ export type PlaylistItem = {
   location: string | null;
   viewed: boolean;
   liked: boolean;
+  stage: HiringStage;
   // "3/4" or null when there is nothing to show (no required filters, or not checked yet).
   requiredScore: { met: number; total: number } | null;
 };
 
-export type PlaylistFilter = "all" | "liked";
+function StageFilterLabel({ value, count }: { value: StageFilter; count: number }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+      {value !== "any" && <StageDot stage={value} />}
+      <span className="truncate">{value === "any" ? "Any status" : HIRING_STAGE_LABELS[value]}</span>
+      <span className="ml-auto font-mono text-[11px] text-(--l-fg-subtle) tabular-nums">{count}</span>
+    </span>
+  );
+}
 
 export function CandidatePlaylist({
   items,
   currentId,
   filter,
   onFilter,
+  stageFilter,
+  onStageFilter,
   onSelect,
 }: {
   items: PlaylistItem[];
   currentId: string;
   filter: PlaylistFilter;
   onFilter: (filter: PlaylistFilter) => void;
+  stageFilter: StageFilter;
+  onStageFilter: (filter: StageFilter) => void;
   onSelect: (id: string) => void;
 }) {
   const listRef = useRef<HTMLOListElement>(null);
-  const likedCount = items.filter((item) => item.liked).length;
-  const shown = filter === "liked" ? items.filter((item) => item.liked) : items;
+  const shown = items.filter((item) => matchesPlaylist(item, filter, stageFilter));
+  // How many each choice would show, given the other control's choice.
+  const filterCount = (value: PlaylistFilter) =>
+    items.filter((item) => matchesPlaylist(item, value, stageFilter)).length;
+  const stageCount = (value: StageFilter) => items.filter((item) => matchesPlaylist(item, filter, value)).length;
 
   // The open applicant stays in view as Next moves down a long list.
   useEffect(() => {
     listRef.current
       ?.querySelector<HTMLElement>(`[data-id="${currentId}"]`)
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [currentId, filter]);
+  }, [currentId, filter, stageFilter]);
 
   return (
     <nav aria-label="Candidates" className="flex min-h-0 flex-1 flex-col">
@@ -65,22 +86,44 @@ export function CandidatePlaylist({
             )}
           >
             {value === "all" ? "All" : <><HeartIcon aria-hidden className="size-3" /> Liked</>}
-            <span className="font-mono text-[11px] text-(--l-fg-subtle) tabular-nums">
-              {value === "all" ? items.length : likedCount}
-            </span>
+            <span className="font-mono text-[11px] text-(--l-fg-subtle) tabular-nums">{filterCount(value)}</span>
           </button>
         ))}
+      </div>
+      <div className="mx-3 mb-2 shrink-0">
+        <Select value={stageFilter} onValueChange={(value) => value && onStageFilter(value as StageFilter)}>
+          <SelectTrigger
+            size="sm"
+            aria-label="Filter by status"
+            className="w-full border-(--l-line) bg-white/[0.03] text-[12px] font-medium text-(--l-fg-muted)"
+          >
+            <SelectValue>
+              {(value: StageFilter) => <StageFilterLabel value={value} count={stageCount(value)} />}
+            </SelectValue>
+          </SelectTrigger>
+          {/* It opens outside the review's frame, so it brings the frame's tokens along, as the sheet does. */}
+          <SelectContent data-landing className="dark">
+            {(["any", ...HIRING_STAGES] as const).map((value) => (
+              <SelectItem key={value} value={value} className="text-[12px]">
+                <StageFilterLabel value={value} count={stageCount(value)} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {shown.length === 0 ? (
         <p className="px-4 py-6 text-[12px] leading-relaxed text-(--l-fg-subtle)">
-          No liked candidates yet. The heart next to Next keeps the ones you want to come back to.
+          {stageFilter === "any"
+            ? "No liked candidates yet. The heart next to Next keeps the ones you want to come back to."
+            : "No candidates with this status."}
         </p>
       ) : (
         <ol ref={listRef} className="l-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
           {shown.map((item) => {
             const current = item.id === currentId;
             const allMet = item.requiredScore !== null && item.requiredScore.met === item.requiredScore.total;
+            const rejected = item.stage === "REJECTED";
             return (
               <li key={item.id} data-id={item.id}>
                 <button
@@ -96,7 +139,10 @@ export function CandidatePlaylist({
                     <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-(--l-lime)" />
                   )}
                   <span className="relative">
-                    <Initials name={item.name} className={cn(item.viewed && !current && "opacity-60")} />
+                    <Initials
+                      name={item.name}
+                      className={cn(item.viewed && !current && "opacity-60", rejected && !current && "opacity-40")}
+                    />
                     {!item.viewed && (
                       <span
                         aria-hidden
@@ -108,13 +154,21 @@ export function CandidatePlaylist({
                     <span
                       className={cn(
                         "block truncate text-[13px] font-medium",
-                        item.viewed && !current ? "text-(--l-fg-muted)" : "text-(--l-fg)",
+                        rejected && !current
+                          ? "text-(--l-fg-subtle)"
+                          : item.viewed && !current
+                            ? "text-(--l-fg-muted)"
+                            : "text-(--l-fg)",
                       )}
                     >
                       {item.name}
                     </span>
                     <span className="flex items-center gap-1.5 text-[11px] text-(--l-fg-subtle)">
-                      {item.viewed ? (
+                      {item.stage !== "APPLIED" ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 text-(--l-fg-muted)">
+                          <StageDot stage={item.stage} /> {HIRING_STAGE_LABELS[item.stage]}
+                        </span>
+                      ) : item.viewed ? (
                         <span className="inline-flex shrink-0 items-center gap-0.5">
                           <CheckIcon aria-hidden className="size-3" /> Viewed
                         </span>

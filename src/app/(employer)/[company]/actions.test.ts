@@ -52,6 +52,7 @@ import {
   markApplicationViewed,
   publishJobPosting,
   setApplicationLiked,
+  setApplicationStage,
   unpublishJobPosting,
   updateJobPosting,
 } from "./actions";
@@ -617,6 +618,74 @@ describe("the review marks", () => {
     hit.mockResolvedValue({ count: 121, resetAt: Date.now() + 60_000 });
     update.mockClear();
     expect(await setApplicationLiked(APPLICATION_ID, true)).toEqual({
+      ok: false,
+      error: "Too many changes. Try again in a minute.",
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("setApplicationStage", () => {
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("refuses an unknown status or a bad id, before anything else runs", async () => {
+    for (const stage of ["", "HIRED ", "rejected", "PENDING", null, 1]) {
+      expect(await setApplicationStage(APPLICATION_ID, stage as never), String(stage)).toEqual({
+        ok: false,
+        error: "Invalid request.",
+      });
+    }
+    expect(await setApplicationStage("not-a-uuid", "REJECTED")).toEqual({ ok: false, error: "Invalid request." });
+    expect(requireAccountType).not.toHaveBeenCalled();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("needs an employer account", async () => {
+    const redirected = new Error("NEXT_REDIRECT");
+    requireAccountType.mockRejectedValue(redirected);
+
+    await expect(setApplicationStage(APPLICATION_ID, "INTERVIEW")).rejects.toBe(redirected);
+    expect(requireAccountType).toHaveBeenCalledWith("employer");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("writes only the status and when it changed, on that application, without a refresh", async () => {
+    expect(await setApplicationStage(APPLICATION_ID, "INTERVIEW")).toEqual({ ok: true });
+
+    expect(from).toHaveBeenCalledWith("job_applications");
+    const [values] = update.mock.calls[0];
+    expect(Object.keys(values).sort()).toEqual(["stage", "stage_changed_at"]);
+    expect(values.stage).toBe("INTERVIEW");
+    expect(values.stage_changed_at).toMatch(ISO);
+    expect(updateEq).toHaveBeenCalledExactlyOnceWith("id", APPLICATION_ID);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("can go back to any status", async () => {
+    expect(await setApplicationStage(APPLICATION_ID, "REJECTED")).toEqual({ ok: true });
+    expect(await setApplicationStage(APPLICATION_ID, "APPLIED")).toEqual({ ok: true });
+    expect(update.mock.calls[1][0].stage).toBe("APPLIED");
+  });
+
+  it("says the application wasn't found when row level security updates nothing", async () => {
+    updateSelect.mockResolvedValue({ data: [], error: null });
+
+    expect(await setApplicationStage(APPLICATION_ID, "HIRED")).toEqual({ ok: false, error: "Application not found." });
+  });
+
+  it("reports a database error", async () => {
+    updateSelect.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    expect(await setApplicationStage(APPLICATION_ID, "HIRED")).toEqual({ ok: false, error: "Could not save. Try again." });
+  });
+
+  it("shares the review marks' limit", async () => {
+    await setApplicationStage(APPLICATION_ID, "SCREENING");
+    expect(hit).toHaveBeenCalledWith("review-mark:user-1", 60_000);
+
+    hit.mockResolvedValue({ count: 121, resetAt: Date.now() + 60_000 });
+    update.mockClear();
+    expect(await setApplicationStage(APPLICATION_ID, "OFFER")).toEqual({
       ok: false,
       error: "Too many changes. Try again in a minute.",
     });
