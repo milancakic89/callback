@@ -16,7 +16,6 @@ This is a common error when doing things
 
 - Opus is used for planing
 - Sonet for implementing a plan by default
-- If not specified othervise, in case accidental implementation of plan is requested with wrong model, ask first to confirm
 - Every plan must be first saved into features folder
 
 ## This is NOT the Next.js you know
