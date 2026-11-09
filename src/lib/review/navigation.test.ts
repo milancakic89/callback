@@ -9,8 +9,12 @@ const marked = (...marks: string[]) =>
 const liked = (item: { liked: boolean }) => item.liked;
 
 describe("matchesPlaylist", () => {
-  const ana = { liked: true, stage: "INTERVIEW" } as const;
-  const jonas = { liked: false, stage: "REJECTED" } as const;
+  const INTERVIEW_ID = "22222222-2222-4222-8222-222222222222";
+  const interview = { stage: "STEP", stepId: INTERVIEW_ID } as const;
+  const rejected = { stage: "REJECTED", stepId: null } as const;
+  const interviewKey = `STEP:${INTERVIEW_ID}`;
+  const ana = { liked: true, stage: interview };
+  const jonas = { liked: false, stage: rejected };
 
   it("shows everyone in All with any status", () => {
     expect(matchesPlaylist(ana, "all", "any")).toBe(true);
@@ -24,24 +28,29 @@ describe("matchesPlaylist", () => {
     expect(matchesPlaylist(ana, "all", "REJECTED")).toBe(false);
   });
 
+  it("tells one of the company's steps from another", () => {
+    expect(matchesPlaylist(ana, "all", interviewKey)).toBe(true);
+    expect(matchesPlaylist(ana, "all", "STEP:33333333-3333-4333-8333-333333333333")).toBe(false);
+  });
+
   it("needs both when both are set", () => {
-    expect(matchesPlaylist(ana, "liked", "INTERVIEW")).toBe(true);
+    expect(matchesPlaylist(ana, "liked", interviewKey)).toBe(true);
     expect(matchesPlaylist(ana, "liked", "OFFER")).toBe(false);
     expect(matchesPlaylist(jonas, "liked", "REJECTED")).toBe(false);
   });
 
   it("gives Next and ← the same list when used as their filter", () => {
     const items = [
-      { id: "a", viewed: true, liked: false, stage: "REJECTED" },
-      { id: "b", viewed: true, liked: false, stage: "INTERVIEW" },
-      { id: "c", viewed: true, liked: true, stage: "REJECTED" },
-      { id: "d", viewed: true, liked: false, stage: "INTERVIEW" },
+      { id: "a", viewed: true, liked: false, stage: rejected },
+      { id: "b", viewed: true, liked: false, stage: interview },
+      { id: "c", viewed: true, liked: true, stage: rejected },
+      { id: "d", viewed: true, liked: false, stage: interview },
     ] as const;
-    const interview = (item: (typeof items)[number]) => matchesPlaylist(item, "all", "INTERVIEW");
+    const shownInterview = (item: (typeof items)[number]) => matchesPlaylist(item, "all", interviewKey);
 
-    expect(nextTarget(items, 1, interview)).toBe(3);
-    expect(nextTarget(items, 3, interview)).toBeNull();
-    expect(previousTarget(items, 3, interview)).toBe(1);
+    expect(nextTarget(items, 1, shownInterview)).toBe(3);
+    expect(nextTarget(items, 3, shownInterview)).toBeNull();
+    expect(previousTarget(items, 3, shownInterview)).toBe(1);
   });
 });
 

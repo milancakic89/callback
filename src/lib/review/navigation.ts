@@ -1,4 +1,4 @@
-import type { HiringStage } from "./stages";
+import { stageChoiceKey, type StageChoice } from "./stages";
 
 // Moving through a job's applicants on the review screen (features/applicant-review.md). The list is
 // in the order the playlist shows it; `viewed` is the company's own mark, set by Next.
@@ -6,16 +6,17 @@ import type { HiringStage } from "./stages";
 type Item = { viewed: boolean };
 
 export type PlaylistFilter = "all" | "liked";
-export type StageFilter = HiringStage | "any";
+// "any", or the key of a status option (stageChoiceKey).
+export type StageFilter = string;
 
 // Whether the playlist shows an applicant: its All / Liked choice and its status filter together. The
 // playlist and Next and ← all ask this, so they can't disagree (features/application-status.md).
 export function matchesPlaylist(
-  item: { liked: boolean; stage: HiringStage },
+  item: { liked: boolean; stage: StageChoice },
   filter: PlaylistFilter,
   stageFilter: StageFilter,
 ): boolean {
-  return (filter === "all" || item.liked) && (stageFilter === "any" || item.stage === stageFilter);
+  return (filter === "all" || item.liked) && (stageFilter === "any" || stageChoiceKey(item.stage) === stageFilter);
 }
 
 // Where Next goes from `from`: the first applicant after it that isn't viewed yet, wrapping round to

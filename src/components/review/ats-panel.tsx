@@ -5,11 +5,10 @@ import { cn } from "cn";
 import { Kbd } from "@/components/landing/ui";
 import { formatAbsolute } from "@/lib/jobs/format";
 import type { FilterCheck, FilterSummary } from "@/lib/review/matches";
-import { HIRING_STAGE_KEYS, HIRING_STAGE_LABELS, HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
 
 // The right-hand column of the review screen (features/applicant-review.md): who the applicant is,
 // a small screening overview against the job's filters, and the actions: the status
-// (features/application-status.md), the heart and Next. The overview is a keyword check of the CV
+// (features/candidate-steps.md, in stage-control.tsx), the heart and Next. The overview is a keyword check of the CV
 // (features/cv-screening.md): it says which words it found, never what the CV means, and it only
 // informs. Nothing is rejected automatically.
 
@@ -176,80 +175,26 @@ export function NoAutoRejectNote() {
   return (
     <p className="flex gap-2 text-[11.5px] leading-relaxed text-(--l-fg-subtle)">
       <InfoIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-      Nothing is rejected automatically. You decide who moves on. Changing a status doesn&rsquo;t tell the
-      candidate yet.
+      Nothing is rejected automatically. You decide who moves on. Candidates see a new status only after
+      you apply statuses.
     </p>
   );
 }
 
-const STAGE_DOT: Record<HiringStage, string> = {
-  APPLIED: "bg-(--l-fg-subtle)",
-  SCREENING: "bg-(--l-lime)",
-  INTERVIEW: "bg-(--l-lime)",
-  OFFER: "bg-(--l-lime)",
-  HIRED: "bg-(--l-lime)",
-  REJECTED: "bg-red-400",
-};
-
-export function StageDot({ stage }: { stage: HiringStage }) {
-  return <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STAGE_DOT[stage])} />;
-}
-
-// One button per status, with its key. `compact` is the bar at the bottom of a phone screen, which
-// has no keys to show.
-export function StageControl({
-  stage,
-  onChange,
-  compact = false,
-}: {
-  stage: HiringStage;
-  onChange: (stage: HiringStage) => void;
-  compact?: boolean;
-}) {
-  return (
-    <div role="group" aria-label="Status" className={cn("grid gap-1", compact ? "grid-cols-3" : "grid-cols-2")}>
-      {HIRING_STAGES.map((value) => {
-        const chosen = value === stage;
-        return (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={chosen}
-            onClick={() => onChange(value)}
-            className={cn(
-              "inline-flex h-8 min-w-0 items-center gap-1.5 rounded-md border px-2 text-[12px] font-medium transition-colors",
-              !chosen &&
-                "border-(--l-line) bg-white/[0.02] text-(--l-fg-muted) hover:bg-white/[0.06] hover:text-(--l-fg)",
-              chosen &&
-                (value === "REJECTED"
-                  ? "border-red-400/40 bg-red-400/[0.12] text-(--l-fg)"
-                  : "border-(--l-lime)/40 bg-(--l-lime)/[0.12] text-(--l-fg)"),
-            )}
-          >
-            <StageDot stage={value} />
-            <span className="truncate">{HIRING_STAGE_LABELS[value]}</span>
-            {!compact && (
-              <span className="ml-auto">
-                <Kbd>{HIRING_STAGE_KEYS[value]}</Kbd>
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// The heart and Next, with their keys. `compact` is the bar at the bottom of a phone screen.
+// The heart and Next, with their keys, and under them the "Apply statuses" button
+// (features/candidate-steps.md), passed in so this doesn't depend on the dialog. `compact` is the bar at
+// the bottom of a phone screen.
 export function ReviewActions({
   liked,
   onLike,
   onNext,
+  applyButton,
   compact = false,
 }: {
   liked: boolean;
   onLike: () => void;
   onNext: () => void;
+  applyButton?: React.ReactNode;
   compact?: boolean;
 }) {
   return (
@@ -279,6 +224,7 @@ export function ReviewActions({
           <ArrowRightIcon aria-hidden className="size-4" />
         </button>
       </div>
+      {applyButton}
       {!compact && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-(--l-fg-subtle)">
           <span className="inline-flex items-center gap-1">

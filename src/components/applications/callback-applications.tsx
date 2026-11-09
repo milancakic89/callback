@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CandidateStage } from "./candidate-stage";
 import {
   CALLBACK_APPLICATION_STATE_LABELS,
   type CallbackApplication,
@@ -78,7 +79,8 @@ function CallbackApplicationRow({ item }: { item: CallbackApplication }) {
             {item.companyName} · Applied {formatAbsolute(item.appliedAt, TIME_ZONE)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {item.status && <CandidateStage status={item.status} />}
           <Badge className={cn(STATE_CLASS[item.state])}>{CALLBACK_APPLICATION_STATE_LABELS[item.state]}</Badge>
           {holdsDocuments && <WithdrawButton item={item} />}
         </div>

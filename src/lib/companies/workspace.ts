@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { MOCK_CANDIDATES } from "@/lib/candidates/mock-candidates";
 import type { WorkMode } from "@/lib/jobs/types";
-import type { HiringStage } from "@/lib/review/stages";
+import type { PipelineStage, StageChoice } from "@/lib/review/stages";
 import { createClient } from "@/lib/supabase/server";
 
 export type CompanyJob = {
@@ -62,7 +62,10 @@ export type JobApplicant = {
   appliedAt: string;
   viewed: boolean;
   liked: boolean;
-  stage: HiringStage;
+  // The status the employer chose, and the one the candidate has been shown (they differ while a
+  // change waits for "Apply statuses", features/candidate-steps.md).
+  stage: StageChoice;
+  candidateStage: StageChoice;
   // What the CV screening saved for the application (features/cv-screening.md): the job's filters the
   // CV meets (null until it has been checked), the ones it couldn't decide, and whether the CV could
   // be read. summarizeFilters() turns these into what the review screen shows.
@@ -82,7 +85,10 @@ type ApplicantRow = {
   applied_at: string;
   viewed_at: string | null;
   liked_at: string | null;
-  stage: HiringStage;
+  pipeline_stage: PipelineStage;
+  step_id: string | null;
+  candidate_stage: PipelineStage;
+  candidate_step_id: string | null;
   matched_filters: string[] | null;
   unverified_filters: string[] | null;
   screening_outcome: "checked" | "unreadable" | null;
@@ -175,7 +181,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
   const { data, error } = await supabase
     .from("job_applications")
     .select(
-      "id, applied_at, viewed_at, liked_at, stage, matched_filters, unverified_filters, screening_outcome, cv_path, cover_letter_path, cover_letter_text, candidate:candidate_profiles(full_name, location, sample_key)",
+      "id, applied_at, viewed_at, liked_at, pipeline_stage, step_id, candidate_stage, candidate_step_id, matched_filters, unverified_filters, screening_outcome, cv_path, cover_letter_path, cover_letter_text, candidate:candidate_profiles(full_name, location, sample_key)",
     )
     .eq("job_posting_id", jobId)
     .is("withdrawn_at", null)
@@ -193,7 +199,8 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
         appliedAt: row.applied_at,
         viewed: row.viewed_at !== null,
         liked: row.liked_at !== null,
-        stage: row.stage,
+        stage: { stage: row.pipeline_stage, stepId: row.step_id },
+        candidateStage: { stage: row.candidate_stage, stepId: row.candidate_step_id },
         matchedFilters: row.matched_filters,
         unverifiedFilters: row.unverified_filters,
         screeningOutcome: row.screening_outcome,

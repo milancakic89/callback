@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { cn } from "cn";
-import { markApplicationViewed, setApplicationLiked, setApplicationStage } from "@/app/(employer)/[company]/actions";
+import { markApplicationViewed, setApplicationLiked } from "@/app/(employer)/[company]/actions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { JobApplicant } from "@/lib/companies/workspace";
 import { documentUrl } from "@/lib/review/documents";
@@ -20,12 +20,22 @@ import {
   type PlaylistFilter,
   type StageFilter,
 } from "@/lib/review/navigation";
-import { HIRING_STAGE_LABELS, stageForKey, type HiringStage } from "@/lib/review/stages";
-import { ApplicantSummary, NoAutoRejectNote, ReviewActions, ScreeningOverview, StageControl } from "./ats-panel";
+import {
+  choiceLabel,
+  optionForKey,
+  sameChoice,
+  stageOptions,
+  type CandidateStep,
+  type StageChoice,
+} from "@/lib/review/stages";
+import { ApplyStagesButton } from "./apply-stages-button";
+import { ApplicantSummary, NoAutoRejectNote, ReviewActions, ScreeningOverview } from "./ats-panel";
 import { CandidatePlaylist, type PlaylistItem } from "./candidate-playlist";
 import { usePdfDocuments } from "./pdf";
 import { DocumentHeader, PdfPages, SHEET_CLASS } from "./pdf-viewer";
 import { ReviewTopBar, type ReviewJob } from "./review-frame";
+import { StageControl } from "./stage-control";
+import { useStageChanges } from "./use-stage-changes";
 
 // The review screen (features/applicant-review.md), Fast Manual Mode on real applications. From
 // 1280px: the playlist, the CV, the cover letter and the screening overview side by side. From
@@ -33,7 +43,8 @@ import { ReviewTopBar, type ReviewJob } from "./review-frame";
 // at the bottom.
 //
 // Next marks the open applicant viewed and opens the next one not viewed yet; the heart likes them,
-// and the status control decides something about them (features/application-status.md). Next and ←
+// and the status control decides something about them (features/candidate-steps.md): a status shows at
+// once and is saved, but the candidate sees it only after "Apply statuses". Next and ←
 // keep to the applicants the playlist shows (All or Liked, and the status filter), and once all of
 // those are viewed Next goes down the list in order, for another look. All the marks show at once and
 // are saved in the background, and put back with a note if saving fails. The documents of the
@@ -44,7 +55,7 @@ import { ReviewTopBar, type ReviewJob } from "./review-frame";
 // over the CV rather than over the overview so Next stays where the hand expects it.
 
 type Direction = "next" | "prev";
-type Marks = Record<string, { viewed: boolean; liked: boolean; stage: HiringStage }>;
+type Marks = Record<string, { viewed: boolean; liked: boolean }>;
 type MobileView = "cv" | "letter" | "overview";
 
 const LETTER_ZOOM = 0.8;
@@ -59,15 +70,20 @@ export function ApplicantReview({
   companySlug,
   job,
   applicants,
+  steps,
 }: {
   companySlug: string;
   job: ReviewJob;
   applicants: JobApplicant[];
+  // The company's candidate steps (features/candidate-steps.md), between Applied and Offer.
+  steps: CandidateStep[];
 }) {
   const searchParams = useSearchParams();
   const [marks, setMarks] = useState<Marks>(() =>
-    Object.fromEntries(applicants.map((a) => [a.id, { viewed: a.viewed, liked: a.liked, stage: a.stage }])),
+    Object.fromEntries(applicants.map((a) => [a.id, { viewed: a.viewed, liked: a.liked }])),
   );
+  const [notice, setNotice] = useState<string | null>(null);
+  const options = useMemo(() => stageOptions(steps), [steps]);
   // What the screening saved for each applicant, and what the screen shows of it
   // (features/cv-screening.md).
   const summaries = useMemo(
@@ -88,7 +104,17 @@ export function ApplicantReview({
   // the list all walk `items`, so they can't disagree about it.
   const [order, setOrder] = useState<PlaylistOrder>("applied");
   const ordered = useMemo(() => orderApplicants(applicants, summaries, order), [applicants, summaries, order]);
-  const items = useMemo(() => ordered.map((a) => ({ ...a, ...marks[a.id] })), [ordered, marks]);
+  const people = useMemo(() => ordered.map((a) => ({ id: a.id, name: a.name })), [ordered]);
+  const { pending, changeStage, applyChanges, states } = useStageChanges({
+    applicants,
+    people,
+    jobId: job.id,
+    onNotice: setNotice,
+  });
+  const items = useMemo(
+    () => ordered.map((a) => ({ ...a, ...marks[a.id], ...states[a.id] })),
+    [ordered, marks, states],
+  );
   // With no filters there is nothing to put in order by.
   const canOrder = job.requiredFilters.length + job.optionalFilters.length > 0;
   const [index, setIndex] = useState(() => initialIndex(items, searchParams.get("candidate")));
@@ -102,7 +128,6 @@ export function ApplicantReview({
   const [cvZoom, setCvZoom] = useState(1);
   const [letterZoom, setLetterZoom] = useState(LETTER_ZOOM);
   const [letterOpen, setLetterOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const { open, keep } = usePdfDocuments();
 
   const current = items[index];
@@ -120,6 +145,7 @@ export function ApplicantReview({
       viewed: item.viewed,
       liked: item.liked,
       stage: item.stage,
+      pending: !sameChoice(item.stage, item.candidateStage),
       requiredScore:
         s.status === "checked" && s.required.length > 0
           ? { met: s.requiredMet, total: s.required.length, unverified: s.requiredUnverified }
@@ -135,7 +161,7 @@ export function ApplicantReview({
 
   // What Next and ← open, among the applicants the playlist shows. At the end of a narrowed list,
   // while others are still new, Next carries on with those (and the playlist goes back to everyone).
-  const shows = (item: { liked: boolean; stage: HiringStage }) => matchesPlaylist(item, filter, stageFilter);
+  const shows = (item: { liked: boolean; stage: StageChoice }) => matchesPlaylist(item, filter, stageFilter);
   const narrowed = filter !== "all" || stageFilter !== "any";
   const nextInList = nextTarget(items, index, shows);
   const nextIndex = nextInList ?? (narrowed ? nextUnviewed(items, index) : null);
@@ -199,7 +225,7 @@ export function ApplicantReview({
   // viewed from here, not from when it was chosen: Next from the last new one has to end the pass, and
   // it only knows to while they are still new.
   function go(target: number, dir: Direction) {
-    if (!current.viewed && current.stage !== "APPLIED") markViewed(current.id);
+    if (!current.viewed && current.stage.stage !== "APPLIED") markViewed(current.id);
     moveTo(target, dir);
   }
 
@@ -241,24 +267,6 @@ export function ApplicantReview({
     );
   }
 
-  function changeStage(stage: HiringStage) {
-    const id = current.id;
-    const previousStage = current.stage;
-    if (stage === previousStage) return;
-    setMark(id, { stage });
-    // Put back only if nothing newer was chosen while this was saving.
-    const putBack = (message: string) => {
-      setMarks((all) => (all[id].stage === stage ? { ...all, [id]: { ...all[id], stage: previousStage } } : all));
-      setNotice(message);
-    };
-    setApplicationStage(id, stage).then(
-      (result) => {
-        if (!result.ok) putBack(result.error);
-      },
-      () => putBack("Could not save. Check your connection."),
-    );
-  }
-
   // The open applicant stays open when the order changes; only where they stand in the list does.
   function changeOrder(next: PlaylistOrder) {
     if (next === order) return;
@@ -295,7 +303,13 @@ export function ApplicantReview({
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.repeat || event.defaultPrevented) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='listbox']")) return;
+    if (
+      target?.closest(
+        "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog'], [role='listbox']",
+      )
+    ) {
+      return;
+    }
     if (event.key === "ArrowRight") {
       event.preventDefault();
       next();
@@ -312,10 +326,10 @@ export function ApplicantReview({
     }
     // A focused select takes letters and digits for itself (type to choose).
     if (target?.closest("[role='combobox']")) return;
-    const stage = stageForKey(event.key);
-    if (stage) {
+    const option = optionForKey(options, event.key);
+    if (option) {
       event.preventDefault();
-      changeStage(stage);
+      changeStage(current.id, option.choice);
     } else if (event.key === "l" || event.key === "L") {
       event.preventDefault();
       toggleLike();
@@ -328,9 +342,11 @@ export function ApplicantReview({
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
+  const applyButton = <ApplyStagesButton changes={pending} options={options} onApply={applyChanges} />;
   const docAnimation = direction === "next" ? "l-doc-next" : direction === "prev" ? "l-doc-prev" : undefined;
   const playlistProps = {
     items: playlist,
+    options,
     currentId: current.id,
     filter,
     onFilter: setFilter,
@@ -490,15 +506,24 @@ export function ApplicantReview({
             </div>
           </div>
           <div className="flex shrink-0 flex-col gap-3 border-t border-(--l-line) p-4 max-lg:hidden">
-            <StageControl stage={current.stage} onChange={changeStage} />
-            <ReviewActions liked={current.liked} onLike={toggleLike} onNext={next} />
+            <StageControl
+              options={options}
+              stage={current.stage}
+              onChange={(choice) => changeStage(current.id, choice)}
+            />
+            <ReviewActions liked={current.liked} onLike={toggleLike} onNext={next} applyButton={applyButton} />
           </div>
         </aside>
       </div>
 
       <div className="flex shrink-0 flex-col gap-2 border-t border-(--l-line) bg-(--l-surface) p-3 lg:hidden">
-        <StageControl stage={current.stage} onChange={changeStage} compact />
-        <ReviewActions liked={current.liked} onLike={toggleLike} onNext={next} compact />
+        <StageControl
+          options={options}
+          stage={current.stage}
+          onChange={(choice) => changeStage(current.id, choice)}
+          compact
+        />
+        <ReviewActions liked={current.liked} onLike={toggleLike} onNext={next} applyButton={applyButton} compact />
       </div>
 
       <Sheet open={playlistOpen} onOpenChange={setPlaylistOpen}>
@@ -523,7 +548,7 @@ export function ApplicantReview({
         </p>
       )}
       <p className="sr-only" aria-live="polite">
-        {`Candidate ${index + 1} of ${items.length}: ${current.name}, ${HIRING_STAGE_LABELS[current.stage]}`}
+        {`Candidate ${index + 1} of ${items.length}: ${current.name}, ${choiceLabel(current.stage, options)}`}
       </p>
     </div>
   );

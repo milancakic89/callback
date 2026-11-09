@@ -1,5 +1,7 @@
 # Feature: Application Status in Fast Manual Mode
 
+**Superseded in part (2026-11-09) by [candidate-steps.md](./candidate-steps.md):** the fixed Screening, Interview and Hired are replaced by the company's own steps, the keys change, and the candidate is shown the status after "Apply statuses". The rest of this document describes what shipped on 2026-11-02.
+
 **Status:** Implemented (2026-11-02). The migration is applied to Supabase (`application_stages`, through `apply_migration`, recorded there as version `20261102062200`, so it differs from the file name, as the earlier migrations do) and checked with SQL. The screen was driven in a headless Chromium against the real database. `npm test` (323 tests), `npm run lint`, `npx tsc --noEmit` and `npm run build` pass. Pushed to `main` on 2026-11-02. See [Verification](#verification).
 
 On the review screen ([applicant-review.md](./applicant-review.md)) an employer can now decide something about an applicant, not only view or like them. Each application has a status: **Applied, Screening, Interview, Offer, Hired** or **Rejected**. It is set with one click or one key, and the playlist shows it and can be narrowed by it. **The candidate is not told anything yet**: that is the next feature, email templates, which hangs off these statuses.

@@ -64,6 +64,7 @@ vi.mock("@/lib/supabase/rate-limit-store", () => ({ postgresStore: { hit } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from, rpc }) }));
 
 import {
+  applyApplicationStages,
   createJobPosting,
   deleteJobPosting,
   markApplicationViewed,
@@ -773,17 +774,33 @@ describe("the review marks", () => {
   });
 });
 
+const STEP_ID = "22222222-2222-4222-8222-222222222222";
+const STEP_CHOICE = { stage: "STEP", stepId: STEP_ID } as const;
+const REJECTED_CHOICE = { stage: "REJECTED", stepId: null } as const;
+const APPLIED_CHOICE = { stage: "APPLIED", stepId: null } as const;
+
 describe("setApplicationStage", () => {
   const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
-  it("refuses an unknown status or a bad id, before anything else runs", async () => {
-    for (const stage of ["", "HIRED ", "rejected", "PENDING", null, 1]) {
-      expect(await setApplicationStage(APPLICATION_ID, stage as never), String(stage)).toEqual({
+  it("refuses an unknown status, a step without an id and an id without a step, before anything else runs", async () => {
+    const refused = [
+      { stage: "HIRED", stepId: null },
+      { stage: "rejected", stepId: null },
+      { stage: "STEP", stepId: null },
+      { stage: "OFFER", stepId: STEP_ID },
+      { stage: "STEP", stepId: "not-a-uuid" },
+      { stage: "STEP" },
+      "REJECTED",
+      null,
+      1,
+    ];
+    for (const choice of refused) {
+      expect(await setApplicationStage(APPLICATION_ID, choice as never), JSON.stringify(choice)).toEqual({
         ok: false,
         error: "Invalid request.",
       });
     }
-    expect(await setApplicationStage("not-a-uuid", "REJECTED")).toEqual({ ok: false, error: "Invalid request." });
+    expect(await setApplicationStage("not-a-uuid", REJECTED_CHOICE)).toEqual({ ok: false, error: "Invalid request." });
     expect(requireAccountType).not.toHaveBeenCalled();
     expect(from).not.toHaveBeenCalled();
   });
@@ -792,51 +809,139 @@ describe("setApplicationStage", () => {
     const redirected = new Error("NEXT_REDIRECT");
     requireAccountType.mockRejectedValue(redirected);
 
-    await expect(setApplicationStage(APPLICATION_ID, "INTERVIEW")).rejects.toBe(redirected);
+    await expect(setApplicationStage(APPLICATION_ID, STEP_CHOICE)).rejects.toBe(redirected);
     expect(requireAccountType).toHaveBeenCalledWith("employer");
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("writes only the status and when it changed, on that application, without a refresh", async () => {
-    expect(await setApplicationStage(APPLICATION_ID, "INTERVIEW")).toEqual({ ok: true });
+  it("writes only the status, its step and when it changed, on that application, without a refresh", async () => {
+    expect(await setApplicationStage(APPLICATION_ID, STEP_CHOICE)).toEqual({ ok: true });
 
     expect(from).toHaveBeenCalledWith("job_applications");
     const [values] = update.mock.calls[0];
-    expect(Object.keys(values).sort()).toEqual(["stage", "stage_changed_at"]);
-    expect(values.stage).toBe("INTERVIEW");
+    expect(Object.keys(values).sort()).toEqual(["pipeline_stage", "stage_changed_at", "step_id"]);
+    expect(values.pipeline_stage).toBe("STEP");
+    expect(values.step_id).toBe(STEP_ID);
     expect(values.stage_changed_at).toMatch(ISO);
     expect(updateEq).toHaveBeenCalledExactlyOnceWith("id", APPLICATION_ID);
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("never touches what the candidate sees", async () => {
+    await setApplicationStage(APPLICATION_ID, STEP_CHOICE);
+
+    const [values] = update.mock.calls[0];
+    expect(Object.keys(values).some((column) => column.startsWith("candidate_"))).toBe(false);
+  });
+
+  it("clears the step when the status isn't one", async () => {
+    expect(await setApplicationStage(APPLICATION_ID, REJECTED_CHOICE)).toEqual({ ok: true });
+    expect(update.mock.calls[0][0]).toMatchObject({ pipeline_stage: "REJECTED", step_id: null });
+  });
+
   it("can go back to any status", async () => {
-    expect(await setApplicationStage(APPLICATION_ID, "REJECTED")).toEqual({ ok: true });
-    expect(await setApplicationStage(APPLICATION_ID, "APPLIED")).toEqual({ ok: true });
-    expect(update.mock.calls[1][0].stage).toBe("APPLIED");
+    expect(await setApplicationStage(APPLICATION_ID, REJECTED_CHOICE)).toEqual({ ok: true });
+    expect(await setApplicationStage(APPLICATION_ID, APPLIED_CHOICE)).toEqual({ ok: true });
+    expect(update.mock.calls[1][0].pipeline_stage).toBe("APPLIED");
   });
 
   it("says the application wasn't found when row level security updates nothing", async () => {
     updateSelect.mockResolvedValue({ data: [], error: null });
 
-    expect(await setApplicationStage(APPLICATION_ID, "HIRED")).toEqual({ ok: false, error: "Application not found." });
+    expect(await setApplicationStage(APPLICATION_ID, STEP_CHOICE)).toEqual({ ok: false, error: "Application not found." });
   });
 
-  it("reports a database error", async () => {
+  it("reports a database error, such as a step that isn't the company's", async () => {
     updateSelect.mockResolvedValue({ data: null, error: { message: "boom" } });
 
-    expect(await setApplicationStage(APPLICATION_ID, "HIRED")).toEqual({ ok: false, error: "Could not save. Try again." });
+    expect(await setApplicationStage(APPLICATION_ID, STEP_CHOICE)).toEqual({
+      ok: false,
+      error: "Could not save. Try again.",
+    });
   });
 
   it("shares the review marks' limit", async () => {
-    await setApplicationStage(APPLICATION_ID, "SCREENING");
+    await setApplicationStage(APPLICATION_ID, STEP_CHOICE);
     expect(hit).toHaveBeenCalledWith("review-mark:user-1", 60_000);
 
     hit.mockResolvedValue({ count: 121, resetAt: Date.now() + 60_000 });
     update.mockClear();
-    expect(await setApplicationStage(APPLICATION_ID, "OFFER")).toEqual({
+    expect(await setApplicationStage(APPLICATION_ID, { stage: "OFFER", stepId: null })).toEqual({
       ok: false,
       error: "Too many changes. Try again in a minute.",
     });
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyApplicationStages", () => {
+  const change = { id: APPLICATION_ID, stage: "STEP", stepId: STEP_ID } as const;
+
+  it("refuses a bad job id, no changes, a malformed change and too many, before anything else runs", async () => {
+    const tooMany = Array.from({ length: 501 }, () => change);
+    const refused: [string, unknown[]][] = [
+      ["not-a-uuid", [change]],
+      [JOB_ID, []],
+      [JOB_ID, [{ id: "not-a-uuid", stage: "OFFER", stepId: null }]],
+      [JOB_ID, [{ id: APPLICATION_ID, stage: "STEP", stepId: null }]],
+      [JOB_ID, [{ id: APPLICATION_ID, stage: "HIRED", stepId: null }]],
+      [JOB_ID, tooMany],
+    ];
+    for (const [jobId, changes] of refused) {
+      expect(await applyApplicationStages(jobId, changes as never), `${jobId} ${changes.length}`).toEqual({
+        ok: false,
+        error: "Invalid request.",
+      });
+    }
+    expect(requireAccountType).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("needs an employer account", async () => {
+    const redirected = new Error("NEXT_REDIRECT");
+    requireAccountType.mockRejectedValue(redirected);
+
+    await expect(applyApplicationStages(JOB_ID, [change])).rejects.toBe(redirected);
+    expect(requireAccountType).toHaveBeenCalledWith("employer");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("sends what the confirmation listed to the database, and answers the ids it applied", async () => {
+    rpc.mockResolvedValue({ data: [APPLICATION_ID], error: null });
+
+    expect(await applyApplicationStages(JOB_ID, [change])).toEqual({ ok: true, appliedIds: [APPLICATION_ID] });
+
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("apply_application_stages", {
+      p_job_id: JOB_ID,
+      p_changes: [{ id: APPLICATION_ID, stage: "STEP", step_id: STEP_ID }],
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("answers no ids when the database applied nothing", async () => {
+    rpc.mockResolvedValue({ data: null, error: null });
+
+    expect(await applyApplicationStages(JOB_ID, [change])).toEqual({ ok: true, appliedIds: [] });
+  });
+
+  it("reports a database error without its detail", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "XX000", message: "secret detail" } });
+
+    const result = await applyApplicationStages(JOB_ID, [change]);
+    expect(result).toEqual({ ok: false, error: "Could not apply the statuses. Try again." });
+    expect(JSON.stringify(result)).not.toContain("secret");
+  });
+
+  it("is limited to 30 a minute", async () => {
+    await applyApplicationStages(JOB_ID, [change]);
+    expect(hit).toHaveBeenCalledWith("apply-stages:user-1", 60_000);
+
+    hit.mockResolvedValue({ count: 31, resetAt: Date.now() + 60_000 });
+    rpc.mockClear();
+    expect(await applyApplicationStages(JOB_ID, [change])).toEqual({
+      ok: false,
+      error: "Too many changes. Try again in a minute.",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

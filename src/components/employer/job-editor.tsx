@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createJobPosting, updateJobPosting, type JobFormState } from "@/app/(employer)/[company]/actions";
 import { FieldError, FormAlert } from "@/components/auth/form-feedback";
+import { CandidateStepsNotice } from "@/components/employer/candidate-steps-notice";
 import { JobPreview } from "@/components/employer/job-preview";
 import { ChipsInput } from "@/components/jobs/chips-input";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DESCRIPTION_MAX, FILTER_MAX, FILTERS_MAX, LOCATION_MAX, TITLE_MAX } from "@/lib/companies/job-posting";
 import { companyProfileEditPath, type CompanyProfile } from "@/lib/companies/profile";
 import { WORK_MODE_LABELS, WORK_MODES, type WorkMode } from "@/lib/jobs/types";
+import type { CandidateStep } from "@/lib/review/stages";
 
 // Stands for "no work mode" in the select; the form submits it as an empty value.
 const NO_WORK_MODE = "none";
@@ -53,12 +55,15 @@ export function JobEditor({
   companyName,
   companySlug,
   companyProfile,
+  candidateSteps,
   job,
 }: {
   companyName: string;
   companySlug: string;
   // The company's profile, which the preview shows under the posting (features/company-profile.md).
   companyProfile: CompanyProfile | null;
+  // The company's candidate steps, which every job uses (features/candidate-steps.md).
+  candidateSteps: CandidateStep[];
   job?: EditableJob;
 }) {
   const [state, formAction, pending] = useActionState(job ? updateJobPosting : createJobPosting, initialState);
@@ -75,6 +80,7 @@ export function JobEditor({
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <form action={formAction} className="grid gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:p-6">
         <FormAlert state={state} />
+        <CandidateStepsNotice steps={candidateSteps} companySlug={companySlug} />
         {job && <input type="hidden" name="jobId" value={job.id} />}
         <div className="grid gap-2">
           <Label htmlFor="job-title">Title</Label>

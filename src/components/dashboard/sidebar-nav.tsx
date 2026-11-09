@@ -7,6 +7,7 @@ import {
   HeartIcon,
   HomeIcon,
   LayoutDashboardIcon,
+  SettingsIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -32,6 +33,7 @@ function itemsFor(area: SidebarArea, pathname: string) {
   return [
     { href: `/${slug}`, label: "Dashboard", icon: LayoutDashboardIcon },
     { href: `/${slug}/profile`, label: "Company profile", icon: Building2Icon },
+    { href: `/${slug}/settings`, label: "Settings", icon: SettingsIcon },
   ];
 }
 

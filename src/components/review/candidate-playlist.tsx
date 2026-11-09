@@ -7,11 +7,11 @@ import { Initials } from "@/components/landing/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { matchesPlaylist, type PlaylistFilter, type StageFilter } from "@/lib/review/navigation";
 import type { PlaylistOrder } from "@/lib/review/order";
-import { HIRING_STAGE_LABELS, HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
-import { StageDot } from "./ats-panel";
+import { choiceLabel, type StageChoice, type StageOption } from "@/lib/review/stages";
+import { StageDot } from "./stage-control";
 
 // The applicants of the job as a playlist (features/applicant-review.md): who is open now, who has
-// been viewed (Next marks them), their status (features/application-status.md), who was liked, and
+// been viewed (Next marks them), their status (features/candidate-steps.md), who was liked, and
 // how many required filters each one's CV meets (features/cv-screening.md). Any row opens that
 // applicant, and Next carries on from there. All / Liked and the status select narrow the list
 // together, and the order is either the order the applications came in or the best keyword match first.
@@ -22,17 +22,26 @@ export type PlaylistItem = {
   location: string | null;
   viewed: boolean;
   liked: boolean;
-  stage: HiringStage;
+  stage: StageChoice;
+  // The status is chosen but the candidate hasn't been shown it yet ("Apply statuses").
+  pending: boolean;
   // "3/4" or null when there is nothing to show (no required filters, or not checked yet). `unverified`
   // counts the required filters a keyword can't decide, which the reviewer reads the CV for.
   requiredScore: { met: number; total: number; unverified: number } | null;
 };
 
-function StageFilterLabel({ value, count }: { value: StageFilter; count: number }) {
+function StageFilterLabel({
+  option,
+  count,
+}: {
+  // Null is "Any status".
+  option: StageOption | null;
+  count: number;
+}) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-1.5">
-      {value !== "any" && <StageDot stage={value} />}
-      <span className="truncate">{value === "any" ? "Any status" : HIRING_STAGE_LABELS[value]}</span>
+      {option && <StageDot stage={option.choice.stage} />}
+      <span className="truncate">{option ? option.label : "Any status"}</span>
       <span className="ml-auto font-mono text-[11px] text-(--l-fg-subtle) tabular-nums">{count}</span>
     </span>
   );
@@ -40,6 +49,7 @@ function StageFilterLabel({ value, count }: { value: StageFilter; count: number 
 
 export function CandidatePlaylist({
   items,
+  options,
   currentId,
   filter,
   onFilter,
@@ -50,6 +60,8 @@ export function CandidatePlaylist({
   onSelect,
 }: {
   items: PlaylistItem[];
+  // Every status the employer can choose (stageOptions), for the labels and the status filter.
+  options: readonly StageOption[];
   currentId: string;
   filter: PlaylistFilter;
   onFilter: (filter: PlaylistFilter) => void;
@@ -66,6 +78,7 @@ export function CandidatePlaylist({
   const filterCount = (value: PlaylistFilter) =>
     items.filter((item) => matchesPlaylist(item, value, stageFilter)).length;
   const stageCount = (value: StageFilter) => items.filter((item) => matchesPlaylist(item, filter, value)).length;
+  const optionFor = (value: StageFilter) => options.find((option) => option.key === value) ?? null;
 
   // The open applicant stays in view as Next moves down a long list.
   useEffect(() => {
@@ -132,14 +145,14 @@ export function CandidatePlaylist({
             className="w-full border-(--l-line) bg-white/[0.03] text-[12px] font-medium text-(--l-fg-muted)"
           >
             <SelectValue>
-              {(value: StageFilter) => <StageFilterLabel value={value} count={stageCount(value)} />}
+              {(value: StageFilter) => <StageFilterLabel option={optionFor(value)} count={stageCount(value)} />}
             </SelectValue>
           </SelectTrigger>
           {/* It opens outside the review's frame, so it brings the frame's tokens along, as the sheet does. */}
           <SelectContent data-landing className="dark">
-            {(["any", ...HIRING_STAGES] as const).map((value) => (
+            {["any", ...options.map((option) => option.key)].map((value) => (
               <SelectItem key={value} value={value} className="text-[12px]">
-                <StageFilterLabel value={value} count={stageCount(value)} />
+                <StageFilterLabel option={optionFor(value)} count={stageCount(value)} />
               </SelectItem>
             ))}
           </SelectContent>
@@ -157,7 +170,7 @@ export function CandidatePlaylist({
           {shown.map((item) => {
             const current = item.id === currentId;
             const allMet = item.requiredScore !== null && item.requiredScore.met === item.requiredScore.total;
-            const rejected = item.stage === "REJECTED";
+            const rejected = item.stage.stage === "REJECTED";
             return (
               <li key={item.id} data-id={item.id}>
                 <button
@@ -198,9 +211,18 @@ export function CandidatePlaylist({
                       {item.name}
                     </span>
                     <span className="flex items-center gap-1.5 text-[11px] text-(--l-fg-subtle)">
-                      {item.stage !== "APPLIED" ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 text-(--l-fg-muted)">
-                          <StageDot stage={item.stage} /> {HIRING_STAGE_LABELS[item.stage]}
+                      {item.stage.stage !== "APPLIED" || item.pending ? (
+                        <span className="inline-flex min-w-0 items-center gap-1 text-(--l-fg-muted)">
+                          <StageDot stage={item.stage.stage} />
+                          <span className="truncate">{choiceLabel(item.stage, options)}</span>
+                          {item.pending && (
+                            <span
+                              title="The candidate hasn't been shown this status yet"
+                              className="shrink-0 rounded-full border border-(--l-line-strong) px-1.5 text-[10px] leading-4 text-(--l-fg-subtle)"
+                            >
+                              Not applied
+                            </span>
+                          )}
                         </span>
                       ) : item.viewed ? (
                         <span className="inline-flex shrink-0 items-center gap-0.5">

@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { ApplicantReview } from "@/components/review/applicant-review";
 import { ReviewEmpty, ReviewSkeleton } from "@/components/review/review-frame";
 import { requireAccountType } from "@/lib/auth/dal";
+import { getCandidateSteps } from "@/lib/companies/candidate-steps-queries";
 import { getCompanyOrNotFound } from "@/lib/companies/get-company";
 import { getCompanyJob, getJobApplicants } from "@/lib/companies/workspace";
 
@@ -31,7 +32,7 @@ async function AuthedReview({ params }: { params: Params }) {
 
   const job = await getCompanyJob((await params).jobId);
   if (!job) notFound();
-  const applicants = await getJobApplicants(job.id);
+  const [applicants, steps] = await Promise.all([getJobApplicants(job.id), getCandidateSteps()]);
 
   const reviewJob = {
     id: job.id,
@@ -42,5 +43,5 @@ async function AuthedReview({ params }: { params: Params }) {
   };
   if (applicants.length === 0) return <ReviewEmpty companySlug={company.slug} job={reviewJob} />;
 
-  return <ApplicantReview companySlug={company.slug} job={reviewJob} applicants={applicants} />;
+  return <ApplicantReview companySlug={company.slug} job={reviewJob} applicants={applicants} steps={steps} />;
 }

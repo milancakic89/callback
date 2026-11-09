@@ -16,6 +16,7 @@ Each employer gets a workspace under their company's slug (`/test`, `/test/jobs/
 | CV filters on a job: required and nice-to-have chips, stored with the job and private to the company | **Done, migrated and checked in a browser, not yet pushed** | [job-filters.md](./job-filters.md) |
 | Reviewing a job's applicants: playlist, CV and cover letter side by side, screening overview, Next and a heart | **Done, migrated, seeded and checked in a browser, committed, not yet pushed** | [applicant-review.md](./applicant-review.md) |
 | An application's status on the review screen: Applied to Hired, or Rejected, by click or key | **Done, migrated, checked in a browser and pushed** | [application-status.md](./application-status.md) |
+| Company-defined candidate steps, sent to the candidate with "Apply statuses" | **In code and tests; migrations applied, checked in a browser; not committed or pushed** | [candidate-steps.md](./candidate-steps.md) |
 | A company's name and its own address, `/{slug}`, chosen once on `/setup` (replaces the fixture company `test`) | **Written, not applied** (code and tests done; the migration waits) | [company-slugs.md](./company-slugs.md) |
 | CVs and cover letters in Cloudflare R2 | **Done**, checked against the real bucket | [document-storage.md](./document-storage.md) |
 | Published jobs on `/jobs`, a page for each, and applying with a CV and a cover letter | **Written, not applied** (code and tests done; the migration waits) | [apply-with-cv.md](./apply-with-cv.md) |

@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { JobEditor } from "@/components/employer/job-editor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAccountType } from "@/lib/auth/dal";
+import { getCandidateSteps } from "@/lib/companies/candidate-steps-queries";
 import { getCompanyOrNotFound } from "@/lib/companies/get-company";
 import { getCompanyProfile } from "@/lib/companies/profile-queries";
 import { getCompanyJob } from "@/lib/companies/workspace";
@@ -34,13 +35,22 @@ async function AuthedJobEditor({ params }: { params: Params }) {
   await connection();
   await requireAccountType("employer");
 
-  const [job, companyProfile] = await Promise.all([
+  const [job, companyProfile, candidateSteps] = await Promise.all([
     getCompanyJob((await params).jobId),
     getCompanyProfile(company.slug),
+    getCandidateSteps(),
   ]);
   if (!job || job.isDemo) notFound();
 
-  return <JobEditor companyName={company.name} companySlug={company.slug} companyProfile={companyProfile} job={job} />;
+  return (
+    <JobEditor
+      companyName={company.name}
+      companySlug={company.slug}
+      companyProfile={companyProfile}
+      candidateSteps={candidateSteps}
+      job={job}
+    />
+  );
 }
 
 // The same two columns as <JobEditor>, so the form doesn't shift the page when it streams in.

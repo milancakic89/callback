@@ -9,7 +9,7 @@ import { requireAccountType } from "@/lib/auth/dal";
 import { jobPostingSchema } from "@/lib/companies/job-posting";
 import { ensureEmployerWorkspace } from "@/lib/companies/workspace";
 import { rateLimit } from "@/lib/rate-limit";
-import { HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
+import { isValidChoice, PIPELINE_STAGES, type PipelineStage, type StageChoice } from "@/lib/review/stages";
 import { rescreenJob } from "@/lib/screening/rescreen";
 import { sameFilters } from "@/lib/screening/same-filters";
 import { drainStorageDeletions } from "@/lib/storage/deletions";
@@ -304,7 +304,7 @@ async function setReviewMark(
   values:
     | { viewed_at: string }
     | { liked_at: string | null }
-    | { stage: HiringStage; stage_changed_at: string },
+    | { pipeline_stage: PipelineStage; step_id: string | null; stage_changed_at: string },
 ): Promise<ReviewMarkResult> {
   const parsed = z.uuid().safeParse(applicationId);
   if (!parsed.success) return { ok: false, error: "Invalid request." };
@@ -339,10 +339,70 @@ export async function setApplicationLiked(applicationId: string, liked: boolean)
   return setReviewMark(applicationId, { liked_at: liked ? new Date().toISOString() : null });
 }
 
-// The status control on the review screen (features/application-status.md). Any status can change to
-// any other, and the candidate isn't told anything yet.
-export async function setApplicationStage(applicationId: string, stage: HiringStage): Promise<ReviewMarkResult> {
-  const parsed = z.enum(HIRING_STAGES).safeParse(stage);
+const stageChoiceSchema = z
+  .object({ stage: z.enum(PIPELINE_STAGES), stepId: z.uuid().nullable() })
+  .refine(isValidChoice, "A step names which one, and nothing else does.");
+
+// The status control on the review screen (features/candidate-steps.md). Any status can change to any
+// other. The employer sees it at once; the candidate sees it only after applyApplicationStages. A step
+// that isn't the company's is refused by the database (the trigger on job_applications).
+export async function setApplicationStage(applicationId: string, choice: StageChoice): Promise<ReviewMarkResult> {
+  const parsed = stageChoiceSchema.safeParse(choice);
   if (!parsed.success) return { ok: false, error: "Invalid request." };
-  return setReviewMark(applicationId, { stage: parsed.data, stage_changed_at: new Date().toISOString() });
+  return setReviewMark(applicationId, {
+    pipeline_stage: parsed.data.stage,
+    step_id: parsed.data.stepId,
+    stage_changed_at: new Date().toISOString(),
+  });
+}
+
+const stageChangeSchema = z
+  .object({ id: z.uuid(), stage: z.enum(PIPELINE_STAGES), stepId: z.uuid().nullable() })
+  .refine(isValidChoice, "A step names which one, and nothing else does.");
+
+const applyStagesSchema = z.object({
+  jobId: z.uuid(),
+  // The most a job's review screen can hold at once is far below this; it only bounds the request.
+  changes: z.array(stageChangeSchema).min(1).max(500),
+});
+
+export type ApplyStagesResult = { ok: true; appliedIds: string[] } | { ok: false; error: string };
+
+// "Apply statuses" on the review screen (features/candidate-steps.md): shows the candidates the
+// statuses the employer chose. `changes` is what the confirmation listed, and the database only
+// updates an application that still stands where the employer saw it, so a change made in another tab
+// meanwhile is not sent unseen. The ids it returns are the ones the candidates now see; the screen
+// updates itself from them, so nothing is refreshed.
+export async function applyApplicationStages(
+  jobId: string,
+  changes: { id: string; stage: PipelineStage; stepId: string | null }[],
+): Promise<ApplyStagesResult> {
+  const parsed = applyStagesSchema.safeParse({ jobId, changes });
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+
+  const user = await requireAccountType("employer");
+
+  const { success } = await rateLimit({
+    key: `apply-stages:${user.id}`,
+    limit: 30,
+    windowMs: 60_000,
+    store: postgresStore,
+  });
+  if (!success) return { ok: false, error: "Too many changes. Try again in a minute." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("apply_application_stages", {
+    p_job_id: parsed.data.jobId,
+    p_changes: parsed.data.changes.map((change) => ({
+      id: change.id,
+      stage: change.stage,
+      step_id: change.stepId,
+    })),
+  });
+  if (error) {
+    console.error("applyApplicationStages failed:", error.code, error.message);
+    return { ok: false, error: "Could not apply the statuses. Try again." };
+  }
+
+  return { ok: true, appliedIds: (data ?? []) as string[] };
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import type { PipelineStage } from "@/lib/review/stages";
 import { createClient } from "@/lib/supabase/server";
 import { CALLBACK_APPLICATION_STATES, type CallbackApplication, type CallbackApplicationState, type CandidateCv } from "./types";
 
@@ -14,6 +15,11 @@ type CallbackApplicationRow = {
   cv_file_name: string | null;
   cover_letter_kind: "text" | "pdf" | null;
   cover_letter_text: string | null;
+  stage: PipelineStage;
+  step_name: string | null;
+  step_description: string | null;
+  stage_at: string | null;
+  step_updated_at: string | null;
 };
 
 // The signed-in candidate's CVs, newest first (features/candidate-cvs.md). Not cached: per user. The
@@ -37,24 +43,38 @@ function toState(value: string): CallbackApplicationState {
 }
 
 // The signed-in candidate's applications to jobs posted on Callback, newest first, for
-// /applications. None of the company's own marks (liked, viewed, stage, screening) are in it.
+// /applications. None of the company's own marks (liked, viewed, screening) are in it, and the status is
+// only the one the company has applied (features/candidate-steps.md), not the one it has chosen.
 export async function getMyCallbackApplications(): Promise<CallbackApplication[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("my_job_applications");
   if (error) throw new Error(`getMyCallbackApplications: ${error.message}`);
-  return ((data ?? []) as CallbackApplicationRow[]).map((row) => ({
-    id: row.id,
-    jobId: row.job_id,
-    title: row.title,
-    companyName: row.company_name ?? "A company",
-    appliedAt: row.applied_at,
-    state: toState(row.state),
-    cvFileName: row.cv_file_name,
-    coverLetter:
-      row.cover_letter_kind === "pdf"
-        ? { kind: "pdf" }
-        : row.cover_letter_kind === "text" && row.cover_letter_text
-          ? { kind: "text", text: row.cover_letter_text }
-          : null,
-  }));
+  return ((data ?? []) as CallbackApplicationRow[]).map((row) => {
+    const state = toState(row.state);
+    return {
+      id: row.id,
+      jobId: row.job_id,
+      title: row.title,
+      companyName: row.company_name ?? "A company",
+      appliedAt: row.applied_at,
+      state,
+      cvFileName: row.cv_file_name,
+      coverLetter:
+        row.cover_letter_kind === "pdf"
+          ? { kind: "pdf" }
+          : row.cover_letter_kind === "text" && row.cover_letter_text
+            ? { kind: "text", text: row.cover_letter_text }
+            : null,
+      status:
+        state === "withdrawn" || state === "you_withdrew"
+          ? null
+          : {
+              stage: row.stage,
+              stepName: row.step_name,
+              stepDescription: row.step_description,
+              stageAt: row.stage_at,
+              stepUpdatedAt: row.step_updated_at,
+            },
+    };
+  });
 }
