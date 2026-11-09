@@ -4,14 +4,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { Logo } from "@/components/brand";
+import { CompanyAbout } from "@/components/company/company-about";
 import { ApplyDialog } from "@/components/jobs/apply-dialog";
 import { WorkModeBadge } from "@/components/jobs/work-mode-badge";
+import { PublicHeader } from "@/components/public-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { homeFor } from "@/lib/auth/account-type";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { companyProfilePath, hasCompanyDetails, type CompanyProfile } from "@/lib/companies/profile";
+import { getCompanyProfile } from "@/lib/companies/profile-queries";
 import { getMyCvs } from "@/lib/cvs/queries";
 import { formatAbsolute } from "@/lib/jobs/format";
 import { applyPath, type PublishedJob } from "@/lib/jobs/published";
@@ -34,7 +36,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default function PostingPage({ params }: { params: Params }) {
   return (
     <div className="flex min-h-full flex-1 flex-col bg-muted/30">
-      <PostingHeader />
+      <PublicHeader />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <Link
           href="/jobs"
@@ -50,83 +52,61 @@ export default function PostingPage({ params }: { params: Params }) {
   );
 }
 
-// The signed-out top bar (src/components/site-nav.tsx) is for visitors with no account; a candidate
-// or an employer on a posting needs a way back to their own side instead of "Log in".
-function PostingHeader() {
-  return (
-    <header className="dark sticky top-0 z-50 border-b border-border bg-background text-foreground">
-      <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center gap-6 px-4 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          aria-label="Callback home"
-          className="shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
-        >
-          <Logo onDark className="h-[22px]" />
-        </Link>
-        <div className="ml-auto flex items-center gap-2">
-          <Suspense fallback={null}>
-            <HeaderAccount />
-          </Suspense>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-const HEADER_LINK =
-  "rounded-md px-3 py-1.5 text-[14px] whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
-
-async function HeaderAccount() {
-  await connection();
-  const user = await getCurrentUser();
-
-  if (user) {
-    return (
-      <Link href={homeFor(user.accountType, user.companySlug)} className={HEADER_LINK}>
-        {user.accountType === "employer" ? "Your workspace" : "Dashboard"}
-      </Link>
-    );
+// The "About" card is extra to the posting: a company profile that can't be read must not take the job
+// down with it, so the page shows the job without it and logs why.
+async function loadCompanyProfile(slug: string): Promise<CompanyProfile | null> {
+  try {
+    return await getCompanyProfile(slug);
+  } catch (error) {
+    console.error("loadCompanyProfile failed:", error);
+    return null;
   }
-  return (
-    <>
-      <Link href="/sign-in" className={HEADER_LINK}>
-        Log in
-      </Link>
-      <Link
-        href="/sign-up"
-        className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-[14px] font-medium whitespace-nowrap text-primary-foreground transition-[filter] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        Get started
-      </Link>
-    </>
-  );
 }
 
 async function Posting({ params }: { params: Params }) {
   const job = await getPublishedJob((await params).jobId);
   if (!job) notFound();
+  const companyProfile = await loadCompanyProfile(job.companySlug);
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <Card>
-        <CardHeader className="gap-3">
-          <CardTitle className="text-2xl leading-tight">{job.title}</CardTitle>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{job.companyName}</span>
-            {job.locationRaw && (
-              <span className="inline-flex items-center gap-1">
-                <MapPinIcon aria-hidden className="size-3.5" /> {job.locationRaw}
-              </span>
-            )}
-            {job.workMode && <WorkModeBadge workMode={job.workMode} />}
-            <span>Posted {formatAbsolute(job.publishedAt, "UTC")}</span>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Plain text, never HTML: the description is whatever the company typed. */}
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{job.description || "No description."}</p>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader className="gap-3">
+            <CardTitle className="text-2xl leading-tight">{job.title}</CardTitle>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <Link
+                href={companyProfilePath(job.companySlug)}
+                className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {job.companyName}
+              </Link>
+              {job.locationRaw && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPinIcon aria-hidden className="size-3.5" /> {job.locationRaw}
+                </span>
+              )}
+              {job.workMode && <WorkModeBadge workMode={job.workMode} />}
+              <span>Posted {formatAbsolute(job.publishedAt, "UTC")}</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Plain text, never HTML: the description is whatever the company typed. */}
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{job.description || "No description."}</p>
+          </CardContent>
+        </Card>
+
+        {companyProfile && hasCompanyDetails(companyProfile) && (
+          <CompanyAbout profile={companyProfile}>
+            <Link
+              href={companyProfilePath(job.companySlug)}
+              className="w-fit rounded-sm text-sm font-medium underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              View company profile and open positions
+            </Link>
+          </CompanyAbout>
+        )}
+      </div>
 
       <Card className="lg:sticky lg:top-24">
         <CardHeader>

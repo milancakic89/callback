@@ -1,0 +1,12 @@
+-- Follow-up to company_profiles.sql (see features/company-profile.md).
+--
+-- Saving a company profile is an `update` by the owner with their own session. Postgres runs every
+-- CHECK constraint of a row on an update, not only the ones on the columns that changed, and
+-- `companies_slug_valid` (company_slugs.sql) calls `company_slug_valid()`, whose EXECUTE that
+-- migration revoked from every client role. So the update failed with 42501 "permission denied for
+-- function company_slug_valid" for any company that has a slug, which is every company that is set up.
+--
+-- Letting `authenticated` call it is harmless: the function is pure and immutable, has
+-- `search_path = ''` and reads no table, and all it answers is whether a slug is acceptable, which
+-- the setup form says anyway. `anon` never updates `companies`, so it keeps no access.
+grant execute on function public.company_slug_valid(text) to authenticated;

@@ -19,7 +19,8 @@ Each employer gets a workspace under their company's slug (`/test`, `/test/jobs/
 | A company's name and its own address, `/{slug}`, chosen once on `/setup` (replaces the fixture company `test`) | **Written, not applied** (code and tests done; the migration waits) | [company-slugs.md](./company-slugs.md) |
 | CVs and cover letters in Cloudflare R2 | **Done**, checked against the real bucket | [document-storage.md](./document-storage.md) |
 | Published jobs on `/jobs`, a page for each, and applying with a CV and a cover letter | **Written, not applied** (code and tests done; the migration waits) | [apply-with-cv.md](./apply-with-cv.md) |
-| A careers page, telling the candidate about a status, checking CVs against the filters | Later | [Later phases](#later-phases) |
+| A company profile: what the company does, shown on every posting and on `/companies/{slug}` with its open positions | **Done, both migrations applied, checked in a browser, not pushed** | [company-profile.md](./company-profile.md) |
+| Branding on that page (logo, colour), telling the candidate about a status, checking CVs against the filters | Later | [Later phases](#later-phases) |
 
 When asked to implement "the plan", **don't redo the Implementation sections below**: sections 1 to 4 are finished. Implement the step the request names; the next one is [demo-job.md](./demo-job.md).
 
@@ -187,7 +188,7 @@ Where the code differs from the plan first written for this step:
    - Membership checks replace the single fixture company.
 2. **`job_postings`.** The editor saves to it; the dashboard shows the company's jobs, or the CTA. (The table itself, the dashboard list and deleting a job are written in [demo-job.md](./demo-job.md); the editor saving a new job is written in [post-job.md](./post-job.md).)
 3. **Native jobs in the candidate list come from the database** instead of the fixture. Saving them works again.
-4. **A public careers page, `/careers/{slug}`.** It carries the company's branding (logo, colour) and lists open positions.
+4. **A public careers page, `/careers/{slug}`.** It carries the company's branding (logo, colour) and lists open positions. (The page itself, without branding, is `/companies/{slug}`: [company-profile.md](./company-profile.md).)
 5. **The application form.**
    - It is built from per-job questions stored as `jsonb`, with the questions snapshotted on each application.
    - Applications go into a new `job_applications` table.

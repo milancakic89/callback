@@ -23,6 +23,18 @@ export function formatRelative(iso: string, now: number): string {
   return "just now";
 }
 
+// `text` cut to at most `max` characters, at a word when there is one in reach, with an ellipsis. For
+// a meta description, which a search engine shows a short piece of anyway.
+export function truncateText(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  // A word boundary only counts when it keeps most of the text; one near the start would cut too much.
+  const kept = lastSpace > max / 2 ? cut.slice(0, lastSpace) : cut;
+  return `${kept.trimEnd()}…`;
+}
+
 // Pass `timeZone` wherever this renders in a hydrated Client Component: without it the day comes
 // from the runtime's own zone, which can differ between the server and the browser.
 export function formatAbsolute(iso: string, timeZone?: string): string {

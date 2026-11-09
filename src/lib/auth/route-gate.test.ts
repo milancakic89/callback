@@ -75,3 +75,31 @@ describe("an employer who hasn't set the company up", () => {
     }
   });
 });
+
+// A company's public page (features/company-profile.md) is open to everyone and is not a workspace:
+// `companies` is one of the app's own routes, not a slug.
+describe("a company's public page", () => {
+  const PUBLIC_COMPANY_PATHS = ["/companies/acme", "/companies/some-other-company"];
+
+  it("is open to a guest", () => {
+    for (const path of PUBLIC_COMPANY_PATHS) expect(gateRedirect(path, guest), path).toBeNull();
+  });
+
+  it("is open to a candidate", () => {
+    for (const path of PUBLIC_COMPANY_PATHS) expect(gateRedirect(path, candidate), path).toBeNull();
+  });
+
+  it("is open to an employer, whether or not their own company is set up", () => {
+    for (const path of PUBLIC_COMPANY_PATHS) {
+      expect(gateRedirect(path, employer), path).toBeNull();
+      expect(gateRedirect(path, newEmployer), path).toBeNull();
+    }
+  });
+
+  it("keeps the profile editor behind the employer's own side", () => {
+    expect(gateRedirect("/acme/profile", guest)).toBe("/sign-in");
+    expect(gateRedirect("/acme/profile", candidate)).toBe("/dashboard");
+    expect(gateRedirect("/acme/profile", employer)).toBeNull();
+    expect(gateRedirect("/acme/profile", newEmployer)).toBe("/setup");
+  });
+});

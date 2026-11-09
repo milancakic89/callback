@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
+import { isValidSlug } from "@/lib/companies/company";
 import { createClient } from "@/lib/supabase/server";
 import { supabasePublic } from "@/lib/supabase/public";
 import {
@@ -50,10 +51,13 @@ function toListItem(row: JobRow): JobListItem {
 
 // The jobs companies published on Callback, through the public function that answers what a
 // candidate may see of them (supabase/migrations/20261109130000_published_jobs.sql): no CV filters.
-// Pass an id for a single job. Throws when the database does, so the callers' caches never keep a
-// list that is missing them.
-async function fetchPublishedJobs(jobId?: string): Promise<PublishedJob[]> {
-  const { data, error } = await supabasePublic.rpc("published_job_postings", jobId ? { p_job_id: jobId } : {});
+// Pass an id for a single job, or a company's slug for the jobs of one company. Throws when the
+// database does, so the callers' caches never keep a list that is missing them.
+async function fetchPublishedJobs(filter: { jobId?: string; companySlug?: string } = {}): Promise<PublishedJob[]> {
+  const args: { p_job_id?: string; p_company_slug?: string } = {};
+  if (filter.jobId) args.p_job_id = filter.jobId;
+  if (filter.companySlug) args.p_company_slug = filter.companySlug;
+  const { data, error } = await supabasePublic.rpc("published_job_postings", args);
   if (error) throw new Error(`published_job_postings: ${error.message}`);
   return ((data ?? []) as PublishedJobRow[]).map(toPublishedJob);
 }
@@ -123,7 +127,24 @@ export async function getPublishedJob(jobId: string): Promise<PublishedJob | nul
   cacheTag("jobs");
 
   if (!z.uuid().safeParse(jobId).success) return null;
-  return (await fetchPublishedJobs(jobId))[0] ?? null;
+  return (await fetchPublishedJobs({ jobId }))[0] ?? null;
+}
+
+// The open positions of one company, newest first, for its page /companies/{slug}
+// (features/company-profile.md). Cached under the same tag as the list, so publishing, unpublishing
+// or editing a job refreshes it. A slug that can't be a company's is answered with no jobs before the
+// cache sees it.
+export async function getCompanyPublishedJobs(companySlug: string): Promise<PublishedJob[]> {
+  if (!isValidSlug(companySlug)) return [];
+  return readCompanyPublishedJobs(companySlug);
+}
+
+async function readCompanyPublishedJobs(companySlug: string): Promise<PublishedJob[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("jobs");
+
+  return fetchPublishedJobs({ companySlug });
 }
 
 // When the signed-in candidate applied to a posted job, or null. Not cached: it is per user. The

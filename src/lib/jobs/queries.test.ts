@@ -11,7 +11,13 @@ vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 vi.mock("@/lib/supabase/public", () => ({ supabasePublic: { rpc: rpcPublic, from: fromPublic } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: rpcUser }) }));
 
-import { getActiveJobs, getJobDescriptions, getMyApplicationDate, getPublishedJob } from "./queries";
+import {
+  getActiveJobs,
+  getCompanyPublishedJobs,
+  getJobDescriptions,
+  getMyApplicationDate,
+  getPublishedJob,
+} from "./queries";
 
 const ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 const OTHER_ID = "0b2f4d6e-8a1c-4e3b-9d5f-7a1b2c3d4e5f";
@@ -119,6 +125,29 @@ describe("getPublishedJob", () => {
   it("throws on a database error rather than answering 'not found'", async () => {
     rpcPublic.mockResolvedValue({ data: null, error: { message: "boom" } });
     await expect(getPublishedJob(ID)).rejects.toThrow("published_job_postings: boom");
+  });
+});
+
+describe("getCompanyPublishedJobs", () => {
+  it("asks the public function for the company's jobs only, and maps them with no filters", async () => {
+    const jobs = await getCompanyPublishedJobs("acme");
+
+    expect(rpcPublic).toHaveBeenCalledWith("published_job_postings", { p_company_slug: "acme" });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ id: ID, title: "Senior Product Designer", companySlug: "acme" });
+    expect(jobs[0]).not.toHaveProperty("required_filters");
+    expect(jobs[0]).not.toHaveProperty("requiredFilters");
+  });
+
+  it("answers no jobs, without asking, for a slug that can't be a company's", async () => {
+    expect(await getCompanyPublishedJobs("jobs")).toEqual([]);
+    expect(await getCompanyPublishedJobs("x".repeat(500))).toEqual([]);
+    expect(rpcPublic).not.toHaveBeenCalled();
+  });
+
+  it("throws on a database error, so the cache never keeps an empty list", async () => {
+    rpcPublic.mockResolvedValue({ data: null, error: { message: "boom" } });
+    await expect(getCompanyPublishedJobs("acme")).rejects.toThrow("published_job_postings: boom");
   });
 });
 

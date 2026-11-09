@@ -1,19 +1,18 @@
 "use client";
 
-import { UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createJobPosting, updateJobPosting, type JobFormState } from "@/app/(employer)/[company]/actions";
 import { FieldError, FormAlert } from "@/components/auth/form-feedback";
+import { JobPreview } from "@/components/employer/job-preview";
 import { ChipsInput } from "@/components/jobs/chips-input";
-import { WorkModeBadge } from "@/components/jobs/work-mode-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DESCRIPTION_MAX, FILTER_MAX, FILTERS_MAX, LOCATION_MAX, TITLE_MAX } from "@/lib/companies/job-posting";
+import { companyProfileEditPath, type CompanyProfile } from "@/lib/companies/profile";
 import { WORK_MODE_LABELS, WORK_MODES, type WorkMode } from "@/lib/jobs/types";
 
 // Stands for "no work mode" in the select; the form submits it as an empty value.
@@ -53,10 +52,13 @@ export type EditableJob = {
 export function JobEditor({
   companyName,
   companySlug,
+  companyProfile,
   job,
 }: {
   companyName: string;
   companySlug: string;
+  // The company's profile, which the preview shows under the posting (features/company-profile.md).
+  companyProfile: CompanyProfile | null;
   job?: EditableJob;
 }) {
   const [state, formAction, pending] = useActionState(job ? updateJobPosting : createJobPosting, initialState);
@@ -212,37 +214,15 @@ export function JobEditor({
         )}
       </form>
 
-      <Card aria-label="Candidate preview">
-        <CardHeader className="border-b">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Candidate preview
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-1">
-            <CardTitle className={title.trim() ? "text-xl" : "text-xl text-muted-foreground"}>
-              {title.trim() || "Job title"}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">{companyName}</p>
-            {(location.trim() || workMode !== NO_WORK_MODE) && (
-              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                {location.trim() && <span className="wrap-anywhere">{location.trim()}</span>}
-                {workMode !== NO_WORK_MODE && <WorkModeBadge workMode={workMode} />}
-              </div>
-            )}
-          </div>
-          {/* Plain text, never HTML: the description is whatever the employer typed. */}
-          <p className="min-h-24 text-sm whitespace-pre-wrap wrap-anywhere">
-            {description.trim() || <span className="text-muted-foreground">The description appears here.</span>}
-          </p>
-          <div className="grid gap-2">
-            <Button type="button" size="lg" className="w-full sm:w-fit">
-              <UploadIcon aria-hidden /> Upload CV
-            </Button>
-            <p className="text-xs text-muted-foreground">Preview: candidates will upload their CV here.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <JobPreview
+        title={title}
+        description={description}
+        location={location}
+        workMode={workMode === NO_WORK_MODE ? null : workMode}
+        companyName={companyName}
+        companyProfile={companyProfile}
+        profileEditHref={companyProfileEditPath(companySlug)}
+      />
     </div>
   );
 }

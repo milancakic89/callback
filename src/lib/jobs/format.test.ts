@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAbsolute, formatRelative } from "./format";
+import { formatAbsolute, formatRelative, truncateText } from "./format";
 
 const NOW = Date.parse("2026-10-25T12:00:00.000Z");
 const HOUR = 60 * 60 * 1000;
@@ -47,5 +47,26 @@ describe("formatAbsolute", () => {
 
   it("says 'Unknown' for a date it can't read", () => {
     expect(formatAbsolute("not a date")).toBe("Unknown");
+  });
+});
+
+describe("truncateText", () => {
+  it("returns a short text as it is, on one line", () => {
+    expect(truncateText("We build\n  software.", 100)).toBe("We build software.");
+  });
+
+  it("cuts a long text at a word and adds an ellipsis, within the limit", () => {
+    const result = truncateText("We build software for small clinics across the region", 30);
+    expect(result).toBe("We build software for small…");
+    expect(result.length).toBeLessThanOrEqual(30);
+  });
+
+  it("cuts in the middle of a word when there is no space worth cutting at", () => {
+    const result = truncateText("Supercalifragilisticexpialidocious company", 12);
+    expect(result).toBe("Supercalifr…");
+  });
+
+  it("keeps a text that is exactly the limit", () => {
+    expect(truncateText("12345", 5)).toBe("12345");
   });
 });

@@ -6,6 +6,7 @@ import { JobEditor } from "@/components/employer/job-editor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAccountType } from "@/lib/auth/dal";
 import { getCompanyOrNotFound } from "@/lib/companies/get-company";
+import { getCompanyProfile } from "@/lib/companies/profile-queries";
 import { getCompanyJob } from "@/lib/companies/workspace";
 
 export const metadata: Metadata = { title: "Edit job | Callback" };
@@ -33,10 +34,13 @@ async function AuthedJobEditor({ params }: { params: Params }) {
   await connection();
   await requireAccountType("employer");
 
-  const job = await getCompanyJob((await params).jobId);
+  const [job, companyProfile] = await Promise.all([
+    getCompanyJob((await params).jobId),
+    getCompanyProfile(company.slug),
+  ]);
   if (!job || job.isDemo) notFound();
 
-  return <JobEditor companyName={company.name} companySlug={company.slug} job={job} />;
+  return <JobEditor companyName={company.name} companySlug={company.slug} companyProfile={companyProfile} job={job} />;
 }
 
 // The same two columns as <JobEditor>, so the form doesn't shift the page when it streams in.

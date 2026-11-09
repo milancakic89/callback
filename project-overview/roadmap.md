@@ -91,6 +91,8 @@ See [features/companies.md](../features/companies.md).
 
 The code and its tests are done, and all five migrations are applied (`company_slugs` and `published_jobs` by hand; `cv_screening` and `candidate_cvs` on 2026-11-09, through `apply_migration`). `cv_screening` is checked with SQL; `candidate_cvs` isn't yet, and nothing has been checked in a browser.
 
+**Built, both migrations applied, checked with SQL and in a browser (employer, candidate and guest), not pushed ([features/company-profile.md](../features/company-profile.md)):** a company profile (a description of what the company does, and a website, industry, size and headquarters) written by the employer on `/{slug}/profile`, shown as an "About" card on every one of its postings and on a public page, `/companies/{slug}`, that also lists its open positions.
+
 **Deferred:** a company name and slugs from accounts; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; CV parsing and matching. The order is in the feature doc.
 
 ## Phase 5 — Application Tracking Source

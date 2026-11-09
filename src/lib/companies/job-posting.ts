@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WORK_MODES } from "@/lib/jobs/types";
+import { optionalText, text, tooLong } from "@/lib/validation/text-fields";
 
 // What the "Create job" form submits (features/post-job.md). No `server-only`: the form imports the
 // limits too. The same limits are check constraints on `job_postings`
@@ -10,11 +11,6 @@ export const LOCATION_MAX = 200;
 // CV filters (features/job-filters.md): up to FILTERS_MAX in all, required and nice-to-have together.
 export const FILTERS_MAX = 20;
 export const FILTER_MAX = 100;
-
-// Browsers can submit a textarea's line breaks as CRLF; store and count them as one character.
-const text = z.string().transform((value) => value.replace(/\r\n?/g, "\n").trim());
-
-const tooLong = (max: number) => `Use at most ${max.toLocaleString("en-US")} characters.`;
 
 // One list of filters, as typed: trimmed, blanks dropped, and a filter repeated in other letters
 // (React, react) kept once, first one wins. A form that sends none is an empty list.
@@ -37,7 +33,7 @@ export const jobPostingSchema = z.object({
     z.string().min(1, "Enter a description.").max(DESCRIPTION_MAX, tooLong(DESCRIPTION_MAX)),
   ),
   // Optional: an empty field is stored as null.
-  location: text.pipe(z.string().max(LOCATION_MAX, tooLong(LOCATION_MAX))).transform((value) => value || null),
+  location: optionalText(LOCATION_MAX),
   workMode: z
     .enum([...WORK_MODES, ""], { error: "Choose a work mode from the list." })
     .transform((value) => (value === "" ? null : value)),

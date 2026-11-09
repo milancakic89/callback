@@ -1,9 +1,17 @@
 "use client";
 
-import { ClipboardCheckIcon, FileTextIcon, HeartIcon, HomeIcon, LayoutDashboardIcon } from "lucide-react";
+import {
+  Building2Icon,
+  ClipboardCheckIcon,
+  FileTextIcon,
+  HeartIcon,
+  HomeIcon,
+  LayoutDashboardIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "cn";
+import { activeNavHref } from "./active-nav-item";
 
 // One list per side of the app (features/account-types.md). They live here rather than being passed
 // in, because a server layout can't hand icon components to this client component.
@@ -21,7 +29,10 @@ export type SidebarArea = "candidate" | "employer";
 function itemsFor(area: SidebarArea, pathname: string) {
   if (area === "candidate") return CANDIDATE_ITEMS;
   const slug = pathname.split("/")[1];
-  return [{ href: `/${slug}`, label: "Dashboard", icon: LayoutDashboardIcon }];
+  return [
+    { href: `/${slug}`, label: "Dashboard", icon: LayoutDashboardIcon },
+    { href: `/${slug}/profile`, label: "Company profile", icon: Building2Icon },
+  ];
 }
 
 // `onNavigate` lets the burger menu fold itself away when a link is tapped (including the link to
@@ -29,10 +40,17 @@ function itemsFor(area: SidebarArea, pathname: string) {
 export function SidebarNav({ area, onNavigate }: { area: SidebarArea; onNavigate?: () => void }) {
   const pathname = usePathname();
 
+  const items = itemsFor(area, pathname);
+  // Only one item is the current page: Dashboard is /acme, and /acme/profile is not it.
+  const current = activeNavHref(
+    pathname,
+    items.map((item) => item.href),
+  );
+
   return (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-      {itemsFor(area, pathname).map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+      {items.map(({ href, label, icon: Icon }) => {
+        const active = href === current;
         return (
           <Link
             key={href}

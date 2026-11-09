@@ -43,12 +43,13 @@ Every account is either a **candidate**, who looks for work and uses the existin
 |---|---|---|
 | Home (`homeFor`) | `/dashboard` | `/{slug}` (the company's slug, from the JWT), or `/setup` until the company is set up |
 | `/dashboard`, `/saved-jobs`, `/applications` | allowed | redirected home |
-| `/{slug}`, `/{slug}/jobs/new` | redirected to `/dashboard` | allowed (another company's slug: not-found page) |
+| `/{slug}`, `/{slug}/jobs/new`, `/{slug}/profile` | redirected to `/dashboard` | allowed (another company's slug: not-found page) |
 | `/setup` | redirected to `/dashboard` | allowed until the company is set up, then redirected home |
 | `/test`, `/employer` (the old addresses) | redirected to `/dashboard` | redirected home |
 | any other first segment, e.g. `/foo` | guest: `/sign-in`; candidate: `/dashboard` | not-found page |
 | `/`, `/jobs`, `/sign-in`, `/sign-up`, `/forgot-password` | → `/dashboard` | → home |
 | `/jobs/{id}` (a posting) | allowed | allowed |
+| `/companies/{slug}` (a company's public page, [company-profile.md](./company-profile.md)) | allowed | allowed |
 
 These rules are `gateRedirect()` in `src/lib/auth/route-gate.ts` ([company-slugs.md](./company-slugs.md)).
 
