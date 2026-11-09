@@ -1,9 +1,10 @@
 "use client";
 
-import { EyeIcon, ZapIcon } from "lucide-react";
+import { EyeIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppliedCheckbox } from "./applied-checkbox";
+import { AutoTrackedBadge } from "./auto-tracked-badge";
 import { SaveJobButton } from "./save-job-button";
 import {
   CARD_BODY_CLASS,
@@ -88,22 +89,6 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "posted", label: "Posted" },
   { field: "workMode", label: "Work mode" },
 ];
-
-// Marks a job posted on Callback (features/companies.md): applying to it is tracked for the
-// candidate, unlike a scraped job, whose status they update themselves.
-function AutoTrackedBadge() {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="shrink-0" />}>
-        {/* Dark, not the default lime: lime on the row's lime tint would barely show. */}
-        <Badge className="bg-foreground text-background">
-          <ZapIcon data-icon="inline-start" /> Auto-tracked
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent>Posted on Callback. Your application status updates automatically.</TooltipContent>
-    </Tooltip>
-  );
-}
 
 // Applied and Save are for jobs tracked by hand. A native job is tracked automatically (and, until
 // native jobs are stored, has no row for either to point at), so its cells stay empty.

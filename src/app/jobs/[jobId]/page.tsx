@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { MyApplicationPanel } from "@/components/applications/my-application-panel";
 import { CompanyAbout } from "@/components/company/company-about";
 import { ApplyDialog } from "@/components/jobs/apply-dialog";
 import { WorkModeBadge } from "@/components/jobs/work-mode-badge";
@@ -14,10 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { companyProfilePath, hasCompanyDetails, type CompanyProfile } from "@/lib/companies/profile";
 import { getCompanyProfile } from "@/lib/companies/profile-queries";
-import { getMyCvs } from "@/lib/cvs/queries";
+import { getMyCallbackApplicationFor, getMyCvs } from "@/lib/cvs/queries";
 import { formatAbsolute } from "@/lib/jobs/format";
 import { applyPath, type PublishedJob } from "@/lib/jobs/published";
-import { getMyApplicationDate, getMyCandidateProfile, getPublishedJob } from "@/lib/jobs/queries";
+import { getMyCandidateProfile, getPublishedJob } from "@/lib/jobs/queries";
 
 type Params = Promise<{ jobId: string }>;
 
@@ -32,7 +33,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 // applies in a dialog with a CV from their account (features/candidate-cvs.md). The posting comes from a cached, cookie-free read; what depends on who is looking (the
 // header's account link and the apply panel) reads the session, so each sits in its own Suspense
 // boundary and the rest of the page prerenders. An unpublished job, the demo job and an unknown id
-// are the same not-found page.
+// are the same not-found page, except to a candidate who applied to it: they still reach their
+// application (features/callback-applications-in-table.md), so they can withdraw it from a paused job.
 export default function PostingPage({ params }: { params: Params }) {
   return (
     <div className="flex min-h-full flex-1 flex-col bg-muted/30">
@@ -64,8 +66,9 @@ async function loadCompanyProfile(slug: string): Promise<CompanyProfile | null> 
 }
 
 async function Posting({ params }: { params: Params }) {
-  const job = await getPublishedJob((await params).jobId);
-  if (!job) notFound();
+  const jobId = (await params).jobId;
+  const job = await getPublishedJob(jobId);
+  if (!job) return <UnavailablePosting jobId={jobId} />;
   const companyProfile = await loadCompanyProfile(job.companySlug);
 
   return (
@@ -153,13 +156,14 @@ async function ApplyPanel({ job }: { job: PublishedJob }) {
     );
   }
 
-  const [appliedAt, profile, cvs] = await Promise.all([
-    getMyApplicationDate(job.id),
+  const [application, profile, cvs] = await Promise.all([
+    getMyCallbackApplicationFor(job.id),
     getMyCandidateProfile(user.id),
     getMyCvs(),
   ]);
 
-  // Also once applied: the dialog stays mounted through the refresh that follows sending, to say so.
+  // Also once applied: the dialog stays mounted through the refresh that follows sending, to say so, and
+  // the panel then shows the application.
   return (
     <ApplyDialog
       jobId={job.id}
@@ -168,8 +172,40 @@ async function ApplyPanel({ job }: { job: PublishedJob }) {
       cvs={cvs}
       initialName={profile?.fullName ?? ""}
       initialLocation={profile?.location ?? ""}
-      appliedAt={appliedAt}
+      application={application}
     />
+  );
+}
+
+// A job that isn't open to applications (paused, closed, or one that never was): the page is only for a
+// candidate who applied to it, so they can still see the application and withdraw it. Everyone else gets
+// the not-found page. It reads the session, so it is its own dynamic part of the page.
+async function UnavailablePosting({ jobId }: { jobId: string }) {
+  await connection();
+  const user = await getCurrentUser();
+  const application = user?.accountType === "candidate" ? await getMyCallbackApplicationFor(jobId) : null;
+  if (!application) notFound();
+
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <Card>
+        <CardHeader className="gap-3">
+          <CardTitle className="text-2xl leading-tight">{application.title}</CardTitle>
+          <p className="text-sm font-medium">{application.companyName}</p>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">This job is not open for applications any more.</p>
+        </CardContent>
+      </Card>
+      <Card className="lg:sticky lg:top-24">
+        <CardHeader>
+          <CardTitle>Your application</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MyApplicationPanel application={application} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

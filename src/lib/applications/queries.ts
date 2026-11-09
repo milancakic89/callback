@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import type { ApplicationListItem, ApplicationStatus } from "./types";
+import type { ApplicationStatus, ManualApplicationItem } from "./types";
 
 type ApplicationRow = {
   job_id: string;
@@ -12,7 +12,7 @@ type ApplicationRow = {
 // Not cached: reads the session cookie, so it must stay fresh per user. RLS already scopes this
 // to the signed-in user; the explicit `.eq` is belt-and-braces. The join only returns an inactive
 // job because of the "Users can read jobs they applied to" policy on `jobs`.
-export async function getApplications(userId: string): Promise<ApplicationListItem[]> {
+export async function getApplications(userId: string): Promise<ManualApplicationItem[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("applications")
@@ -22,6 +22,7 @@ export async function getApplications(userId: string): Promise<ApplicationListIt
   if (error) throw new Error(`getApplications: ${error.message}`);
 
   return (data ?? []).map((row) => ({
+    kind: "manual" as const,
     jobId: row.job_id,
     status: row.status,
     appliedAt: row.applied_at,

@@ -47,7 +47,7 @@ Companies run different processes. Each company now defines its own steps betwee
   - **The confirm modal** is an `AlertDialog` titled "Apply N statuses?". It lists each change and says: "These candidates will see their new status in their application on Callback, with the text you wrote for that step. No email is sent." It offers Cancel and "Apply statuses", stays open while saving, and shows errors inline (`role="alert"`). It carries `data-landing className="dark"`.
   - **Playlist:** a row with a pending change shows a small "Not applied" marker. The status filter lists Applied, the steps, Offer and Rejected, with counts.
   - **The note under the control** changes from "Changing a status doesn't tell the candidate yet." to "Candidates see a new status only after you apply statuses."
-- **`/applications`, "Applied on Callback" (candidate):** each active or paused application shows its status. A company step also gets an `InfoIcon` button, which opens a **Popover** (it works on tap, unlike a tooltip) with the step's text and, if the step was edited after the status was applied, "Updated on {date}". A withdrawn application shows no status.
+- **`/applications`, "Applied on Callback" (candidate; since [callback-applications-in-table.md](./callback-applications-in-table.md) these are rows of the one table):** each active or paused application shows its status. A company step also gets an `InfoIcon` button, which opens a **Popover** (it works on tap, unlike a tooltip) with the step's text and, if the step was edited after the status was applied, "Updated on {date}". A withdrawn application shows no status.
 
 ## Plan
 
@@ -137,7 +137,7 @@ Companies run different processes. Each company now defines its own steps betwee
   - in the key handler, add `[role='alertdialog']` to the selector of ignored focus, and map keys through `choiceForKey`;
   - `candidate-playlist.tsx` gets the "Not applied" marker and the filter options from `choices`;
   - `review/page.tsx` loads the steps and passes them in.
-- **Candidate:** new `src/components/applications/candidate-stage.tsx`, with the label, plus `InfoIcon` and a `Popover` for a step (dates with `formatAbsolute(..., "UTC")`, never `Date.now()`). It is used in `callback-applications.tsx`.
+- **Candidate:** new `src/components/applications/candidate-stage.tsx`, with the label, plus `InfoIcon` and a `Popover` for a step (dates with `formatAbsolute(..., "UTC")`, never `Date.now()`). It is used in the Callback rows of the applications table (first in `callback-applications.tsx`, now `application-rows.tsx`).
 - **Landing fixtures:** `scripts/capture-landing-screenshots.ts` clicks "Screening" and "Interview" by name. Give the fixture used by the dev page (`src/app/dev/documents/page.tsx` and `review-shots.ts`) steps with those names, so the screenshots still work. The landing copy stays as it is.
 
 ### 6. Tests (Vitest, `*.test.ts` next to the file, `renderToStaticMarkup` for components)

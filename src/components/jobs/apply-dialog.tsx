@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 import { applyToJob, type ApplyFormState } from "@/app/jobs/[jobId]/actions";
 import { FieldError } from "@/components/auth/form-feedback";
+import { MyApplicationPanel } from "@/components/applications/my-application-panel";
 import { CvUploadButton } from "@/components/cvs/cv-upload-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { clientPdfError, COVER_LETTER_MAX_LENGTH, MAX_CVS } from "@/lib/applications/apply-schema";
-import { formatFileSize, type CandidateCv } from "@/lib/cvs/types";
+import { formatFileSize, type CallbackApplication, type CandidateCv } from "@/lib/cvs/types";
 import { formatAbsolute } from "@/lib/jobs/format";
 import { cn } from "cn";
 
@@ -45,11 +46,11 @@ export function AppliedNotice({ appliedAt }: { appliedAt: string }) {
       <div className="grid gap-1">
         <p className="font-medium">You applied on {formatAbsolute(appliedAt, TIME_ZONE)}</p>
         <p className="text-sm text-muted-foreground">
-          The company can read your application now. Follow it, or withdraw it, on{" "}
+          The company can read your application now. Follow it on{" "}
           <Link href="/applications" className="font-medium text-foreground underline-offset-4 hover:underline">
             Applications
           </Link>
-          .
+          , and withdraw it from this page.
         </p>
       </div>
     </div>
@@ -61,10 +62,12 @@ export function AppliedNotice({ appliedAt }: { appliedAt: string }) {
 // optional cover letter, typed or as a PDF. `?apply=1` opens it by itself: that is where "Sign in to
 // apply" and "Create an account" come back to.
 //
-// It stays mounted after the application is sent (the page refreshes with `appliedAt` set), so the
-// dialog can say so before it closes. Everything the candidate typed or chose is kept in state, and
-// the form submits by hand: React resets a form's uncontrolled fields after an action, which would
-// throw away a chosen cover letter after a failed send.
+// Once the candidate has applied, the panel shows their application (features/callback-applications-in-table.md):
+// its status, the CV and cover letter, and Withdraw. It stays mounted after the application is sent (the
+// page refreshes with `appliedAt` and the application set), so the dialog can say so before it closes.
+// Everything the candidate typed or chose is kept in state, and the form submits by hand: React resets
+// a form's uncontrolled fields after an action, which would throw away a chosen cover letter after a
+// failed send.
 export function ApplyDialog({
   jobId,
   jobTitle,
@@ -72,7 +75,7 @@ export function ApplyDialog({
   cvs,
   initialName,
   initialLocation,
-  appliedAt,
+  application,
 }: {
   jobId: string;
   jobTitle: string;
@@ -80,12 +83,14 @@ export function ApplyDialog({
   cvs: CandidateCv[];
   initialName: string;
   initialLocation: string;
-  appliedAt: string | null;
+  // The candidate's application to this job, once they have applied.
+  application: CallbackApplication | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const askedToApply = searchParams.get("apply") === "1";
+  const appliedAt = application?.appliedAt ?? null;
 
   const [state, formAction, sending] = useActionState(applyToJob, INITIAL_STATE);
   const [, startTransition] = useTransition();
@@ -149,7 +154,11 @@ export function ApplyDialog({
   return (
     <>
       {sentAt ? (
-        <AppliedNotice appliedAt={sentAt} />
+        application ? (
+          <MyApplicationPanel application={application} />
+        ) : (
+          <AppliedNotice appliedAt={sentAt} />
+        )
       ) : (
         <div className="grid gap-3">
           <p className="text-sm text-muted-foreground">

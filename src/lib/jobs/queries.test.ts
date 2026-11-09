@@ -15,7 +15,6 @@ import {
   getActiveJobs,
   getCompanyPublishedJobs,
   getJobDescriptions,
-  getMyApplicationDate,
   getPublishedJob,
 } from "./queries";
 
@@ -151,18 +150,3 @@ describe("getCompanyPublishedJobs", () => {
   });
 });
 
-describe("getMyApplicationDate", () => {
-  it("answers the date the caller applied, or null", async () => {
-    rpcUser.mockResolvedValue({ data: "2026-11-09T11:00:00+00:00", error: null });
-    expect(await getMyApplicationDate(ID)).toBe("2026-11-09T11:00:00+00:00");
-    expect(rpcUser).toHaveBeenCalledWith("my_job_application", { p_job_id: ID });
-
-    rpcUser.mockResolvedValue({ data: null, error: null });
-    expect(await getMyApplicationDate(ID)).toBeNull();
-  });
-
-  it("throws on a database error", async () => {
-    rpcUser.mockResolvedValue({ data: null, error: { message: "boom" } });
-    await expect(getMyApplicationDate(ID)).rejects.toThrow("getMyApplicationDate: boom");
-  });
-});

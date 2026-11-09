@@ -78,3 +78,10 @@ export async function getMyCallbackApplications(): Promise<CallbackApplication[]
     };
   });
 }
+
+// The signed-in candidate's application to one posted job, or null: what the job's own page shows of it
+// (features/callback-applications-in-table.md). Not cached: per user.
+export async function getMyCallbackApplicationFor(jobId: string): Promise<CallbackApplication | null> {
+  const applications = await getMyCallbackApplications();
+  return applications.find((application) => application.jobId === jobId) ?? null;
+}

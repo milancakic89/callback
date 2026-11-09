@@ -5,7 +5,7 @@ const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc }) }));
 
-import { getMyCallbackApplications } from "./queries";
+import { getMyCallbackApplicationFor, getMyCallbackApplications } from "./queries";
 
 const row = (fields: Record<string, unknown>) => ({
   id: "app-1",
@@ -83,5 +83,43 @@ describe("getMyCallbackApplications", () => {
     rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
 
     await expect(getMyCallbackApplications()).rejects.toThrow("getMyCallbackApplications: boom");
+  });
+});
+
+describe("getMyCallbackApplicationFor", () => {
+  it("finds the caller's application to one job", async () => {
+    rpc.mockResolvedValue({
+      data: [row({ id: "a", job_id: "job-a" }), row({ id: "b", job_id: "job-b", title: "Other job" })],
+      error: null,
+    });
+
+    const application = await getMyCallbackApplicationFor("job-b");
+
+    expect(application?.id).toBe("b");
+    expect(application?.title).toBe("Other job");
+  });
+
+  it("answers null for a job they haven't applied to", async () => {
+    rpc.mockResolvedValue({ data: [row({ job_id: "job-a" })], error: null });
+
+    expect(await getMyCallbackApplicationFor("job-z")).toBeNull();
+  });
+
+  it("answers null when they have applied to nothing", async () => {
+    rpc.mockResolvedValue({ data: [], error: null });
+
+    expect(await getMyCallbackApplicationFor("job-a")).toBeNull();
+  });
+
+  it("keeps an application the job has stopped being open for", async () => {
+    rpc.mockResolvedValue({ data: [row({ job_id: "job-a", state: "paused" })], error: null });
+
+    expect((await getMyCallbackApplicationFor("job-a"))?.state).toBe("paused");
+  });
+
+  it("throws on a database error", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    await expect(getMyCallbackApplicationFor("job-a")).rejects.toThrow("getMyCallbackApplications: boom");
   });
 });

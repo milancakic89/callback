@@ -44,7 +44,7 @@ No real candidate has applied yet (`apply-with-cv` is not released), so the mode
 - **`/api/cvs/{id}`** sends the file name in `Content-Disposition` (it is cleaned on upload, so it can't break the quotes).
 - **A sign-in to an account that has no type yet** also carries `next` into the pending-signup cookie, so that path comes back to the posting too.
 - **`next.config.ts`:** `serverActions.bodySizeLimit` is `6mb`; `proxyClientMaxBodySize` is no longer set, since its default (10 MB) is above one file. Set to 6 MB it would cut a larger body short silently, instead of letting the action refuse it.
-- **"Applied on Callback"** on `/applications` is shown only when there is something in it.
+- **"Applied on Callback"** on `/applications` was shown only when there was something in it. **Replaced 2026-11-09 by [callback-applications-in-table.md](./callback-applications-in-table.md):** these applications are rows of the one table, and their CV, cover letter and Withdraw are on the job's own page.
 
 ## Plan
 
@@ -130,7 +130,7 @@ No real candidate has applied yet (`apply-with-cv` is not released), so the mode
     - It reuses the existing manual-submit pattern, so chosen files survive a failed send.
   - **a guest:** "Sign in to apply" goes to `/sign-in?next=/jobs/{id}?apply=1`, and "Create an account" to `/sign-up?next=…`.
 - **`src/components/ui/dialog.tsx`:** add the shadcn base-nova Dialog (Base UI). It doesn't exist yet.
-- **`/applications`:** a new top section, "Applied on Callback", from `my_job_applications()`.
+- **`/applications`:** a new top section, "Applied on Callback", from `my_job_applications()` (since replaced by rows of the one table, [callback-applications-in-table.md](./callback-applications-in-table.md)).
   - Each row shows the state badge (Active / Paused by the company / Withdrawn by the company / You withdrew), the CV used, and the cover letter (expand the text, or open the PDF).
   - "Withdraw" asks first: "The company loses access to your CV, your cover letter is deleted, and you can't apply to this job again."
 

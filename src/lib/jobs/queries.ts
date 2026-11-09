@@ -147,16 +147,6 @@ async function readCompanyPublishedJobs(companySlug: string): Promise<PublishedJ
   return fetchPublishedJobs({ companySlug });
 }
 
-// When the signed-in candidate applied to a posted job, or null. Not cached: it is per user. The
-// function answers only about the caller (supabase/migrations/20261109130000_published_jobs.sql),
-// so the explicit job id is all there is to ask.
-export async function getMyApplicationDate(jobId: string): Promise<string | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("my_job_application", { p_job_id: jobId });
-  if (error) throw new Error(`getMyApplicationDate: ${error.message}`);
-  return typeof data === "string" ? data : null;
-}
-
 // What the apply form fills in for a candidate who has applied before: their own profile
 // (name and location), which row level security shows only to them. Not cached: per user.
 export async function getMyCandidateProfile(userId: string): Promise<{ fullName: string; location: string | null } | null> {

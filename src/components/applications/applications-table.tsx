@@ -3,14 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { setApplicationStatus } from "@/app/(app)/applications/actions";
-import { StatusSelect } from "./status-select";
+import { CallbackApplicationRow, ManualApplicationRow } from "./application-rows";
 import {
   CARD_BODY_CLASS,
   CARD_FULL_CELL_CLASS,
   CARD_HEADER_CLASS,
   CARD_TABLE_CLASS,
-  DataCell,
-  EXPIRED_ROW_CLASS,
   HEADER_CLASS,
   MobileSort,
   PageSizeSelect,
@@ -18,25 +16,14 @@ import {
   ROW_CLASS,
   SortableHead,
 } from "@/components/jobs/table-parts";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  APPLICATION_STATUSES,
-  type ApplicationListItem,
-  type ApplicationStatus,
-} from "@/lib/applications/types";
+import { compareApplications, itemKey, type SortField } from "@/lib/applications/list";
+import type { ApplicationListItem, ApplicationStatus, ManualApplicationItem } from "@/lib/applications/types";
 import type { SortDirection } from "@/lib/jobs/filter";
-import { formatAbsolute } from "@/lib/jobs/format";
 import { cn } from "cn";
 
-type SortField = "title" | "company" | "applied" | "status";
-
 const DEFAULT_PAGE_SIZE = 20;
-// Explicit so the day doesn't depend on whether the server or the browser formats it.
-const TIME_ZONE = "Europe/Belgrade";
-
 // The sortable columns, for the sort picker that stands in for the header band on cards.
 const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "title", label: "Label" },
@@ -45,21 +32,10 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "status", label: "Status" },
 ];
 
-function compare(a: ApplicationListItem, b: ApplicationListItem, field: SortField): number {
-  switch (field) {
-    case "title":
-      return a.title.localeCompare(b.title);
-    case "company":
-      return a.companyName.localeCompare(b.companyName);
-    case "applied":
-      return Date.parse(a.appliedAt) - Date.parse(b.appliedAt);
-    case "status":
-      return APPLICATION_STATUSES.indexOf(a.status) - APPLICATION_STATUSES.indexOf(b.status);
-  }
-}
-
-// Owns sort, paging and the optimistic status state. A status change is saved immediately by the
-// Server Action, and reverted with an error tooltip if that fails — see features/applied.md.
+// Owns sort, paging and the optimistic status state of the rows tracked by hand. A status change is
+// saved immediately by the Server Action, and reverted with an error tooltip if that fails — see
+// features/applied.md. The applications to jobs posted on Callback are rows of the same table, with an
+// automatic status (features/callback-applications-in-table.md).
 export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
   const [sort, setSort] = useState<SortField>("applied");
   const [direction, setDirection] = useState<SortDirection>("desc");
@@ -71,7 +47,7 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const sorted = useMemo(() => {
-    const result = [...items].sort((a, b) => compare(a, b, sort));
+    const result = [...items].sort((first, second) => compareApplications(first, second, sort));
     if (direction === "desc") result.reverse();
     return result;
   }, [items, sort, direction]);
@@ -92,7 +68,7 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
     setPage(1);
   }
 
-  async function handleStatusChange(item: ApplicationListItem, next: ApplicationStatus) {
+  async function handleStatusChange(item: ManualApplicationItem, next: ApplicationStatus) {
     const previous = statuses[item.jobId] ?? item.status;
     setErrors((prev) => {
       if (!(item.jobId in prev)) return prev;
@@ -188,60 +164,20 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((item) => {
-                const status = statuses[item.jobId] ?? item.status;
-                const error = errors[item.jobId];
-                const select = (
-                  <StatusSelect
-                    jobTitle={item.title}
-                    value={status}
-                    disabled={pendingId === item.jobId}
-                    error={Boolean(error)}
-                    onChange={(next) => handleStatusChange(item, next)}
+              rows.map((item) =>
+                item.kind === "callback" ? (
+                  <CallbackApplicationRow key={itemKey(item)} item={item} />
+                ) : (
+                  <ManualApplicationRow
+                    key={itemKey(item)}
+                    item={item}
+                    status={statuses[item.jobId] ?? item.status}
+                    error={errors[item.jobId]}
+                    pending={pendingId === item.jobId}
+                    onStatusChange={(next) => handleStatusChange(item, next)}
                   />
-                );
-
-                return (
-                  <TableRow key={item.jobId} className={item.active ? ROW_CLASS : EXPIRED_ROW_CLASS}>
-                    <DataCell className="py-3 pl-4 md:max-w-96">
-                      <div className="flex items-center gap-2">
-                        {item.url ? (
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                              "block font-medium hover:underline md:truncate",
-                              item.active ? "text-foreground" : "text-muted-foreground",
-                            )}
-                          >
-                            {item.title}
-                          </a>
-                        ) : (
-                          <span className="block font-medium md:truncate">{item.title}</span>
-                        )}
-                        {!item.active && <Badge variant="outline">Expired</Badge>}
-                      </div>
-                    </DataCell>
-                    <DataCell className="py-3 text-muted-foreground md:max-w-56 md:truncate">
-                      {item.companyName}
-                    </DataCell>
-                    <DataCell className="py-3 whitespace-nowrap">
-                      {formatAbsolute(item.appliedAt, TIME_ZONE)}
-                    </DataCell>
-                    <DataCell className="py-3 pr-4">
-                      {error ? (
-                        <Tooltip>
-                          <TooltipTrigger render={<span className="inline-flex" />}>{select}</TooltipTrigger>
-                          <TooltipContent>{error}</TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        select
-                      )}
-                    </DataCell>
-                  </TableRow>
-                );
-              })
+                ),
+              )
             )}
           </TableBody>
         </Table>
