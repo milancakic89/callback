@@ -12,7 +12,8 @@
     "scrape": "node --import tsx scraper/index.ts",
     "jobs:refresh": "npm run scrape -- refresh",
     "seed:mock-candidates": "node --import tsx scripts/seed-mock-candidates.ts",
-    "demo:documents": "node --import tsx scripts/build-demo-documents.ts"
+    "demo:documents": "node --import tsx scripts/build-demo-documents.ts",
+    "landing:screenshots": "node --import tsx scripts/capture-landing-screenshots.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -42,6 +43,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "playwright": "^1.64.1",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",

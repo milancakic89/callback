@@ -4,8 +4,9 @@ import { SAMPLE_DOCUMENTS } from "@/components/landing/sample-documents";
 import { MOCK_CANDIDATES } from "@/lib/candidates/mock-candidates";
 
 // Development only: the demo job's documents, one A4 sheet each, for scripts/build-demo-documents.ts
-// to print to PDF (features/applicant-review.md). They are the landing's sample documents, so the
-// landing demo and the review screen show the same files. A production build answers 404.
+// to print to PDF (features/applicant-review.md). They are the landing's sample documents
+// (components/landing/sample-documents.tsx), so the review screen and the screenshots of it on the
+// landing page show the same files. A production build answers 404.
 //
 // .l-paper (landing.css) is 34rem wide at --z 1 and already A4-shaped; A4 at 96 dpi is 793.7px wide.
 const A4_ZOOM = 793.7 / 544;

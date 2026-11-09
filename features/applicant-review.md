@@ -11,7 +11,7 @@ It also starts the CV access model agreed for Callback: the files sit in a priva
 ## Decisions (agreed with the user, 2026-10-31)
 - **Real PDFs from the start.** PDF.js draws them on canvases. The files are in a private Cloudflare R2 bucket ([document-storage.md](./document-storage.md); they were in the Supabase Storage bucket `application-documents` when this was built). The browser only ever sees `/api/applications/{id}/documents/{cv|cover-letter}`, never a storage URL.
 - **Demo data.**
-  - The demo job's three applicants get their own PDFs, printed from the landing's sample documents (`src/components/landing/sample-documents.tsx`), so the landing demo and the review show the same files.
+  - The demo job's three applicants get their own PDFs, printed from the landing's sample documents (`src/components/landing/sample-documents.tsx`), so the review and the landing page's screenshots of it show the same files.
   - **Priya Raman's demo application has no cover letter**, so that case shows too.
   - The demo job gets filters, and each application gets the filters its CV meets, written by hand (Ana 4/4 required and 1/3 nice-to-have, Jonas 3/4 and 1/3, Priya 2/4 and 1/3).
   - Real matching came later, as a free keyword check of the CV's text ([cv-screening.md](./cv-screening.md)): a real application's `matched_filters` is filled when the candidate applies, and the overview shows each filter as met, missing or "? check by eye". Where an application hasn't been checked the overview still says "Not checked yet", and for a CV with no readable text "Couldn't read the text of this CV". The playlist can be ordered Best match first. The "Preview" badge is now "Keyword check".
@@ -44,7 +44,7 @@ It also starts the CV access model agreed for Callback: the files sit in a priva
   - the heart and Next at the bottom, with the `→` `←` `L` keys.
 - **Keys:** `→` Next, `←` the previous applicant (marks nothing), `L` heart, `Esc` closes the wide letter. Keys are ignored in inputs and while a dialog is open.
 - **The URL keeps the open applicant** (`?candidate=<id>`, through `history.replaceState`), so a reload comes back to them.
-- **Moving between applicants** slides the documents like the landing demo (`l-doc-next` / `l-doc-prev`, motion-safe). Every document starts at the top.
+- **Moving between applicants** slides the documents in the direction of travel (`l-doc-next` / `l-doc-prev` in `landing.css`, motion-safe). Every document starts at the top.
 - **Marks are saved in the background.** Viewed and liked show at once, are saved through Server Actions, and are put back with a short note if saving fails.
 
 ## How it is built

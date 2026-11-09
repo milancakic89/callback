@@ -69,8 +69,8 @@ Job hunting means a lot of tabs, a lot of applications and, far too often, no an
   </tr>
   <tr>
     <td colspan="2" align="center">
-      <img src="docs/images/review-demo.png" alt="The Fast Manual Mode demo on the landing page">
-      <br><sub><b>Fast Manual Mode</b>, the planned employer review workspace, as an interactive demo on the landing page (fictional candidates).</sub>
+      <img src="docs/images/fast-manual-mode.png" alt="Fast Manual Mode: the playlist of applicants, a CV and a cover letter side by side, and the screening overview with the hiring status">
+      <br><sub><b>Fast Manual Mode</b>, the employer's review screen: the playlist, the original CV and cover letter side by side, a keyword check against the job's requirements and a hiring status (the sample job's fictional candidates).</sub>
     </td>
   </tr>
 </table>

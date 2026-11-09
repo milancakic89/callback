@@ -1,11 +1,13 @@
 import { cn } from "cn";
 import { MOCK_CANDIDATES, type MockCandidateKey } from "@/lib/candidates/mock-candidates";
 
-// Fictional candidates and documents for the landing page's review demos (features/landing.md).
+// Fictional candidates and documents of the sample job (features/demo-job.md). The demo job's PDFs
+// are printed from them (npm run demo:documents), and the landing page's screenshots of Fast Manual
+// Mode show those PDFs (features/landing-screenshots.md).
 // Every name, company, school and address here is invented; emails use the reserved example.com
 // domain. Each CV uses a different layout on purpose: Fast Manual Mode shows the files candidates
-// actually sent, not a normalised profile card. Plain components (no hooks), so both the static
-// hero and the interactive demo can render them.
+// actually sent, not a normalised profile card. Plain components (no hooks), so a server page, like
+// /dev/documents, can render them.
 
 export const SAMPLE_ROLE = { title: "Senior Product Designer", company: "Halden" };
 

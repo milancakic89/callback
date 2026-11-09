@@ -76,12 +76,6 @@
   mask-image: linear-gradient(to bottom, black 62%, transparent 98%);
 }
 
-/* Hero: stage chip flips Screening → Interview, then the candidate's update arrives. Final state
-   is the default, so reduced motion simply shows it. */
-.l-swap-out {
-  opacity: 0;
-}
-
 @keyframes l-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
@@ -90,16 +84,6 @@
 @keyframes l-window-in {
   from { opacity: 0; transform: perspective(2400px) rotateX(16deg) translateY(36px); }
   to { opacity: 1; transform: perspective(2400px) rotateX(0deg) translateY(0); }
-}
-
-@keyframes l-swap-out {
-  from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: translateY(-6px); }
-}
-
-@keyframes l-swap-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
 }
 
 @keyframes l-notify {
@@ -135,14 +119,6 @@
   .l-window-in {
     transform-origin: 50% 0%;
     animation: l-window-in 1.3s var(--l-ease) 0.35s both;
-  }
-
-  .l-swap-out {
-    animation: l-swap-out 0.35s ease 2.1s both;
-  }
-
-  .l-swap-in {
-    animation: l-swap-in 0.35s ease 2.2s both;
   }
 
   .l-notify {

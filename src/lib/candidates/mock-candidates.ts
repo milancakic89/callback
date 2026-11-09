@@ -1,6 +1,6 @@
 // The three fictional candidates that every company's demo job starts with (features/demo-job.md).
-// Plain data, shared by the landing page's review demos (src/components/landing/sample-documents.tsx,
-// which adds the document components) and the seed script (scripts/seed-mock-candidates.ts).
+// Plain data, shared by the sample documents (src/components/landing/sample-documents.tsx, which adds
+// the document components) and the seed script (scripts/seed-mock-candidates.ts).
 // Every name is invented; emails use the reserved example.com domain.
 
 export type MockCandidate = {
@@ -12,7 +12,7 @@ export type MockCandidate = {
   cvFile: string;
   letterFile: string;
   // Whether the demo job's application carries the cover letter (features/applicant-review.md). One
-  // doesn't, so the review shows that case; the landing demo still shows every letter. Must agree
+  // doesn't, so the review shows that case. Must agree
   // with public.demo_applicants() in supabase/migrations/20261031120000_applicant_review.sql.
   demoCoverLetter: boolean;
 };
