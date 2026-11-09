@@ -37,6 +37,14 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    // A Server Action gets at most one PDF of up to 5 MB (features/candidate-cvs.md): a CV uploaded to
+    // the account, or an application's cover letter (the CV is already on the account). The body
+    // defaults to 1 MB; 6 MB is one file and the form's fields. Proxy's copy of a request body
+    // (`proxyClientMaxBodySize`, past which it is cut short, silently) defaults to 10 MB, which is
+    // enough.
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   turbopack: {
     rules: {
       "*.css": {
@@ -58,11 +66,6 @@ const nextConfig: NextConfig = {
         destination: "/jobs",
         permanent: false,
       })),
-      // The employer home moved from /employer to the company's slug (features/companies.md).
-      // Activation emails sent before the move still carry next=/employer. "/test" is TEST_COMPANY's
-      // slug (not imported: next.config.ts has no path aliases); drop this once slugs come from accounts.
-      { source: "/employer", destination: "/test", permanent: false },
-      { source: "/employer/:path*", destination: "/test/:path*", permanent: false },
     ];
   },
 };

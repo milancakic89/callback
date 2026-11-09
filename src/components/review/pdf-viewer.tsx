@@ -19,7 +19,8 @@ const DEFAULT_PAGE_RATIO = 297 / 210;
 // The widest a sheet gets at 100%, so a page on a very wide screen doesn't grow past reading size.
 const MAX_SHEET_REM = 56;
 
-const SHEET_CLASS =
+// A page on the review screen's desk; a typed cover letter sits on one too (applicant-review.tsx).
+export const SHEET_CLASS =
   "relative bg-(--l-paper) shadow-[0_0_0_1px_rgb(0_0_0/0.05),0_1px_2px_rgb(0_0_0/0.3),0_12px_32px_-8px_rgb(0_0_0/0.55)]";
 
 export function DocumentHeader({

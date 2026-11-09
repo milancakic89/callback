@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { JobApplicant } from "@/lib/companies/workspace";
 import { documentUrl } from "@/lib/review/documents";
 import { summarizeFilters } from "@/lib/review/matches";
+import { orderApplicants, type PlaylistOrder } from "@/lib/review/order";
 import {
   initialIndex,
   matchesPlaylist,
@@ -23,7 +24,7 @@ import { HIRING_STAGE_LABELS, stageForKey, type HiringStage } from "@/lib/review
 import { ApplicantSummary, NoAutoRejectNote, ReviewActions, ScreeningOverview, StageControl } from "./ats-panel";
 import { CandidatePlaylist, type PlaylistItem } from "./candidate-playlist";
 import { usePdfDocuments } from "./pdf";
-import { DocumentHeader, PdfPages } from "./pdf-viewer";
+import { DocumentHeader, PdfPages, SHEET_CLASS } from "./pdf-viewer";
 import { ReviewTopBar, type ReviewJob } from "./review-frame";
 
 // The review screen (features/applicant-review.md), Fast Manual Mode on real applications. From
@@ -67,7 +68,29 @@ export function ApplicantReview({
   const [marks, setMarks] = useState<Marks>(() =>
     Object.fromEntries(applicants.map((a) => [a.id, { viewed: a.viewed, liked: a.liked, stage: a.stage }])),
   );
-  const items = useMemo(() => applicants.map((a) => ({ ...a, ...marks[a.id] })), [applicants, marks]);
+  // What the screening saved for each applicant, and what the screen shows of it
+  // (features/cv-screening.md).
+  const summaries = useMemo(
+    () =>
+      new Map(
+        applicants.map((a) => [
+          a.id,
+          summarizeFilters(job.requiredFilters, job.optionalFilters, {
+            matched: a.matchedFilters,
+            unverified: a.unverifiedFilters,
+            outcome: a.screeningOutcome,
+          }),
+        ]),
+      ),
+    [applicants, job.requiredFilters, job.optionalFilters],
+  );
+  // The playlist's order: as the applications came in, or the best keyword match first. Next, ← and
+  // the list all walk `items`, so they can't disagree about it.
+  const [order, setOrder] = useState<PlaylistOrder>("applied");
+  const ordered = useMemo(() => orderApplicants(applicants, summaries, order), [applicants, summaries, order]);
+  const items = useMemo(() => ordered.map((a) => ({ ...a, ...marks[a.id] })), [ordered, marks]);
+  // With no filters there is nothing to put in order by.
+  const canOrder = job.requiredFilters.length + job.optionalFilters.length > 0;
   const [index, setIndex] = useState(() => initialIndex(items, searchParams.get("candidate")));
   // Null until the first move, so the documents don't slide in on page load.
   const [direction, setDirection] = useState<Direction | null>(null);
@@ -86,10 +109,6 @@ export function ApplicantReview({
   const viewedCount = items.filter((item) => item.viewed).length;
   const likedCount = items.filter((item) => item.liked).length;
 
-  const summaries = useMemo(
-    () => new Map(applicants.map((a) => [a.id, summarizeFilters(job.requiredFilters, job.optionalFilters, a.matchedFilters)])),
-    [applicants, job.requiredFilters, job.optionalFilters],
-  );
   const summary = summaries.get(current.id)!;
 
   const playlist: PlaylistItem[] = items.map((item) => {
@@ -101,12 +120,18 @@ export function ApplicantReview({
       viewed: item.viewed,
       liked: item.liked,
       stage: item.stage,
-      requiredScore: s.checked && s.required.length > 0 ? { met: s.requiredMet, total: s.required.length } : null,
+      requiredScore:
+        s.status === "checked" && s.required.length > 0
+          ? { met: s.requiredMet, total: s.required.length, unverified: s.requiredUnverified }
+          : null,
     };
   });
 
   const cvUrl = current.cvFileName ? documentUrl(current.id, "cv") : null;
   const letterUrl = current.coverLetterFileName ? documentUrl(current.id, "cover-letter") : null;
+  // A cover letter typed in the apply dialog (features/candidate-cvs.md); an application has a PDF or
+  // a text, never both.
+  const letterText = letterUrl ? null : current.coverLetterText;
 
   // What Next and ← open, among the applicants the playlist shows. At the end of a narrowed list,
   // while others are still new, Next carries on with those (and the playlist goes back to everyone).
@@ -234,6 +259,14 @@ export function ApplicantReview({
     );
   }
 
+  // The open applicant stays open when the order changes; only where they stand in the list does.
+  function changeOrder(next: PlaylistOrder) {
+    if (next === order) return;
+    const reordered = orderApplicants(applicants, summaries, next);
+    setOrder(next);
+    setIndex(Math.max(0, reordered.findIndex((a) => a.id === current.id)));
+  }
+
   function select(id: string) {
     const target = items.findIndex((item) => item.id === id);
     if (target === -1) return;
@@ -303,6 +336,8 @@ export function ApplicantReview({
     onFilter: setFilter,
     stageFilter,
     onStageFilter: setStageFilter,
+    order: canOrder ? order : null,
+    onOrder: changeOrder,
     onSelect: select,
   };
 
@@ -391,7 +426,7 @@ export function ApplicantReview({
           <CoverLetterPane
             open={letterOpen}
             onOpenChange={setLetterOpen}
-            expandable={letterUrl !== null}
+            expandable={letterUrl !== null || letterText !== null}
             className={cn(mobileView !== "letter" && "max-lg:hidden")}
           >
             <DocumentHeader
@@ -399,10 +434,14 @@ export function ApplicantReview({
               fileName={current.coverLetterFileName}
               zoom={letterOpen ? Math.max(letterZoom, 1) : letterZoom}
               onZoom={setLetterZoom}
-            />
+            >
+              {letterText !== null && (
+                <p className="min-w-0 truncate text-[11px] text-(--l-fg-subtle)">Written in the application</p>
+              )}
+            </DocumentHeader>
             <div key={current.id} className="l-scroll min-h-0 flex-1 overflow-auto p-3 sm:p-5">
               <div className={cn("flex min-h-full flex-col", docAnimation)} style={{ animationDelay: "70ms" }}>
-                {letterUrl && (
+                {(letterUrl || letterText !== null) && (
                   <p
                     aria-hidden
                     className={cn(
@@ -416,6 +455,8 @@ export function ApplicantReview({
                 )}
                 {letterUrl ? (
                   <PdfPages url={letterUrl} zoom={letterOpen ? Math.max(letterZoom, 1) : letterZoom} open={open} />
+                ) : letterText !== null ? (
+                  <TextLetter text={letterText} />
                 ) : (
                   <NoDocument>No cover letter with this application.</NoDocument>
                 )}
@@ -564,6 +605,16 @@ function CoverLetterPane({
     >
       {children}
     </section>
+  );
+}
+
+// A typed cover letter on a sheet like the PDFs' pages. Plain text, never HTML: it is what the
+// candidate typed.
+function TextLetter({ text }: { text: string }) {
+  return (
+    <div className={cn(SHEET_CLASS, "w-full px-6 py-7 text-[13px] leading-relaxed whitespace-pre-wrap text-neutral-800 sm:px-10 sm:py-9")}>
+      {text}
+    </div>
   );
 }
 

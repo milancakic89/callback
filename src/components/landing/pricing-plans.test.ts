@@ -15,6 +15,11 @@ describe("PRICING_PLANS", () => {
     expect(PRICING_PLANS.some((plan) => plan.monthlyCents === 0)).toBe(true);
   });
 
+  it("sends the free plan's CTA to sign-up, where an employer opens an account", () => {
+    const free = PRICING_PLANS.find((plan) => plan.monthlyCents === 0);
+    expect(free?.cta.href).toBe("/sign-up");
+  });
+
   it("has a unique id per plan", () => {
     const ids = PRICING_PLANS.map((plan) => plan.id);
     expect(new Set(ids).size).toBe(ids.length);

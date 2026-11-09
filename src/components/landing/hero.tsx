@@ -45,9 +45,9 @@ export function Hero({ openRoles }: { openRoles: string }) {
               Find a job
               <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
-            <a href="#employers" className={ctaClass("secondary")}>
-              For employers
-            </a>
+            <Link href="/sign-up" className={ctaClass("secondary")}>
+              Start hiring
+            </Link>
           </div>
         </div>
       </Container>

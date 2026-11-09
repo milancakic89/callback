@@ -16,7 +16,8 @@ import { publishJobPosting } from "@/app/(employer)/[company]/actions";
 // Publishing a draft (features/job-publishing.md) asks first, in the pattern of DeleteJobButton: the
 // dialog stays open while the action runs and shows its error instead of closing on a failure, and
 // Cancel takes the initial focus. On success the action refreshes the dashboard, where the card now
-// offers Unpublish. The job isn't on the job board yet, and the text says so.
+// offers Unpublish. A published job is on the job board, with a page where candidates can apply
+// (features/apply-with-cv.md), and the text says so.
 export function PublishJobButton({ jobId, title }: { jobId: string; title: string }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +49,8 @@ export function PublishJobButton({ jobId, title }: { jobId: string; title: strin
           <AlertDialogHeader>
             <AlertDialogTitle>Publish this job?</AlertDialogTitle>
             <AlertDialogDescription>
-              &ldquo;{title}&rdquo; will be marked as published. Candidates will see it once Callback jobs are
-              on the job board.
+              &ldquo;{title}&rdquo; will be listed on the job board, with its own page where candidates can read it
+              and apply with their CV. You can unpublish it at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && (

@@ -31,7 +31,7 @@ Code done; see [features/auth.md](../features/auth.md). Waiting on Supabase setu
 **Deferred:** nothing beyond auth itself.
 
 ## Landing Page — Done
-See [features/landing.md](../features/landing.md). `/` is the landing page; the public job list moved to `/jobs`.
+See [features/landing.md](../features/landing.md). `/` is the landing page; the public job list moved to `/jobs`. Its copy and availability tags were brought up to date with the employer side on 2026-11-09 (publishing and manual review are live; Smart Screening and candidate messages are still "Coming soon").
 
 ## Phase 2 — Dashboard — Done
 See [features/dashboard.md](../features/dashboard.md).
@@ -79,7 +79,17 @@ See [features/companies.md](../features/companies.md).
 
 **Built, migration applied, checked in a browser, committed, not yet pushed ([features/applicant-review.md](../features/applicant-review.md)):** Lets start opens the applicant review, Fast Manual Mode on real applications: playlist, the original CV and cover letter (PDFs from a private bucket, opened through an access-checked route), a screening overview against the filters, Next (marks viewed) and a heart (likes). Nothing is rejected automatically. The demo job's three applicants have real PDFs and hand-written matches.
 
-**Built, migration applied, checked in a browser, pushed ([features/application-status.md](../features/application-status.md)):** each application has a status on the review screen (Applied, Screening, Interview, Offer, Hired or Rejected), set by click or key, and the playlist can be narrowed by it. The candidate isn't told yet. **Next steps, one at a time (the full order is in that document):** email templates and telling the candidate, then candidates applying with a CV (the application form), then a job's candidates at a glance, then real matching.
+**Built, migration applied, checked in a browser, pushed ([features/application-status.md](../features/application-status.md)):** each application has a status on the review screen (Applied, Screening, Interview, Offer, Hired or Rejected), set by click or key, and the playlist can be narrowed by it. The candidate isn't told yet. **Next steps, one at a time (the full order is in that document):** email templates and telling the candidate, then a job's candidates at a glance, then real matching.
+
+**Built, migrations applied, not yet checked in a browser or pushed, five steps in this order:**
+1. [features/company-slugs.md](../features/company-slugs.md): the company's name and its own address, `/{slug}`, chosen once on `/setup` (replaces the fixture `/test`).
+2. [features/document-storage.md](../features/document-storage.md): CVs and cover letters in Cloudflare R2 instead of Supabase Storage. Done and checked against the real bucket; `PRODUCTION_ENV` needs the four `R2_*` variables before a deploy.
+3. [features/apply-with-cv.md](../features/apply-with-cv.md): published jobs on `/jobs`, a page for each, and a candidate applying with a CV and a cover letter (PDF). Replaces the development-only fixture job.
+
+4. [features/cv-screening.md](../features/cv-screening.md): a free keyword check of each applicant's CV against the job's filters, with a `ScreeningEngine` interface so a real ATS can replace it later. pdf.js reads the text on the server, results show on the review screen (met / missing / check by eye), the playlist can be ordered Best match, and applications are checked again when a job's filters change.
+5. [features/candidate-cvs.md](../features/candidate-cvs.md): CVs live on the candidate's account (up to 5, on "Your CVs", `/profile`), an application only points to one, and the company reads it only while the application is active. The candidate applies in a dialog, with a typed or a PDF cover letter, comes back to the posting after signing in or signing up, and can withdraw an application on `/applications`. Replaces the upload form of step 3.
+
+The code and its tests are done, and all five migrations are applied (`company_slugs` and `published_jobs` by hand; `cv_screening` and `candidate_cvs` on 2026-11-09, through `apply_migration`). `cv_screening` is checked with SQL; `candidate_cvs` isn't yet, and nothing has been checked in a browser.
 
 **Deferred:** a company name and slugs from accounts; native jobs from the database; a public careers page with branding; the application form and automatic status tracking; CV parsing and matching. The order is in the feature doc.
 

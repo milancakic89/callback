@@ -1,5 +1,23 @@
 
 <!-- BEGIN:nextjs-agent-rules -->
+This is a common error when doing things 
+(Next.js encountered the unstable value Date.now() while prerendering.), make sure to avoid it
+
+- No any type
+- Do not modify existing unit tests just to pass it successfuly
+- Do not create dependencies between classes, functions, rather provide them as params
+- Template larger then 300 lines should be treated as large component, and try breaking it into smaller ones
+- After refactoring all tests must pass in order to consider something successful
+- No variables such as "a", "b" or "tmp", it must be named so that it is understandable, even for temporary variables
+- For common functions create utility functions, and make sure before making new one, that such doesn not allready exists
+- Every component must have unit tests
+- No file should be edited on main branch, switch branches first, ask for branch name
+
+
+- Opus is used for planing
+- Sonet for implementing a plan by default
+- If not specified othervise, in case accidental implementation of plan is requested with wrong model, ask first to confirm
+- Every plan must be first saved into features folder
 
 ## This is NOT the Next.js you know
 

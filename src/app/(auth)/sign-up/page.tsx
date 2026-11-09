@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 
@@ -13,7 +14,10 @@ export default function SignUpPage() {
       footerLinkLabel="Sign in"
       footerLinkHref="/sign-in"
     >
-      <SignUpForm />
+      {/* SignUpForm reads ?next= via useSearchParams; the boundary keeps the page shell static. */}
+      <Suspense>
+        <SignUpForm />
+      </Suspense>
     </AuthCard>
   );
 }

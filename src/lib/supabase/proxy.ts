@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseAccountType } from "@/lib/auth/account-type";
+import { parseCompanySlug } from "@/lib/companies/company";
 
 // Runs in proxy, the only place that can persist a refreshed session: Server Components can't write cookies.
 export async function updateSession(request: NextRequest) {
@@ -36,7 +37,9 @@ export async function updateSession(request: NextRequest) {
   return {
     response,
     isAuthenticated: Boolean(data?.claims),
-    // From app_metadata, which only the secret-key client can change (features/account-types.md).
+    // From app_metadata, which only the secret-key client can change (features/account-types.md,
+    // features/company-slugs.md).
     accountType: parseAccountType(data?.claims?.app_metadata?.account_type),
+    companySlug: parseCompanySlug(data?.claims?.app_metadata?.company_slug),
   };
 }

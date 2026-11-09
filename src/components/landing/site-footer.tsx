@@ -20,6 +20,13 @@ const GROUPS = [
     ],
   },
   {
+    title: "Employers",
+    links: [
+      { href: "#employers", label: "For employers" },
+      { href: "/sign-up", label: "Start hiring" },
+    ],
+  },
+  {
     title: "Account",
     links: [
       { href: "/sign-in", label: "Log in" },
@@ -39,7 +46,7 @@ export function SiteFooter() {
           </Link>
           <p className="max-w-xs text-[14px] text-(--l-fg-subtle)">Every application deserves a response.</p>
         </div>
-        <nav aria-label="Footer" className="grid grid-cols-2 gap-10 sm:grid-cols-3 sm:gap-16">
+        <nav aria-label="Footer" className="grid grid-cols-2 gap-10 sm:grid-cols-4 sm:gap-12 lg:gap-16">
           {GROUPS.map((group) => (
             <div key={group.title}>
               <p className="text-[13px] font-medium">{group.title}</p>

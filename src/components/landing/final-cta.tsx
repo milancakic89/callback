@@ -19,7 +19,7 @@ export function FinalCta({ openRoles }: { openRoles: string }) {
             <p className="font-mono text-[11px] tracking-[0.14em] text-(--l-fg-subtle) uppercase">For candidates</p>
             <p className="mt-4 text-xl font-medium tracking-[-0.015em]">Looking for your next role?</p>
             <p className="mt-2 text-[15px] leading-relaxed text-(--l-fg-muted)">
-              Browse {openRoles} open roles and keep every application in one place. Free.
+              Browse {openRoles} open roles, apply with your CV, and keep every application on one list. Free.
             </p>
             <div className="mt-8 flex flex-wrap gap-3 sm:mt-auto sm:pt-8">
               <Link href="/jobs" className={ctaClass("primary")}>
@@ -35,10 +35,15 @@ export function FinalCta({ openRoles }: { openRoles: string }) {
             <p className="font-mono text-[11px] tracking-[0.14em] text-(--l-fg-subtle) uppercase">For employers</p>
             <p className="mt-4 text-xl font-medium tracking-[-0.015em]">Hiring?</p>
             <p className="mt-2 text-[15px] leading-relaxed text-(--l-fg-muted)">
-              Employer tools are in development. See how reviewing and answering applicants will work.
+              Post a job, read every application with its original CV and cover letter, and answer each
+              candidate. Free to start.
             </p>
             <div className="mt-8 flex flex-wrap gap-3 sm:mt-auto sm:pt-8">
-              <a href="#product" className={ctaClass("secondary")}>
+              <Link href="/sign-up" className={ctaClass("secondary")}>
+                Start hiring
+                <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <a href="#product" className={ctaClass("ghost", "px-3")}>
                 See the review workflow
               </a>
             </div>

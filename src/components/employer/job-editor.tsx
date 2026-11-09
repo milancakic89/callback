@@ -196,7 +196,7 @@ export function JobEditor({
           />
           <FieldError id="job-optional-filters-error" errors={errors?.optionalFilters} />
           <p className="text-xs text-muted-foreground">
-            Candidates don&apos;t see these. Their CVs will be checked against them. Up to {FILTERS_MAX} in all.
+            Candidates don&apos;t see these. Each CV is checked for these words when they apply, and you see the result when you review. Up to {FILTERS_MAX} in all.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

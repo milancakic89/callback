@@ -1,12 +1,14 @@
-import { ArrowRightIcon, HeartIcon, ListChecksIcon, SearchIcon } from "lucide-react";
+import { ArrowRightIcon, FileTextIcon, HeartIcon, ListChecksIcon, SearchIcon, ZapIcon } from "lucide-react";
 import Link from "next/link";
-import { WORK_MODE_LABELS, type JobListItem } from "@/lib/jobs/types";
+import { WORK_MODE_LABELS, isNativeJob, type JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
 import { AvailabilityTag, Container, SectionHeading, ctaClass } from "./ui";
 
-// The candidate side exists today, so this section uses real data: the live job count and the
-// newest postings from getActiveJobs(). The saved heart and "Applied" pill on two rows only
-// illustrate the features; they're not anyone's data.
+// The candidate side exists today, so this section uses real data: the live job count and six
+// postings from getActiveJobs() (jobs posted on Callback first, as on the board). The saved heart and
+// the "Applied" pill on two rows only illustrate the features; they're not anyone's data. What a
+// candidate can do with a job posted on Callback is apply with a CV; telling them how it went is not
+// built yet, so nothing here says it is.
 export function ForCandidates({ openRoles, jobs }: { openRoles: string; jobs: JobListItem[] }) {
   const features = [
     {
@@ -15,6 +17,11 @@ export function ForCandidates({ openRoles, jobs }: { openRoles: string; jobs: Jo
       body: `${openRoles} live openings, filterable by title, description, company, location and work mode.`,
     },
     { icon: HeartIcon, title: "Save the ones worth a second look", body: "One click on the heart keeps a job on your list." },
+    {
+      icon: FileTextIcon,
+      title: "Apply with your CV",
+      body: "Jobs posted on Callback are listed first. Open one and apply with your CV and a cover letter, both as PDF.",
+    },
     {
       icon: ListChecksIcon,
       title: "Track each application",
@@ -31,8 +38,8 @@ export function ForCandidates({ openRoles, jobs }: { openRoles: string; jobs: Jo
             tag={<AvailabilityTag status="live" />}
             title="Find the role. Keep track of every application."
           >
-            Browse live openings from job boards and company career pages, save what interests you, and
-            always know where each application stands.
+            Browse live openings from job boards and company career pages, apply to employers on Callback
+            with your CV, and keep every application on one list.
           </SectionHeading>
 
           <ul data-reveal className="mt-10 flex flex-col gap-6">
@@ -101,7 +108,12 @@ function JobBoardPreview({ openRoles, jobs }: { openRoles: string; jobs: JobList
                   {[job.companyName, tidyLocation(job.locationRaw)].filter(Boolean).join(" · ")}
                 </p>
               </div>
-              {i === 2 ? (
+              {isNativeJob(job) ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-(--l-lime) px-2 py-0.5 text-[11.5px] font-medium text-(--l-on-lime)">
+                  <ZapIcon aria-hidden className="size-3" />
+                  Auto-tracked
+                </span>
+              ) : i === 2 ? (
                 <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-(--l-lime)/25 bg-(--l-lime)/[0.07] px-2 py-0.5 text-[11.5px] text-(--l-lime) sm:inline-flex">
                   <span className="size-1.5 rounded-full bg-(--l-lime)" />
                   Applied · Pending
@@ -113,14 +125,18 @@ function JobBoardPreview({ openRoles, jobs }: { openRoles: string; jobs: JobList
                   </span>
                 )
               )}
-              <HeartIcon
-                aria-hidden
-                strokeWidth={1.75}
-                className={cn(
-                  "size-4 shrink-0",
-                  i === 1 ? "fill-(--l-lime) text-(--l-lime)" : "text-(--l-fg-subtle)",
-                )}
-              />
+              {/* A job posted on Callback has no heart on the board either: it is applied to on its
+                  own page, not saved. */}
+              {!isNativeJob(job) && (
+                <HeartIcon
+                  aria-hidden
+                  strokeWidth={1.75}
+                  className={cn(
+                    "size-4 shrink-0",
+                    i === 1 ? "fill-(--l-lime) text-(--l-lime)" : "text-(--l-fg-subtle)",
+                  )}
+                />
+              )}
             </li>
           ))}
         </ul>

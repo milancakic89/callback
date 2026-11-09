@@ -21,16 +21,21 @@ export function normalizeText(value: string): string {
     .trim();
 }
 
-function escapeRegExp(value: string): string {
+export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Bounded by non-letter/non-digit on both sides (Unicode-aware, not ASCII \b), so "java" doesn't
-// match "javascript" but "cacak" matches the normalized form of "Čačak".
+// A regular expression source matched only where it is bounded by non-letters/non-digits on both
+// sides (Unicode-aware, not ASCII \b), so "java" doesn't match "javascript" but "cacak" matches the
+// normalized form of "Čačak". Shared with the CV screening (src/lib/screening/match.ts).
+export function wordBounded(source: string): RegExp {
+  return new RegExp(`(?<![\\p{L}\\p{N}])${source}(?![\\p{L}\\p{N}])`, "u");
+}
+
 function wordRegExp(rawValue: string): RegExp | null {
   const value = normalizeText(rawValue);
   if (!value) return null;
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(value)}(?![\\p{L}\\p{N}])`, "u");
+  return wordBounded(escapeRegExp(value));
 }
 
 export type NormalizedJob = {

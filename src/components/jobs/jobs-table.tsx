@@ -1,6 +1,7 @@
 "use client";
 
 import { EyeIcon, ZapIcon } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppliedCheckbox } from "./applied-checkbox";
 import { SaveJobButton } from "./save-job-button";
@@ -27,6 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SortDirection, SortField } from "@/lib/jobs/filter";
 import { formatAbsolute, formatRelative } from "@/lib/jobs/format";
+import { postingIdOf, postingPath } from "@/lib/jobs/published";
 import { isNativeJob, sourceLabel, type JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
 
@@ -271,6 +273,10 @@ export function JobsTable({
                 const expired = !job.active;
                 const applied = appliedIds.has(job.id);
                 const native = isNativeJob(job);
+                // A job posted on Callback has its own page, opened in this tab: it is where the
+                // candidate applies (features/apply-with-cv.md). A scraped job's title goes to its
+                // own site in a new one.
+                const postingId = native ? postingIdOf(job.id) : null;
                 return (
                   <TableRow
                     key={job.id}
@@ -278,7 +284,14 @@ export function JobsTable({
                   >
                     <DataCell className="py-3 pl-4 md:max-w-72 max-md:col-start-1 max-md:row-start-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        {job.url ? (
+                        {postingId ? (
+                          <Link
+                            href={postingPath(postingId)}
+                            className="block min-w-0 font-semibold text-foreground hover:underline md:truncate"
+                          >
+                            {job.title}
+                          </Link>
+                        ) : job.url ? (
                           <a
                             href={job.url}
                             target="_blank"

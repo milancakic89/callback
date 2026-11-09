@@ -2,9 +2,12 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { homeFor, parseAccountType, type AccountType } from "@/lib/auth/account-type";
+import { parseCompanySlug } from "@/lib/companies/company";
 import { createClient } from "@/lib/supabase/server";
 
-export type CurrentUser = { id: string; email: string; accountType: AccountType };
+// `companySlug` is an employer's company address from the JWT (features/company-slugs.md); null for a
+// candidate, and for an employer who hasn't set the company up yet.
+export type CurrentUser = { id: string; email: string; accountType: AccountType; companySlug: string | null };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
@@ -15,6 +18,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     id: data.claims.sub,
     email: data.claims.email ?? "",
     accountType: parseAccountType(data.claims.app_metadata?.account_type),
+    companySlug: parseCompanySlug(data.claims.app_metadata?.company_slug),
   };
 });
 
@@ -28,6 +32,6 @@ export async function requireUser(): Promise<CurrentUser> {
 // employer page, or the other way round, is sent to their own home. Server Actions call it too.
 export async function requireAccountType(type: AccountType): Promise<CurrentUser> {
   const user = await requireUser();
-  if (user.accountType !== type) redirect(homeFor(user.accountType));
+  if (user.accountType !== type) redirect(homeFor(user.accountType, user.companySlug));
   return user;
 }

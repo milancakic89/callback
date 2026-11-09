@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { KeepNextLink } from "@/components/auth/keep-next-link";
 import {
   Card,
   CardContent,
@@ -7,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+const FOOTER_LINK = "font-medium text-foreground underline-offset-4 hover:underline";
 
 export function AuthCard({
   title,
@@ -19,8 +23,8 @@ export function AuthCard({
   title: string;
   description: string;
   footerText?: string;
-  footerLinkLabel: string;
-  footerLinkHref: string;
+  footerLinkLabel?: string;
+  footerLinkHref?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -32,15 +36,23 @@ export function AuthCard({
       <CardContent className="[&_[data-slot=button]]:h-11 [&_[data-slot=button]]:text-base [&_[data-slot=input]]:h-11 [&_[data-slot=input]]:text-base [&_form]:gap-6 [&_label]:text-base">
         {children}
       </CardContent>
-      <CardFooter className="justify-center gap-1 text-base text-muted-foreground">
-        {footerText}
-        <Link
-          href={footerLinkHref}
-          className="font-medium text-foreground underline-offset-4 hover:underline"
-        >
-          {footerLinkLabel}
-        </Link>
-      </CardFooter>
+      {footerLinkLabel && footerLinkHref && (
+        <CardFooter className="justify-center gap-1 text-base text-muted-foreground">
+          {footerText}
+          {/* Between sign-in and sign-up, a posting to come back to goes along (features/candidate-cvs.md). */}
+          <Suspense
+            fallback={
+              <Link href={footerLinkHref} className={FOOTER_LINK}>
+                {footerLinkLabel}
+              </Link>
+            }
+          >
+            <KeepNextLink href={footerLinkHref} className={FOOTER_LINK}>
+              {footerLinkLabel}
+            </KeepNextLink>
+          </Suspense>
+        </CardFooter>
+      )}
     </Card>
   );
 }

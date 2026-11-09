@@ -9,12 +9,12 @@
 It also starts the CV access model agreed for Callback: the files sit in a private bucket no client can read, every open goes through a route that checks access, there is no download button, and a withdrawn application can't be opened.
 
 ## Decisions (agreed with the user, 2026-10-31)
-- **Real PDFs from the start.** PDF.js draws them on canvases. The files are in the private Supabase Storage bucket `application-documents`. The browser only ever sees `/api/applications/{id}/documents/{cv|cover-letter}`, never a Storage URL.
+- **Real PDFs from the start.** PDF.js draws them on canvases. The files are in a private Cloudflare R2 bucket ([document-storage.md](./document-storage.md); they were in the Supabase Storage bucket `application-documents` when this was built). The browser only ever sees `/api/applications/{id}/documents/{cv|cover-letter}`, never a storage URL.
 - **Demo data.**
   - The demo job's three applicants get their own PDFs, printed from the landing's sample documents (`src/components/landing/sample-documents.tsx`), so the landing demo and the review show the same files.
   - **Priya Raman's demo application has no cover letter**, so that case shows too.
   - The demo job gets filters, and each application gets the filters its CV meets, written by hand (Ana 4/4 required and 1/3 nice-to-have, Jonas 3/4 and 1/3, Priya 2/4 and 1/3).
-  - Real matching comes last. Until then a real application's `matched_filters` is null and the overview says "Not checked yet".
+  - Real matching came later, as a free keyword check of the CV's text ([cv-screening.md](./cv-screening.md)): a real application's `matched_filters` is filled when the candidate applies, and the overview shows each filter as met, missing or "? check by eye". Where an application hasn't been checked the overview still says "Not checked yet", and for a CV with no readable text "Couldn't read the text of this CV". The playlist can be ordered Best match first. The "Preview" badge is now "Keyword check".
 - **Next.** It marks the open applicant viewed and opens the next one not viewed yet below them, wrapping round to the top. When everyone is viewed it shows "All candidates viewed", with "Show liked", "Start from the top" and "Back to dashboard". Clicking a row in the playlist only opens that applicant; it marks nothing.
   - **Next and ← keep to the list the playlist shows** (All or Liked). Once all of those are viewed, Next on one already viewed opens the next one down, so a second pass goes through them in order, and the bottom of the list shows the end screen again. "Start from the top" switches the playlist back to All; "Show liked" switches it to Liked. If the liked ones run out while others are still new, Next carries on with the new ones in All. (Fixed 2026-11-01: Next ignored the filter, and once everyone was viewed it only showed the end screen again.)
 - **The heart** (next to Next) likes or unlikes. Liked applicants carry a lime heart in the playlist, and **All / Liked** narrows the list.
@@ -29,6 +29,7 @@ It also starts the CV access model agreed for Callback: the files sit in a priva
 - **Withdrawn applications** are not in the playlist, and the document route answers 404 for them.
 
 ## The screen
+- **A typed cover letter** ([candidate-cvs.md](./candidate-cvs.md)): an application has a PDF cover letter or a text one, never both. The text is shown as plain text on a sheet like the PDFs' pages, in the same frame, which opens wide on hover as the PDF does; the header says "Written in the application".
 - **From 1280px**, four columns: playlist (15rem) | CV | cover letter | overview (17rem).
   - The CV and the letter share the middle 1.4 : 1.
   - Each column scrolls on its own.
@@ -65,8 +66,8 @@ It also starts the CV access model agreed for Callback: the files sit in a priva
 ### Document route: `src/app/api/applications/[applicationId]/documents/[kind]/route.ts`
 Each request goes through these steps in order:
 1. **Parameters.** `kind` must be `cv` or `cover-letter`, and the id a uuid. Otherwise: 404.
-2. **No browser viewer.** A request with a `Sec-Fetch-Dest` other than `empty` (a tab, an iframe, an `<object>` or `<embed>`) gets 404. The browser's own PDF viewer, with its download button, never opens a candidate's file. This discourages saving it but can't stop the developer tools.
-3. **Session.** No session: 401. A candidate account: 404.
+2. **Session.** No session: 401. A candidate goes another way: `my_application_document_path()` answers only about their own active application, and a tab is allowed, since it is their own file ([candidate-cvs.md](./candidate-cvs.md)).
+3. **No browser viewer** (an employer). A request with a `Sec-Fetch-Dest` other than `empty` (a tab, an iframe, an `<object>` or `<embed>`) gets 404. The browser's own PDF viewer, with its download button, never opens a candidate's file. This discourages saving it but can't stop the developer tools.
 4. **Rate limit.** 240 a minute per user (`review-doc:<id>`, Postgres store).
 5. **Access check.** The application is read with the caller's own client (`withdrawn_at is null`), so row level security decides whose it is. Only then is the file read with the secret key and answered `inline`, `Cache-Control: private, no-store`.
 
@@ -81,7 +82,7 @@ Rejected applications, closed jobs and the 60-day limit will be refused in the s
 - **Pure logic:**
   - `src/lib/review/navigation.ts`: `nextUnviewed`, `initialIndex`;
   - `src/lib/review/matches.ts`: `summarizeFilters`, case-insensitive;
-  - `src/lib/review/documents.ts`: bucket, kinds, URLs, paths.
+  - `src/lib/review/documents.ts`: kinds, URLs, paths (the bucket is `R2_BUCKET` now; an application's own files are at `applications/{id}/{kind}/{name}.pdf`, see [apply-with-cv.md](./apply-with-cv.md)).
 
 ### Routes
 - **The sidebar shell moved into a route group.** It is now `src/app/(employer)/[company]/(workspace)/layout.tsx`, with the dashboard, `jobs/new` and `jobs/[jobId]/edit` under it. `[company]/layout.tsx` keeps only `generateStaticParams`.
@@ -143,7 +144,7 @@ Rejected applications, closed jobs and the 60-day limit will be refused in the s
 
 ## Out of scope
 - Candidates uploading CVs, and the application form.
-- Parsing and real matching (the ATS).
+- Parsing and real matching (the ATS). (Done since, as a keyword check: [cv-screening.md](./cv-screening.md).)
 - Telling the candidate about a status. (Changing the status itself is [application-status.md](./application-status.md).)
 - A watermark in the viewer.
 - The 60-day limit and closing a job.

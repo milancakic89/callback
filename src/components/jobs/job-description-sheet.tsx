@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2Icon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { postingIdOf, postingPath } from "@/lib/jobs/published";
 import { sourceLabel, type JobListItem } from "@/lib/jobs/types";
 import type { DescriptionStatus } from "./filter-rule";
 
@@ -54,6 +56,8 @@ export function JobDescriptionSheet({ job, description, status, onClose, onRetry
   // null (adjusting state during render, as in jobs-explorer.tsx).
   const [shown, setShown] = useState(job);
   if (job && job !== shown) setShown(job);
+  // A job posted on Callback is applied to on its own page (features/apply-with-cv.md).
+  const postingId = shown ? postingIdOf(shown.id) : null;
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
@@ -65,6 +69,13 @@ export function JobDescriptionSheet({ job, description, status, onClose, onRetry
             {shown && ` · ${sourceLabel(shown.source)}`}
           </SheetDescription>
         </SheetHeader>
+        {postingId && (
+          <div className="px-4 pb-3">
+            <Link href={postingPath(postingId)} className={buttonVariants({ size: "sm" })}>
+              View posting and apply
+            </Link>
+          </div>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
           {status === "loading" ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

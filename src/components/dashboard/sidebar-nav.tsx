@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardCheckIcon, HeartIcon, HomeIcon, LayoutDashboardIcon } from "lucide-react";
+import { ClipboardCheckIcon, FileTextIcon, HeartIcon, HomeIcon, LayoutDashboardIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "cn";
@@ -11,6 +11,7 @@ const CANDIDATE_ITEMS = [
   { href: "/dashboard", label: "Home", icon: HomeIcon },
   { href: "/saved-jobs", label: "Saved jobs", icon: HeartIcon },
   { href: "/applications", label: "Applications", icon: ClipboardCheckIcon },
+  { href: "/profile", label: "CVs", icon: FileTextIcon },
 ];
 
 export type SidebarArea = "candidate" | "employer";

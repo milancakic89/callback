@@ -95,5 +95,5 @@ House style: comment on top, explicit grants.
 - `ChipsInput` itself dedupes case-sensitively within its own box; the case-insensitive rule is the schema's, so "React" and "react" typed in one box are collapsed on save, and across the two boxes they show the field error.
 
 ## Out of scope
-- Uploading and parsing CVs, matching them against filters, showing "meets all" on applicants.
+- Uploading and parsing CVs, matching them against filters, showing "meets all" on applicants. (Done since, as a free keyword check: [cv-screening.md](./cv-screening.md). The filters are still free text; a quantity such as "5+ years" is left to the reviewer.)
 - Filters on the dashboard card, the demo job's filters, suggestions/autocomplete from earlier jobs.

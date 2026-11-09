@@ -1,4 +1,5 @@
 import { CheckIcon } from "lucide-react";
+import Link from "next/link";
 import { cn } from "cn";
 import { formatUsd, periodCents, type BillingPeriod, type PricingPlan } from "./pricing-plans";
 import { ctaClass } from "./ui";
@@ -70,9 +71,9 @@ export function PricingCard({
           {note}
         </p>
 
-        <a href={plan.cta.href} className={ctaClass(plan.recommended ? "primary" : "secondary", "mt-6 w-full")}>
+        <Link href={plan.cta.href} className={ctaClass(plan.recommended ? "primary" : "secondary", "mt-6 w-full")}>
           {plan.cta.label}
-        </a>
+        </Link>
       </div>
 
       <ul

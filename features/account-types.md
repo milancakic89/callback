@@ -41,11 +41,16 @@ Every account is either a **candidate**, who looks for work and uses the existin
 ## Routing
 | | Candidate | Employer |
 |---|---|---|
-| Home (`homeFor`) | `/dashboard` | `/test` (the company's slug) |
-| `/dashboard`, `/saved-jobs`, `/applications` | allowed | redirected to `/test` |
-| `/test`, `/test/jobs/new` | redirected to `/dashboard` | allowed |
-| any other slug, e.g. `/foo` | not-found page (HTTP 200) | not-found page (HTTP 200) |
-| `/`, `/jobs`, `/sign-in`, `/sign-up`, `/forgot-password` | → `/dashboard` | → `/test` |
+| Home (`homeFor`) | `/dashboard` | `/{slug}` (the company's slug, from the JWT), or `/setup` until the company is set up |
+| `/dashboard`, `/saved-jobs`, `/applications` | allowed | redirected home |
+| `/{slug}`, `/{slug}/jobs/new` | redirected to `/dashboard` | allowed (another company's slug: not-found page) |
+| `/setup` | redirected to `/dashboard` | allowed until the company is set up, then redirected home |
+| `/test`, `/employer` (the old addresses) | redirected to `/dashboard` | redirected home |
+| any other first segment, e.g. `/foo` | guest: `/sign-in`; candidate: `/dashboard` | not-found page |
+| `/`, `/jobs`, `/sign-in`, `/sign-up`, `/forgot-password` | → `/dashboard` | → home |
+| `/jobs/{id}` (a posting) | allowed | allowed |
+
+These rules are `gateRedirect()` in `src/lib/auth/route-gate.ts` ([company-slugs.md](./company-slugs.md)).
 
 - Proxy does this optimistically, from the JWT.
 - The real checks are `requireAccountType()` in `src/lib/auth/dal.ts`:

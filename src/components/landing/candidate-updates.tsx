@@ -3,8 +3,9 @@ import { cn } from "cn";
 import { AvailabilityTag, Container, SectionHeading } from "./ui";
 
 // How an application moves and what the candidate hears at each step. When the timeline scrolls
-// into view the lime line draws across and the steps light up in order (landing.css). Illustrative:
-// the employer side is not built yet.
+// into view the lime line draws across and the steps light up in order (landing.css). The first
+// three steps work today (a candidate applies, it lands in the employer's list, the employer sets a
+// status); the message in step 4 is not built, so the section is tagged "partly available".
 
 const STEPS = [
   {
@@ -81,10 +82,10 @@ export function CandidateUpdates() {
       <Container className="py-24 sm:py-32">
         <SectionHeading
           eyebrow="Candidate updates"
-          tag={<AvailabilityTag status="soon" />}
+          tag={<AvailabilityTag status="partial" />}
           title="Silence shouldn't be part of the hiring process."
         >
-          When an application moves to a new stage, Callback can let the candidate know automatically,
+          When an application moves to a new stage, Callback will let the candidate know automatically,
           with messages your team writes once. Candidates know where they stand, and recruiters stop
           writing the same email twice.
         </SectionHeading>
@@ -119,7 +120,10 @@ export function CandidateUpdates() {
         </div>
 
         <p data-reveal className="mt-12 max-w-2xl text-[13.5px] leading-relaxed text-(--l-fg-subtle)">
-          Updates are sent from templates your team controls. Personal feedback is still yours to write.
+          Today the candidate sees a confirmation on the posting page, and employers can already move an
+          application through Applied, Screening, Interview, Offer and Hired. Sending the update to the
+          candidate is the next step. It will use templates your team controls; personal feedback stays
+          yours to write.
         </p>
       </Container>
     </section>

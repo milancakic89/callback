@@ -24,7 +24,7 @@ const OPTIONS: { value: Choice; title: string; body: string }[] = [
   {
     value: "withdraw",
     title: "Tell them the job is closed",
-    body: "Their applications are marked as withdrawn. Candidates aren't emailed yet.",
+    body: "Their applications are withdrawn: you lose access to their CVs, and their cover letters are deleted. Candidates aren't emailed yet.",
   },
   {
     value: "move",
@@ -34,7 +34,7 @@ const OPTIONS: { value: Choice; title: string; body: string }[] = [
   {
     value: "keep",
     title: "Keep them on this job",
-    body: "A pause: their applications stay as they are.",
+    body: "A pause: their applications stay as they are, and you keep access. Their CVs stay locked on their accounts until you close the job or they withdraw.",
   },
 ];
 

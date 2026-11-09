@@ -63,11 +63,18 @@ export type JobApplicant = {
   viewed: boolean;
   liked: boolean;
   stage: HiringStage;
-  // The job's filters the CV meets; null until the application has been checked.
+  // What the CV screening saved for the application (features/cv-screening.md): the job's filters the
+  // CV meets (null until it has been checked), the ones it couldn't decide, and whether the CV could
+  // be read. summarizeFilters() turns these into what the review screen shows.
   matchedFilters: string[] | null;
+  unverifiedFilters: string[] | null;
+  screeningOutcome: "checked" | "unreadable" | null;
   // The file names to show, or null when the application has no such document.
   cvFileName: string | null;
   coverLetterFileName: string | null;
+  // A cover letter typed in the apply dialog instead of a PDF (features/candidate-cvs.md); an
+  // application has one or the other, never both.
+  coverLetterText: string | null;
 };
 
 type ApplicantRow = {
@@ -77,8 +84,11 @@ type ApplicantRow = {
   liked_at: string | null;
   stage: HiringStage;
   matched_filters: string[] | null;
+  unverified_filters: string[] | null;
+  screening_outcome: "checked" | "unreadable" | null;
   cv_path: string | null;
   cover_letter_path: string | null;
+  cover_letter_text: string | null;
   candidate: { full_name: string; location: string | null; sample_key: string | null } | null;
 };
 
@@ -165,7 +175,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
   const { data, error } = await supabase
     .from("job_applications")
     .select(
-      "id, applied_at, viewed_at, liked_at, stage, matched_filters, cv_path, cover_letter_path, candidate:candidate_profiles(full_name, location, sample_key)",
+      "id, applied_at, viewed_at, liked_at, stage, matched_filters, unverified_filters, screening_outcome, cv_path, cover_letter_path, cover_letter_text, candidate:candidate_profiles(full_name, location, sample_key)",
     )
     .eq("job_posting_id", jobId)
     .is("withdrawn_at", null)
@@ -185,8 +195,11 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
         liked: row.liked_at !== null,
         stage: row.stage,
         matchedFilters: row.matched_filters,
+        unverifiedFilters: row.unverified_filters,
+        screeningOutcome: row.screening_outcome,
         cvFileName: fileName(row.cv_path, sampleKey, "cvFile"),
         coverLetterFileName: fileName(row.cover_letter_path, sampleKey, "letterFile"),
+        coverLetterText: row.cover_letter_text,
       };
     })
     .sort((a, b) => a.appliedAt.localeCompare(b.appliedAt) || a.name.localeCompare(b.name));

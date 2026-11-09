@@ -14,8 +14,11 @@ import { GET } from "./route";
 const request = (query: string) => new NextRequest(`https://localhost:3000/auth/confirm?${query}`);
 const locationOf = async (query: string) => (await GET(request(query))).headers.get("location");
 
-function confirms(accountType?: string) {
-  verifyOtp.mockResolvedValue({ data: { user: { app_metadata: { account_type: accountType } } }, error: null });
+function confirms(accountType?: string, companySlug?: string) {
+  verifyOtp.mockResolvedValue({
+    data: { user: { app_metadata: { account_type: accountType, company_slug: companySlug } } },
+    error: null,
+  });
 }
 
 beforeEach(() => {
@@ -31,8 +34,11 @@ describe("a confirmed email link", () => {
   });
 
   it("sends each account type to its own home", async () => {
+    confirms("employer", "acme");
+    expect(await locationOf("token_hash=abc&type=email")).toBe("https://callback.rs/acme");
+    // A new employer has no company yet: setup comes first (features/company-slugs.md).
     confirms("employer");
-    expect(await locationOf("token_hash=abc&type=email")).toBe("https://callback.rs/test");
+    expect(await locationOf("token_hash=abc&type=email")).toBe("https://callback.rs/setup");
     confirms("candidate");
     expect(await locationOf("token_hash=abc&type=email")).toBe("https://callback.rs/dashboard");
     confirms(undefined);

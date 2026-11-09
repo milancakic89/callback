@@ -5,6 +5,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CompanyJob } from "@/lib/companies/workspace";
+import { postingPath } from "@/lib/jobs/published";
 import { DeleteJobButton } from "./delete-job-button";
 import { PublishJobButton } from "./publish-job-button";
 import { UnpublishJobButton, type MoveTarget } from "./unpublish-job-button";
@@ -74,6 +75,11 @@ export function JobCard({
               >
                 Edit
               </Link>
+              {published && (
+                <Link href={postingPath(job.id)} className={buttonVariants({ variant: "outline" })}>
+                  View posting
+                </Link>
+              )}
               {published ? (
                 <UnpublishJobButton
                   jobId={job.id}

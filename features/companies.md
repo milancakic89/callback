@@ -16,7 +16,10 @@ Each employer gets a workspace under their company's slug (`/test`, `/test/jobs/
 | CV filters on a job: required and nice-to-have chips, stored with the job and private to the company | **Done, migrated and checked in a browser, not yet pushed** | [job-filters.md](./job-filters.md) |
 | Reviewing a job's applicants: playlist, CV and cover letter side by side, screening overview, Next and a heart | **Done, migrated, seeded and checked in a browser, committed, not yet pushed** | [applicant-review.md](./applicant-review.md) |
 | An application's status on the review screen: Applied to Hired, or Rejected, by click or key | **Done, migrated, checked in a browser and pushed** | [application-status.md](./application-status.md) |
-| Native jobs from the database, a careers page, the application form, telling the candidate about a status, checking CVs against the filters | Later | [Later phases](#later-phases) |
+| A company's name and its own address, `/{slug}`, chosen once on `/setup` (replaces the fixture company `test`) | **Written, not applied** (code and tests done; the migration waits) | [company-slugs.md](./company-slugs.md) |
+| CVs and cover letters in Cloudflare R2 | **Done**, checked against the real bucket | [document-storage.md](./document-storage.md) |
+| Published jobs on `/jobs`, a page for each, and applying with a CV and a cover letter | **Written, not applied** (code and tests done; the migration waits) | [apply-with-cv.md](./apply-with-cv.md) |
+| A careers page, telling the candidate about a status, checking CVs against the filters | Later | [Later phases](#later-phases) |
 
 When asked to implement "the plan", **don't redo the Implementation sections below**: sections 1 to 4 are finished. Implement the step the request names; the next one is [demo-job.md](./demo-job.md).
 
@@ -176,6 +179,8 @@ Where the code differs from the plan first written for this step:
 - The landing page in development, where the open-roles count includes the fixture.
 
 ## Later phases
+**Update:** phases 1 and 3 are written ([company-slugs.md](./company-slugs.md), [apply-with-cv.md](./apply-with-cv.md)), and the first form of phase 5 is the CV-and-cover-letter application of [apply-with-cv.md](./apply-with-cv.md), without per-job questions. The fixture company `test` and the development-only fixture job no longer exist.
+
 1. **A `companies` table.** (A first version, one row per employer account without a name or slug, is written in [demo-job.md](./demo-job.md); the part below is what comes after it.)
    - Columns: `owner_id`, a unique `slug`, and a list of reserved slugs (`admin`, `api`, `jobs`, `careers`, …).
    - The slug goes into `app_metadata`, so proxy and `homeFor` read it from the JWT.

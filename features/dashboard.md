@@ -4,6 +4,8 @@
 
 One table of active jobs with a live search box and a rule-based filter builder above it. All active jobs are loaded once, and search and filtering run entirely in the browser.
 
+> **Update:** jobs posted on Callback now come from the database and are listed first (the development-only fixture is gone); their title links to their own page, `/jobs/{id}`, in the same tab ([apply-with-cv.md](./apply-with-cv.md)).
+
 ## Context
 
 Phase 2 of [roadmap.md](../project-overview/roadmap.md) planned a dashboard shell with no data. The [job scraper](./job-scraper.md) (Phase 3) already publishes active jobs to `public.jobs`, so the dashboard ships with real data instead of an empty state. It also takes a minimal slice of Phase 4: an `applied` flag per user.

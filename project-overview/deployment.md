@@ -96,7 +96,12 @@ On the server:
    MAIL_FROM="Callback <no-reply@callback.rs>"
    AUTH_COOKIE_SECRET=<openssl rand -hex 32>
    REVALIDATE_SECRET=<openssl rand -hex 32>
+   R2_ENDPOINT=https://<account-id>.eu.r2.cloudflarestorage.com
+   R2_ACCESS_KEY_ID=...
+   R2_SECRET_ACCESS_KEY=...
+   R2_BUCKET=callback-storage-document
    ```
+   - The four `R2_*` variables are required ([features/document-storage.md](../features/document-storage.md)): `next build` fails without them, so a deploy with an old `PRODUCTION_ENV` stops before anything is shipped. The endpoint is the **EU** one; the plain endpoint answers 403 for a bucket in a jurisdiction. GitHub doesn't show a secret's value, so updating `PRODUCTION_ENV` means pasting the whole file again.
    - Wrap any value containing a space or `#` in double quotes: the build, Node and your editor all read this file.
    - Use a new `AUTH_COOKIE_SECRET` for production rather than the development one.
    - `REVALIDATE_SECRET` is optional ([security.md](./security.md)). Set it, and the same value plus `APP_URL=https://callback.rs` in your local `.env.local`, if you want `npm run scrape -- publish` to refresh the live job list at once.

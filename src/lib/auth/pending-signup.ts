@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { io } from "next/cache";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
+import { postingNext } from "./safe-next";
 
 // Proof, without a session, that whoever sees the account-type dialog owns the account
 // (features/account-types.md). It is set only right after sign-up created the account, or after
@@ -16,7 +17,9 @@ const COOKIE = "cb_pending_signup";
 const MAX_AGE_SECONDS = 60 * 60;
 const KEY = createHash("sha256").update(env.AUTH_COOKIE_SECRET).digest();
 
-export type PendingSignup = { uid: string | null; email: string };
+// `next` is the posting a candidate signed up from (features/candidate-cvs.md), which the activation
+// email brings them back to; null for anything else.
+export type PendingSignup = { uid: string | null; email: string; next: string | null };
 
 export async function setPendingSignup(pending: PendingSignup) {
   const iv = randomBytes(12);
@@ -46,7 +49,7 @@ export async function readPendingSignup(): Promise<PendingSignup | null> {
     decipher.setAuthTag(tag);
     const data = JSON.parse(Buffer.concat([decipher.update(sealed), decipher.final()]).toString("utf8"));
     if (typeof data.email !== "string" || typeof data.exp !== "number" || data.exp < Date.now()) return null;
-    return { uid: typeof data.uid === "string" ? data.uid : null, email: data.email };
+    return { uid: typeof data.uid === "string" ? data.uid : null, email: data.email, next: postingNext(data.next) };
   } catch {
     // Tampered, truncated or sealed with an old key.
     return null;

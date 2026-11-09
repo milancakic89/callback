@@ -23,9 +23,9 @@ A company can edit any of its jobs, and publish or unpublish it from its card on
 - **The state is a timestamp, `job_postings.published_at`** (null = unpublished). One column says both whether and since when, which the job board will want for its "Posted" date.
 - **Publishing:** a confirmation dialog, then `published_at = now()`. Nothing changes on `/jobs`.
 - **Unpublishing a job with active applicants** opens a dialog with three choices (none preselected; the button stays disabled until one is picked):
-  1. **Tell the applicants the job is closed.** Their applications get `withdrawn_at`. **No email is sent**: the only applicants today are the mock accounts. The candidate will see it later, in `/applications` or by email.
-  2. **Move them to another job.** A select lists every other job of the company except the demo job, published or not. A candidate already on the target job isn't duplicated: their application there becomes active again. The emptied job stays as an unpublished draft; deleting it is still the Delete button.
-  3. **Keep them** (a pause): the applications stay as they are.
+  1. **Tell the applicants the job is closed.** Their applications get `withdrawn_at`. **No email is sent**: the only applicants today are the mock accounts. The candidate will see it later, in `/applications` or by email. Since [candidate-cvs.md](./candidate-cvs.md), a withdrawn application also **gives up its documents** in the same update: the company loses access to the CV (which is unlocked on the candidate's account) and the cover letter is deleted.
+  2. **Move them to another job.** A select lists every other job of the company except the demo job, published or not. A candidate already on the target job isn't duplicated: their application there becomes active again. The emptied job stays as an unpublished draft; deleting it is still the Delete button. Since [candidate-cvs.md](./candidate-cvs.md): a target application the company had withdrawn takes over the moved one's documents; one the **candidate** withdrew is never reopened, and the moved one is withdrawn instead.
+  3. **Keep them** (a pause): the applications stay as they are, the company keeps access, and the CVs stay locked on the candidates' accounts until the job is closed or the candidate withdraws.
 - **Unpublishing with no active applicants:** a plain confirmation.
 - **Withdrawn applications stay withdrawn** if the job is published again. The card counts active applicants, and withdrawn ones separately ("3 applicants · 2 withdrawn").
 - **Editing is always allowed**, published or not, with applicants or not, at `/{company}/jobs/{jobId}/edit` with the same form.
@@ -150,7 +150,7 @@ The database is shared between local development and production.
 - **Pushing to `main`**, and the deploy that follows.
 
 ## Out of scope
-- Showing published jobs on `/jobs` and a job page for candidates.
+- Showing published jobs on `/jobs` and a job page for candidates. (Done since: [apply-with-cv.md](./apply-with-cv.md). Publishing now puts the job on the board, and the actions expire the cached list with `updateTag("jobs")`.)
 - Sending the "job closed" notice (email or in-app); only `withdrawn_at` is stored.
 - Moving applicants between companies, or one by one.
 - Editing or publishing the demo job.

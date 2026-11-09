@@ -7,12 +7,14 @@ import { z } from "zod";
 import { ACCOUNT_TYPES, homeFor, parseAccountType, type AccountType } from "@/lib/auth/account-type";
 import { requireUser } from "@/lib/auth/dal";
 import { clearPendingSignup, readPendingSignup, setPendingSignup } from "@/lib/auth/pending-signup";
+import { postingNext } from "@/lib/auth/safe-next";
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
   signInSchema,
   signUpSchema,
 } from "@/lib/auth/schemas";
+import { parseCompanySlug } from "@/lib/companies/company";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 import { sendAuthEmail } from "@/lib/mail";
@@ -63,7 +65,7 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
       // account type yet, the activation email hasn't been sent: open the choice dialog instead.
       const account = await accountForEmail(email);
       if (account && !account.account_type) {
-        await setPendingSignup({ uid: account.id, email });
+        await setPendingSignup({ uid: account.id, email, next: postingNext(formData.get("next")) });
         return {};
       }
       return { error: "Confirm your email first. Check your inbox for the link." };
@@ -71,7 +73,11 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
     return { error: "Invalid email or password" };
   }
 
-  redirect(homeFor(parseAccountType(data.user.app_metadata.account_type)));
+  const accountType = parseAccountType(data.user.app_metadata.account_type);
+  // "Sign in to apply" on a posting comes back to it (features/apply-with-cv.md). Only a candidate
+  // can apply, so anyone else goes home; and only a posting's path is followed, never another.
+  const next = accountType === "candidate" ? postingNext(formData.get("next")) : null;
+  redirect(next ?? homeFor(accountType, parseCompanySlug(data.user.app_metadata.company_slug)));
 }
 
 export async function signUp(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -80,6 +86,8 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     return { fieldErrors: fieldErrors(parsed.error) };
   }
   const { email, password } = parsed.data;
+  // "Create an account" on a posting: the activation email brings a candidate back to it.
+  const next = postingNext(formData.get("next"));
 
   if (await isLimited(`sign-up:${await clientIp()}`, 3, HOUR)) {
     return { error: TOO_MANY_ATTEMPTS };
@@ -102,14 +110,14 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     }
     // An active account already uses this email. The dialog still opens, as a decoy that sends
     // nothing, so sign-up doesn't reveal existing accounts.
-    await setPendingSignup({ uid: null, email });
+    await setPendingSignup({ uid: null, email, next });
     return {};
   }
 
   // generateLink also succeeds for an existing, not-yet-activated account (without touching its
   // password), so only someone who knows that password gets to choose its type.
   const owner = await isUnconfirmedOwner(email, password);
-  await setPendingSignup({ uid: owner ? data.user.id : null, email });
+  await setPendingSignup({ uid: owner ? data.user.id : null, email, next });
   return {};
 }
 
@@ -139,7 +147,9 @@ export async function chooseAccountType(_prev: AuthFormState, formData: FormData
 
   // A decoy (pending.uid null) does nothing, but ends exactly like a real choice.
   if (pending.uid) {
-    const result = await activateAs(pending.uid, parsed.data.accountType);
+    // Only a candidate can apply, so only a candidate's link goes back to the posting.
+    const next = parsed.data.accountType === "candidate" ? pending.next : null;
+    const result = await activateAs(pending.uid, parsed.data.accountType, next);
     if (result === "failed") {
       return { error: GENERIC_ERROR };
     }
@@ -160,9 +170,14 @@ export async function startOver() {
   redirect("/sign-up");
 }
 
-// Saves the type and sends the activation link. The type is final once the account is active, so an
-// account that got activated in the meantime keeps the one it has.
-async function activateAs(uid: string, accountType: AccountType): Promise<"sent" | "already_active" | "failed"> {
+// Saves the type and sends the activation link, which lands on `next` when there is one (a posting a
+// candidate signed up from) and on the account's home otherwise. The type is final once the account
+// is active, so an account that got activated in the meantime keeps the one it has.
+async function activateAs(
+  uid: string,
+  accountType: AccountType,
+  next: string | null,
+): Promise<"sent" | "already_active" | "failed"> {
   const { data: found, error: findError } = await supabaseAdmin.auth.admin.getUserById(uid);
   if (findError || !found.user?.email) {
     console.error("chooseAccountType getUserById failed:", findError?.code, findError?.message);
@@ -193,6 +208,7 @@ async function activateAs(uid: string, accountType: AccountType): Promise<"sent"
       type: "activation",
       accountType,
       tokenHash: link.properties.hashed_token,
+      next,
     });
   } catch (mailError) {
     console.error("chooseAccountType email failed:", mailError);
@@ -284,7 +300,7 @@ export async function resetPassword(
     return { error: GENERIC_ERROR };
   }
 
-  redirect(homeFor(user.accountType));
+  redirect(homeFor(user.accountType, user.companySlug));
 }
 
 export async function signOut() {

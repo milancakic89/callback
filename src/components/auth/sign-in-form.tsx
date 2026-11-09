@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { signIn } from "@/app/(auth)/actions";
 import { FieldError, FormAlert } from "@/components/auth/form-feedback";
 import { useAuthForm } from "@/components/auth/use-auth-form";
+import { postingNext } from "@/lib/auth/safe-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,8 @@ export function SignInForm() {
     { secrets: ["password"] },
   );
   const searchParams = useSearchParams();
+  // Set by "Sign in to apply" on a posting; the action checks it again.
+  const next = postingNext(searchParams.get("next"));
   const linkError = LINK_ERRORS[searchParams.get("error") ?? ""];
   const notice = NOTICES[searchParams.get("notice") ?? ""];
   const alertState =
@@ -40,6 +43,7 @@ export function SignInForm() {
   return (
     <form action={formAction} className="grid gap-4">
       <FormAlert state={alertState} />
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input

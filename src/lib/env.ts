@@ -15,6 +15,14 @@ const envSchema = z.object({
   // Encrypts the cookie that lets a not-yet-activated user pick an account type
   // (src/lib/auth/pending-signup.ts).
   AUTH_COOKIE_SECRET: z.string().min(32),
+  // The private Cloudflare R2 bucket for applications' CVs and cover letters
+  // (features/document-storage.md). Required: a release without them answers 500 on /api/health, and
+  // the deploy rolls back. The endpoint is the bucket's own, https://<account-id>.eu.r2.cloudflarestorage.com
+  // for the EU jurisdiction.
+  R2_ENDPOINT: z.url().transform((url) => url.replace(/\/+$/, "")),
+  R2_ACCESS_KEY_ID: z.string().min(1),
+  R2_SECRET_ACCESS_KEY: z.string().min(1),
+  R2_BUCKET: z.string().min(1),
   // Shared with the scraper, which calls POST /api/jobs/revalidate after writing jobs. Optional:
   // without it that route is disabled and the job list refreshes on its cacheLife instead.
   REVALIDATE_SECRET: z.string().min(32).optional(),

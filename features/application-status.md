@@ -18,7 +18,7 @@ This document covers only the first. The rest are one feature at a time, each wi
 2. **Email templates and sending them to the candidate:** a template per status, variables (candidate, job, company), a preview before sending, a record of what was sent, never sent to the mock accounts. Needs the company's name first (`companies.name` exists, nothing writes it). It also covers the "job closed" notice, which is not sent today.
 3. **Candidates applying, and published jobs on `/jobs`:** the CV upload, and the status shown to the candidate. Only from here does the product work with real people. Items 2 and 3 can swap if real applications matter sooner.
 4. **A job's candidates at a glance:** a table, counts per status on the job card, changing many at once. Worth it once a job has more than a handful of applicants.
-5. **Real CV checks** against the job's filters.
+5. **Real CV checks** against the job's filters. Written, as a free keyword check that reads the CV's text: [cv-screening.md](./cv-screening.md) (migration not applied yet).
 6. **A job's own status and access to CVs:** closing a job, and the 60-day limit.
 7. **Company profile:** a real slug, a logo, a careers page.
 8. **Later:** team members, notes on a candidate, statistics, paid plans.

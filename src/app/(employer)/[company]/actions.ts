@@ -1,16 +1,26 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refresh, updateTag } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { homeFor } from "@/lib/auth/account-type";
 import { requireAccountType } from "@/lib/auth/dal";
-import { companyHome, TEST_COMPANY } from "@/lib/companies/company";
 import { jobPostingSchema } from "@/lib/companies/job-posting";
 import { ensureEmployerWorkspace } from "@/lib/companies/workspace";
 import { rateLimit } from "@/lib/rate-limit";
 import { HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
+import { rescreenJob } from "@/lib/screening/rescreen";
+import { sameFilters } from "@/lib/screening/same-filters";
+import { drainStorageDeletions } from "@/lib/storage/deletions";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
 import { createClient } from "@/lib/supabase/server";
+
+// The cache tag of the job list, descriptions and postings (src/lib/jobs/queries.ts). Publishing,
+// unpublishing, deleting or editing a published job expires it, so the job board follows at once.
+// updateTag, not revalidateTag: these are Server Actions, and the employer who clicked must see the
+// result on the very next page, not a stale one (node_modules/next/dist/docs/01-app/03-api-reference/04-functions/updateTag.md).
+const JOBS_CACHE_TAG = "jobs";
 
 const inputSchema = z.object({
   jobId: z.uuid(),
@@ -85,8 +95,7 @@ export async function createJobPosting(_prev: JobFormState, formData: FormData):
   });
   if (error) return failure;
 
-  // Every employer belongs to the fixture company until slugs come from the account.
-  redirect(companyHome(TEST_COMPANY));
+  redirect(homeFor(user.accountType, user.companySlug));
 }
 
 export type DeleteJobPostingResult = { ok: true } | { ok: false; error: string };
@@ -111,9 +120,18 @@ export async function deleteJobPosting(jobId: string): Promise<DeleteJobPostingR
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase.from("job_postings").delete().eq("id", parsed.data.jobId).select("id");
+  const { data, error } = await supabase
+    .from("job_postings")
+    .delete()
+    .eq("id", parsed.data.jobId)
+    .select("id, published_at");
   if (error) return { ok: false, error: "Could not delete. Try again." };
   if (!data?.length) return { ok: false, error: "Job not found." };
+  // A published job is on the job board: take it off at once (features/apply-with-cv.md).
+  if (data[0].published_at) updateTag(JOBS_CACHE_TAG);
+  // The applications went with the job, and their cover letters were queued for deletion
+  // (features/candidate-cvs.md); the candidates' CVs stay on their accounts.
+  after(drainStorageDeletions);
 
   // The dashboard is a Server Component: this re-renders it without the job.
   refresh();
@@ -144,6 +162,13 @@ export async function updateJobPosting(_prev: JobFormState, formData: FormData):
 
   const supabase = await createClient();
   const { title, description, location, workMode, requiredFilters, optionalFilters } = parsed.data;
+  // What the job's filters are now, to tell whether this edit changes them: if it does, the job's
+  // applications are checked again against the new ones (features/cv-screening.md).
+  const { data: before } = await supabase
+    .from("job_postings")
+    .select("required_filters, optional_filters")
+    .eq("id", jobId.data)
+    .maybeSingle<{ required_filters: string[]; optional_filters: string[] }>();
   const { data, error } = await supabase
     .from("job_postings")
     .update({
@@ -155,11 +180,23 @@ export async function updateJobPosting(_prev: JobFormState, formData: FormData):
       optional_filters: optionalFilters,
     })
     .eq("id", jobId.data)
-    .select("id");
+    .select("id, published_at");
   if (error) return { error: "Could not save the changes. Try again." };
   if (!data?.length) return { error: "Job not found." };
+  // A published job is on the job board with its title and text: show the edit at once. A draft is
+  // on no page but its owner's, so it leaves the cached job list alone.
+  if (data[0].published_at) updateTag(JOBS_CACHE_TAG);
+  // After the response: reading every CV takes a while, and the employer doesn't wait for it. Until it
+  // is done the review screen says "Not checked yet" (the first thing the re-check does).
+  const filtersChanged =
+    before !== null &&
+    !sameFilters(
+      { required: before.required_filters, optional: before.optional_filters },
+      { required: requiredFilters, optional: optionalFilters },
+    );
+  if (filtersChanged) after(() => rescreenJob(jobId.data));
 
-  redirect(companyHome(TEST_COMPANY));
+  redirect(homeFor(user.accountType, user.companySlug));
 }
 
 export type JobStateResult = { ok: true } | { ok: false; error: string };
@@ -179,8 +216,8 @@ function jobStateError(error: { code?: string }): string {
 }
 
 // Called from the confirm dialog on a job card (src/components/employer/publish-job-button.tsx).
-// Publishing only stores that the job is published: it isn't on the job board yet. The RPC finds the
-// job through the caller's company, so another company's id answers "Job not found.".
+// Publishing puts the job on the job board (features/apply-with-cv.md). The RPC finds the job
+// through the caller's company, so another company's id answers "Job not found.".
 // See features/job-publishing.md.
 export async function publishJobPosting(jobId: string): Promise<JobStateResult> {
   const parsed = inputSchema.safeParse({ jobId });
@@ -200,6 +237,7 @@ export async function publishJobPosting(jobId: string): Promise<JobStateResult> 
   const { error } = await supabase.rpc("publish_job_posting", { p_job_id: parsed.data.jobId });
   if (error) return { ok: false, error: jobStateError(error) };
 
+  updateTag(JOBS_CACHE_TAG);
   refresh();
   return { ok: true };
 }
@@ -216,8 +254,9 @@ const unpublishSchema = z
 export type UnpublishJobInput = z.input<typeof unpublishSchema>;
 
 // Called from the unpublish dialog (src/components/employer/unpublish-job-button.tsx). What happens
-// to the job's active applicants is the employer's choice: `keep` leaves them (a pause), `withdraw`
-// marks them withdrawn (nobody is told yet), `move` moves them to `targetJobId`. The RPC does it all
+// to the job's active applicants is the employer's choice: `keep` leaves them (a pause, their CVs stay
+// locked), `withdraw` marks them withdrawn and clears their documents (nobody is told yet), `move`
+// moves them to `targetJobId`. The RPC does it all
 // in one transaction, so a failed move leaves the job published with its applicants.
 export async function unpublishJobPosting(input: UnpublishJobInput): Promise<JobStateResult> {
   const parsed = unpublishSchema.safeParse(input);
@@ -242,6 +281,13 @@ export async function unpublishJobPosting(input: UnpublishJobInput): Promise<Job
   });
   if (error) return { ok: false, error: jobStateError(error) };
 
+  updateTag(JOBS_CACHE_TAG);
+  // The moved applications carry the results made for the old job's filters: check them again for
+  // this one's (features/cv-screening.md).
+  if (applicants === "move" && targetJobId) after(() => rescreenJob(targetJobId));
+  // Withdrawn applications give up their documents, and a move can drop an application or withdraw
+  // it: the cover letters they let go of were queued for deletion (features/candidate-cvs.md).
+  if (applicants !== "keep") after(drainStorageDeletions);
   refresh();
   return { ok: true };
 }

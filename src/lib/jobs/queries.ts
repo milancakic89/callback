@@ -1,8 +1,15 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { supabasePublic } from "@/lib/supabase/public";
-import { DEV_NATIVE_JOB_DESCRIPTIONS, DEV_NATIVE_JOB_ITEMS } from "./dev-fixtures";
+import {
+  listId,
+  toListItem as toPostedListItem,
+  toPublishedJob,
+  type PublishedJob,
+  type PublishedJobRow,
+} from "./published";
 import type { JobListItem, WorkMode } from "./types";
 
 // Supabase caps a single response at 1000 rows by default; there are already 1283+ active jobs.
@@ -41,9 +48,22 @@ function toListItem(row: JobRow): JobListItem {
   };
 }
 
+// The jobs companies published on Callback, through the public function that answers what a
+// candidate may see of them (supabase/migrations/20261109130000_published_jobs.sql): no CV filters.
+// Pass an id for a single job. Throws when the database does, so the callers' caches never keep a
+// list that is missing them.
+async function fetchPublishedJobs(jobId?: string): Promise<PublishedJob[]> {
+  const { data, error } = await supabasePublic.rpc("published_job_postings", jobId ? { p_job_id: jobId } : {});
+  if (error) throw new Error(`published_job_postings: ${error.message}`);
+  return ((data ?? []) as PublishedJobRow[]).map(toPublishedJob);
+}
+
 // The dashboard table's data, without `description` (loaded separately — see
 // features/dashboard.md "Description loading"). `supabasePublic` has no cookies, so this can be
-// cached: RLS limits it to active jobs either way.
+// cached: RLS limits it to active jobs either way. The jobs posted on Callback come with the scraped
+// ones (features/apply-with-cv.md); the table lists them first. The `jobs` tag is expired when a
+// company publishes, unpublishes or edits a posted job (src/app/(employer)/[company]/actions.ts), as
+// well as by the scraper.
 export async function getActiveJobs(): Promise<JobListItem[]> {
   "use cache";
   cacheLife("hours");
@@ -62,8 +82,8 @@ export async function getActiveJobs(): Promise<JobListItem[]> {
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE_SIZE) break;
   }
-  // Jobs posted on Callback aren't stored yet; in development a fixture stands in for them.
-  return [...DEV_NATIVE_JOB_ITEMS, ...rows.map(toListItem)];
+  const posted = await fetchPublishedJobs();
+  return [...posted.map(toPostedListItem), ...rows.map(toListItem)];
 }
 
 // Served by src/app/api/jobs/descriptions/route.ts, fetched client-side after the table renders.
@@ -72,7 +92,10 @@ export async function getJobDescriptions(): Promise<Record<string, string>> {
   cacheLife("hours");
   cacheTag("jobs");
 
-  const result: Record<string, string> = { ...DEV_NATIVE_JOB_DESCRIPTIONS };
+  const result: Record<string, string> = {};
+  for (const job of await fetchPublishedJobs()) {
+    if (job.description) result[listId(job.id)] = job.description;
+  }
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabasePublic
       .from("jobs")
@@ -89,6 +112,41 @@ export async function getJobDescriptions(): Promise<Record<string, string>> {
     if (!data || data.length < PAGE_SIZE) break;
   }
   return result;
+}
+
+// One published job for its page, /jobs/{id} (features/apply-with-cv.md), or null when there is
+// none: an unpublished job, the demo job and an unknown id all look the same. Cached like the list
+// and expired by the same tag, so unpublishing takes the page down on the next visit.
+export async function getPublishedJob(jobId: string): Promise<PublishedJob | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("jobs");
+
+  if (!z.uuid().safeParse(jobId).success) return null;
+  return (await fetchPublishedJobs(jobId))[0] ?? null;
+}
+
+// When the signed-in candidate applied to a posted job, or null. Not cached: it is per user. The
+// function answers only about the caller (supabase/migrations/20261109130000_published_jobs.sql),
+// so the explicit job id is all there is to ask.
+export async function getMyApplicationDate(jobId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_job_application", { p_job_id: jobId });
+  if (error) throw new Error(`getMyApplicationDate: ${error.message}`);
+  return typeof data === "string" ? data : null;
+}
+
+// What the apply form fills in for a candidate who has applied before: their own profile
+// (name and location), which row level security shows only to them. Not cached: per user.
+export async function getMyCandidateProfile(userId: string): Promise<{ fullName: string; location: string | null } | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("candidate_profiles")
+    .select("full_name, location")
+    .eq("user_id", userId)
+    .maybeSingle<{ full_name: string; location: string | null }>();
+  if (error) throw new Error(`getMyCandidateProfile: ${error.message}`);
+  return data ? { fullName: data.full_name, location: data.location } : null;
 }
 
 // Not cached: reads the session cookie, so it must stay fresh per user. RLS already scopes this

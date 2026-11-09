@@ -9,8 +9,9 @@ import { HIRING_STAGE_KEYS, HIRING_STAGE_LABELS, HIRING_STAGES, type HiringStage
 
 // The right-hand column of the review screen (features/applicant-review.md): who the applicant is,
 // a small screening overview against the job's filters, and the actions: the status
-// (features/application-status.md), the heart and Next. The overview only informs: nothing is
-// rejected automatically, and real matching comes later.
+// (features/application-status.md), the heart and Next. The overview is a keyword check of the CV
+// (features/cv-screening.md): it says which words it found, never what the CV means, and it only
+// informs. Nothing is rejected automatically.
 
 const TIME_ZONE = "Europe/Belgrade";
 
@@ -34,6 +35,7 @@ export function ApplicantSummary({
 
 export function ScreeningOverview({ summary }: { summary: FilterSummary }) {
   const hasFilters = summary.required.length + summary.optional.length > 0;
+  const checked = summary.status === "checked";
 
   return (
     <section aria-labelledby="screening-heading" className="flex flex-col gap-4">
@@ -45,7 +47,7 @@ export function ScreeningOverview({ summary }: { summary: FilterSummary }) {
           Screening overview
         </p>
         <span className="rounded-full border border-(--l-line-strong) px-1.5 py-px font-mono text-[9.5px] tracking-[0.08em] text-(--l-fg-subtle) uppercase">
-          Preview
+          Keyword check
         </span>
       </div>
 
@@ -53,21 +55,40 @@ export function ScreeningOverview({ summary }: { summary: FilterSummary }) {
         <p className="text-[12px] leading-relaxed text-(--l-fg-subtle)">This job has no filters to check against.</p>
       ) : (
         <>
-          {!summary.checked && (
+          {summary.status === "unchecked" && (
             <p className="rounded-md border border-(--l-line) bg-white/[0.02] px-2.5 py-2 text-[12px] leading-relaxed text-(--l-fg-muted)">
               Not checked yet. Read the CV to see how it meets the filters.
             </p>
           )}
+          {summary.status === "unreadable" && (
+            <p className="rounded-md border border-(--l-line) bg-white/[0.02] px-2.5 py-2 text-[12px] leading-relaxed text-(--l-fg-muted)">
+              Couldn&rsquo;t read the text of this CV (it may be a scan). Read it to see how it meets the filters.
+            </p>
+          )}
           {summary.required.length > 0 && (
-            <FilterGroup title="Required" checks={summary.required} met={summary.requiredMet} checked={summary.checked} />
+            <FilterGroup
+              title="Required"
+              checks={summary.required}
+              met={summary.requiredMet}
+              unverified={summary.requiredUnverified}
+              checked={checked}
+            />
           )}
           {summary.optional.length > 0 && (
             <FilterGroup
               title="Nice-to-have"
               checks={summary.optional}
               met={summary.optionalMet}
-              checked={summary.checked}
+              unverified={summary.optionalUnverified}
+              checked={checked}
             />
+          )}
+          {checked && (
+            <p className="text-[11.5px] leading-relaxed text-(--l-fg-subtle)">
+              Matched by the words in the CV, not by what it means. A filter marked <span aria-hidden>?</span>
+              <span className="sr-only">&ldquo;check by eye&rdquo;</span> is for you to read: a keyword can&rsquo;t
+              decide it.
+            </p>
           )}
         </>
       )}
@@ -79,11 +100,13 @@ function FilterGroup({
   title,
   checks,
   met,
+  unverified,
   checked,
 }: {
   title: string;
   checks: FilterCheck[];
   met: number;
+  unverified: number;
   checked: boolean;
 }) {
   const allMet = checked && met === checks.length;
@@ -104,24 +127,43 @@ function FilterGroup({
           {checks.map((check) => (
             <span
               key={check.label}
-              className={cn("h-1 flex-1 rounded-full", check.met ? "bg-(--l-lime)" : "bg-white/[0.08]")}
+              className={cn(
+                "h-1 flex-1 rounded-full",
+                check.state === "met" ? "bg-(--l-lime)" : check.state === "unverified" ? "bg-white/[0.28]" : "bg-white/[0.08]",
+              )}
             />
           ))}
         </div>
+      )}
+      {checked && unverified > 0 && (
+        <p className="text-[11.5px] text-(--l-fg-subtle)">
+          {unverified === 1 ? "1 to check by eye" : `${unverified} to check by eye`}
+        </p>
       )}
       <ul className="flex flex-col gap-1">
         {checks.map((check) => (
           <li key={check.label} className="flex items-start gap-2 text-[12.5px] leading-snug">
             {!checked ? (
               <span aria-hidden className="mt-[0.45em] size-1 shrink-0 rounded-full bg-(--l-fg-subtle)" />
-            ) : check.met ? (
+            ) : check.state === "met" ? (
               <CheckIcon aria-hidden className="mt-px size-3.5 shrink-0 text-(--l-lime)" />
+            ) : check.state === "unverified" ? (
+              <span
+                aria-hidden
+                className="mt-px inline-flex size-3.5 shrink-0 items-center justify-center font-mono text-[11px] text-(--l-fg-muted)"
+              >
+                ?
+              </span>
             ) : (
               <XIcon aria-hidden className="mt-px size-3.5 shrink-0 text-(--l-fg-subtle)" />
             )}
-            <span className={checked && !check.met ? "text-(--l-fg-subtle)" : "text-(--l-fg-muted)"}>
+            <span className={checked && check.state === "missing" ? "text-(--l-fg-subtle)" : "text-(--l-fg-muted)"}>
               {check.label}
-              {checked && <span className="sr-only">{check.met ? ", met" : ", missing"}</span>}
+              {checked && (
+                <span className="sr-only">
+                  {check.state === "met" ? ", met" : check.state === "unverified" ? ", check by eye" : ", missing"}
+                </span>
+              )}
             </span>
           </li>
         ))}

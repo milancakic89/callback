@@ -1,9 +1,11 @@
 import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
 import { cn } from "cn";
-import { AvailabilityTag, Container, Initials, SectionHeading } from "./ui";
+import { AvailabilityTag, Container, Initials, SectionHeading, type Availability } from "./ui";
 
-// Two complementary workflows on the same role. Illustrative only: the employer side is not built
-// yet, and every name below is fictional.
+// Two complementary workflows on the same role, both live for employers now. Smart Screening reads
+// each CV's text and checks it for the words of the job's requirements (features/cv-screening.md); it
+// is a keyword check, free and local, and says so. Illustrative visuals: every name below is
+// fictional, and the table's scores are made up.
 
 const CRITERIA = [
   { label: "5+ years in product design", required: true },
@@ -34,7 +36,7 @@ export function Screening() {
       <Container className="py-24 sm:py-32">
         <SectionHeading
           eyebrow="Screening workflows"
-          tag={<AvailabilityTag status="soon" />}
+          tag={<AvailabilityTag status="live" />}
           title="Two ways to review. One pipeline."
         >
           Use Smart Screening for the first pass on busy roles, and Fast Manual Mode when you want to read
@@ -44,15 +46,17 @@ export function Screening() {
         <div className="mt-14 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Panel
             label="Smart Screening"
+            status="live"
             title="Let automation handle the first pass."
-            body="Set the requirements for a role. Smart Screening checks each application against them and sorts the list, so you start with the strongest matches. Your team still makes every decision."
+            body="Set the requirements for a role. Smart Screening reads each CV for those words and can sort the list, so you start with the best matches. It matches words, not meaning, and leaves what it can't judge, like years of experience, for you to read. Your team still makes every decision."
           >
             <ScreeningTable />
           </Panel>
           <Panel
             label="Fast Manual Mode"
+            status="live"
             title="Stay in control of every decision."
-            body="Open the original CV and cover letter side by side, decide, and press Next. No downloads, no extra tabs, no reformatted profiles."
+            body="Open the original CV and cover letter side by side, set a status, and press Next. No downloads, no extra tabs, no reformatted profiles."
           >
             <MiniWorkspace />
           </Panel>
@@ -63,7 +67,7 @@ export function Screening() {
           aria-label="How the two workflows fit together"
           className="mt-4 flex flex-col gap-3 rounded-2xl border border-(--l-line) px-5 py-5 text-[14px] text-(--l-fg-muted) sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:gap-4"
         >
-          {["Smart Screening sorts the list", "You open the shortlist in Fast Manual Mode", "You decide", "The candidate is updated"].map(
+          {["Smart Screening sorts the list", "You open the shortlist in Fast Manual Mode", "You decide", "The candidate is updated (coming soon)"].map(
             (step, i) => (
               <li key={step} className="flex items-center gap-3">
                 {i > 0 && <ChevronRightIcon className="hidden size-4 shrink-0 text-(--l-fg-subtle) lg:block" />}
@@ -80,11 +84,13 @@ export function Screening() {
 
 function Panel({
   label,
+  status,
   title,
   body,
   children,
 }: {
   label: string;
+  status: Availability;
   title: string;
   body: string;
   children: React.ReactNode;
@@ -92,7 +98,10 @@ function Panel({
   return (
     <article data-reveal className="flex flex-col overflow-hidden rounded-2xl border border-(--l-line) bg-(--l-surface)">
       <div className="p-6 sm:p-8">
-        <p className="font-mono text-[11px] tracking-[0.14em] text-(--l-lime) uppercase">{label}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="font-mono text-[11px] tracking-[0.14em] text-(--l-lime) uppercase">{label}</p>
+          <AvailabilityTag status={status} />
+        </div>
         <h3 className="mt-4 text-[clamp(1.4rem,2.4vw,1.75rem)] leading-tight font-semibold tracking-[-0.025em]">{title}</h3>
         <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-(--l-fg-muted)">{body}</p>
       </div>

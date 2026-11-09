@@ -13,7 +13,9 @@ const transporter = nodemailer.createTransport({
 // Activation is sent once the user has picked an account type (features/account-types.md). Its token
 // comes from a magic link, which also confirms the email, so the link is verified as `type=email`.
 type AuthEmail =
-  | { to: string; type: "activation"; accountType: AccountType; tokenHash: string }
+  // `next`: where the link lands once the account is active, instead of its home (a posting a
+  // candidate signed up from, features/candidate-cvs.md). Checked by postingNext() before it gets here.
+  | { to: string; type: "activation"; accountType: AccountType; tokenHash: string; next?: string | null }
   | { to: string; type: "recovery"; tokenHash: string };
 
 const templates: Record<AuthEmail["type"], { subject: string; heading: string; body: string; cta: string }> = {
@@ -41,7 +43,8 @@ function confirmUrl(email: AuthEmail) {
   url.searchParams.set("token_hash", email.tokenHash);
   if (email.type === "activation") {
     url.searchParams.set("type", "email");
-    url.searchParams.set("next", homeFor(email.accountType));
+    // A new account has no company yet, so an employer lands on /setup (features/company-slugs.md).
+    url.searchParams.set("next", email.next ?? homeFor(email.accountType, null));
   } else {
     url.searchParams.set("type", "recovery");
     url.searchParams.set("next", "/reset-password");

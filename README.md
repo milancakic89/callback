@@ -75,7 +75,7 @@ Job hunting means a lot of tabs, a lot of applications and, far too often, no an
   </tr>
 </table>
 
-<sub>The highlighted job in the first screenshot is a fictional dev-only fixture. It never appears in a production build.</sub>
+<sub>The highlighted job in the first screenshot is a fictional development-time fixture from before postings were stored.</sub>
 
 <br>
 
@@ -94,9 +94,9 @@ Job hunting means a lot of tabs, a lot of applications and, far too often, no an
 ### 🏢 For employers (early)
 
 - **Two account types**, chosen at sign-up, with separate sides of the app that redirect each other's users home.
-- **A workspace under your company's slug** (`/your-company`), with a dashboard that offers to create your first job.
-- **A job form with a live candidate preview.** Nothing is stored yet; this is the first step.
-- **Jobs posted on Callback rank first in the list and are highlighted**, because Callback will be able to track their applications for the candidate, while for scraped jobs the candidate updates the status by hand. Until postings are stored, a single fictional fixture stands in for them in development.
+- **A workspace under your company's slug** (`/your-company`), chosen once after activation, with a dashboard of your jobs.
+- **A job form with a live candidate preview**, and publishing: a published job is listed on the job board with its own page.
+- **Jobs posted on Callback rank first in the list and are highlighted**, because Callback tracks their applications for the candidate, while for scraped jobs the candidate updates the status by hand. A candidate applies on the posting's page with a CV and a cover letter as PDF, kept in a private Cloudflare R2 bucket and opened by the employer in the applicant review.
 
 ### 🌐 Landing page
 

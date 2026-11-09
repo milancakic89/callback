@@ -12,6 +12,11 @@ const {
   rpc,
   from,
   refresh,
+  updateTag,
+  after,
+  rescreenJob,
+  drainStorageDeletions,
+  currentFilters,
   redirect,
   ensureEmployerWorkspace,
 } = vi.hoisted(() => {
@@ -22,6 +27,9 @@ const {
   const updateSelect = vi.fn();
   const updateEq = vi.fn(() => ({ select: updateSelect }));
   const update = vi.fn<(values: Record<string, unknown>) => { eq: typeof updateEq }>(() => ({ eq: updateEq }));
+  // The job's filters as they are before an edit (read with .select().eq().maybeSingle()).
+  const currentFilters = vi.fn();
+  const selectFilters = vi.fn(() => ({ eq: () => ({ maybeSingle: currentFilters }) }));
   return {
     requireAccountType: vi.fn(),
     hit: vi.fn(),
@@ -32,14 +40,23 @@ const {
     updateEq,
     updateSelect,
     rpc: vi.fn(),
-    from: vi.fn(() => ({ delete: deleteRows, insert, update })),
+    from: vi.fn(() => ({ delete: deleteRows, insert, update, select: selectFilters })),
     refresh: vi.fn(),
+    updateTag: vi.fn(),
+    // The real `after()` runs the callback once the response is sent; here it is only recorded.
+    after: vi.fn<(task: () => unknown) => void>(),
+    rescreenJob: vi.fn(),
+    drainStorageDeletions: vi.fn(),
+    currentFilters,
     redirect: vi.fn(),
     ensureEmployerWorkspace: vi.fn(),
   };
 });
 
-vi.mock("next/cache", () => ({ refresh }));
+vi.mock("next/cache", () => ({ refresh, updateTag }));
+vi.mock("next/server", () => ({ after }));
+vi.mock("@/lib/screening/rescreen", () => ({ rescreenJob }));
+vi.mock("@/lib/storage/deletions", () => ({ drainStorageDeletions }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/auth/dal", () => ({ requireAccountType }));
 vi.mock("@/lib/companies/workspace", () => ({ ensureEmployerWorkspace }));
@@ -63,11 +80,17 @@ const OTHER_JOB_ID = "5f8d3c21-6b7a-4c19-8e42-0a1b2c3d4e5f";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  requireAccountType.mockResolvedValue({ id: "user-1", email: "boss@acme.example", accountType: "employer" });
+  requireAccountType.mockResolvedValue({
+    id: "user-1",
+    email: "boss@acme.example",
+    accountType: "employer",
+    companySlug: "acme",
+  });
   hit.mockResolvedValue({ count: 1, resetAt: Date.now() + 60_000 });
   select.mockResolvedValue({ data: [{ id: JOB_ID }], error: null });
   insert.mockResolvedValue({ error: null });
   updateSelect.mockResolvedValue({ data: [{ id: JOB_ID }], error: null });
+  currentFilters.mockResolvedValue({ data: { required_filters: [], optional_filters: [] }, error: null });
   rpc.mockResolvedValue({ data: null, error: null });
   ensureEmployerWorkspace.mockResolvedValue(COMPANY_ID);
   // The real redirect() throws to stop the action; so does this one.
@@ -115,6 +138,32 @@ describe("deleteJobPosting", () => {
     expect(from).toHaveBeenCalledWith("job_postings");
     expect(eq).toHaveBeenCalledWith("id", JOB_ID);
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("deletes the files its applications let go of, after the response", async () => {
+    await deleteJobPosting(JOB_ID);
+
+    expect(after).toHaveBeenCalledExactlyOnceWith(drainStorageDeletions);
+  });
+
+  it("deletes no files when nothing was deleted", async () => {
+    select.mockResolvedValue({ data: [], error: null });
+    await deleteJobPosting(JOB_ID);
+    select.mockResolvedValue({ data: null, error: { message: "boom" } });
+    await deleteJobPosting(JOB_ID);
+
+    expect(after).not.toHaveBeenCalled();
+  });
+
+  it("takes a published job off the job board at once, and leaves the board alone for a draft", async () => {
+    select.mockResolvedValue({ data: [{ id: JOB_ID, published_at: "2026-11-09T10:00:00.000Z" }], error: null });
+    await deleteJobPosting(JOB_ID);
+    expect(updateTag).toHaveBeenCalledExactlyOnceWith("jobs");
+
+    updateTag.mockClear();
+    select.mockResolvedValue({ data: [{ id: JOB_ID, published_at: null }], error: null });
+    await deleteJobPosting(JOB_ID);
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("is limited to 30 a minute per employer", async () => {
@@ -206,7 +255,7 @@ describe("createJobPosting", () => {
           { requiredFilters: ["React", " 5+ years "], optionalFilters: ["English C1"] },
         ),
       ),
-    ).rejects.toThrow("NEXT_REDIRECT:/test");
+    ).rejects.toThrow("NEXT_REDIRECT:/acme");
 
     expect(from).toHaveBeenCalledWith("job_postings");
     expect(insert).toHaveBeenCalledExactlyOnceWith({
@@ -218,7 +267,7 @@ describe("createJobPosting", () => {
       required_filters: ["React", "5+ years"],
       optional_filters: ["English C1"],
     });
-    expect(redirect).toHaveBeenCalledExactlyOnceWith("/test");
+    expect(redirect).toHaveBeenCalledExactlyOnceWith("/acme");
   });
 
   it("stores empty filter lists when the form sends no filters", async () => {
@@ -324,7 +373,7 @@ describe("updateJobPosting", () => {
           { requiredFilters: ["Figma"], optionalFilters: ["Motion", "Illustration"] },
         ),
       ),
-    ).rejects.toThrow("NEXT_REDIRECT:/test");
+    ).rejects.toThrow("NEXT_REDIRECT:/acme");
 
     expect(from).toHaveBeenCalledWith("job_postings");
     expect(update).toHaveBeenCalledExactlyOnceWith({
@@ -336,7 +385,7 @@ describe("updateJobPosting", () => {
       optional_filters: ["Motion", "Illustration"],
     });
     expect(updateEq).toHaveBeenCalledExactlyOnceWith("id", JOB_ID);
-    expect(redirect).toHaveBeenCalledExactlyOnceWith("/test");
+    expect(redirect).toHaveBeenCalledExactlyOnceWith("/acme");
   });
 
   it("ignores a company id, a demo flag or a published date sent in the form", async () => {
@@ -370,6 +419,66 @@ describe("updateJobPosting", () => {
     expect(result.fieldErrors).toEqual({ requiredFilters: ["Use at most 20 filters in all."] });
     expect(requireAccountType).not.toHaveBeenCalled();
     expect(from).not.toHaveBeenCalled();
+  });
+
+  it("shows an edit of a published job on the job board at once, and leaves the board alone for a draft", async () => {
+    updateSelect.mockResolvedValue({ data: [{ id: JOB_ID, published_at: "2026-11-09T10:00:00.000Z" }], error: null });
+    await expect(updateJobPosting({}, editForm())).rejects.toThrow("NEXT_REDIRECT");
+    expect(updateTag).toHaveBeenCalledExactlyOnceWith("jobs");
+
+    updateTag.mockClear();
+    updateSelect.mockResolvedValue({ data: [{ id: JOB_ID, published_at: null }], error: null });
+    await expect(updateJobPosting({}, editForm())).rejects.toThrow("NEXT_REDIRECT");
+    expect(updateTag).not.toHaveBeenCalled();
+  });
+
+  it("checks the job's applications again, after the response, when the filters change", async () => {
+    currentFilters.mockResolvedValue({ data: { required_filters: ["Figma"], optional_filters: [] }, error: null });
+
+    await expect(
+      updateJobPosting({}, editForm({}, { requiredFilters: ["Figma", "English"], optionalFilters: [] })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(after).toHaveBeenCalledOnce();
+    // Nothing is read yet: the task runs once the response is gone.
+    expect(rescreenJob).not.toHaveBeenCalled();
+    await after.mock.calls[0][0]();
+    expect(rescreenJob).toHaveBeenCalledExactlyOnceWith(JOB_ID);
+  });
+
+  it("notices a filter that moved from one list to the other, and a change of spelling", async () => {
+    currentFilters.mockResolvedValue({ data: { required_filters: ["Figma"], optional_filters: ["English"] }, error: null });
+    await expect(
+      updateJobPosting({}, editForm({}, { requiredFilters: ["Figma", "English"], optionalFilters: [] })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(after).toHaveBeenCalledTimes(1);
+
+    currentFilters.mockResolvedValue({ data: { required_filters: ["figma"], optional_filters: [] }, error: null });
+    await expect(updateJobPosting({}, editForm({}, { requiredFilters: ["Figma"] }))).rejects.toThrow("NEXT_REDIRECT");
+    expect(after).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves the applications alone when the filters are the same, however they are ordered", async () => {
+    currentFilters.mockResolvedValue({
+      data: { required_filters: ["Figma", "English"], optional_filters: ["Mentoring"] },
+      error: null,
+    });
+
+    await expect(
+      updateJobPosting({}, editForm({}, { requiredFilters: ["English", "Figma"], optionalFilters: ["Mentoring"] })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(after).not.toHaveBeenCalled();
+  });
+
+  it("does not check anything again for a job it can't find or can't save", async () => {
+    currentFilters.mockResolvedValue({ data: { required_filters: [], optional_filters: [] }, error: null });
+
+    updateSelect.mockResolvedValue({ data: [], error: null });
+    await updateJobPosting({}, editForm({}, { requiredFilters: ["Figma"] }));
+    updateSelect.mockResolvedValue({ data: null, error: { message: "boom" } });
+    await updateJobPosting({}, editForm({}, { requiredFilters: ["Figma"] }));
+
+    expect(after).not.toHaveBeenCalled();
   });
 
   it("says the job wasn't found when row level security updates nothing", async () => {
@@ -406,10 +515,11 @@ describe("publishJobPosting", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("publishes through the RPC and refreshes the dashboard", async () => {
+  it("publishes through the RPC, puts the job on the job board and refreshes the dashboard", async () => {
     expect(await publishJobPosting(JOB_ID)).toEqual({ ok: true });
 
     expect(rpc).toHaveBeenCalledExactlyOnceWith("publish_job_posting", { p_job_id: JOB_ID });
+    expect(updateTag).toHaveBeenCalledExactlyOnceWith("jobs");
     expect(refresh).toHaveBeenCalledOnce();
   });
 
@@ -433,6 +543,7 @@ describe("publishJobPosting", () => {
 
     expect(await publishJobPosting(JOB_ID)).toEqual({ ok: false, error: "Job not found." });
     expect(refresh).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("gives a generic message for any other database error", async () => {
@@ -504,6 +615,42 @@ describe("unpublishJobPosting", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("checks the moved applications again for the job they moved to, after the response", async () => {
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "move", targetJobId: OTHER_JOB_ID });
+
+    expect(after).toHaveBeenCalledTimes(2);
+    await after.mock.calls[0][0]();
+    expect(rescreenJob).toHaveBeenCalledExactlyOnceWith(OTHER_JOB_ID);
+    // A move can drop or withdraw an application, which lets its cover letter go.
+    expect(after.mock.calls[1][0]).toBe(drainStorageDeletions);
+  });
+
+  it("checks nothing again when the applicants stay or are withdrawn", async () => {
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "keep" });
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "withdraw" });
+    expect(rescreenJob).not.toHaveBeenCalled();
+    for (const [task] of after.mock.calls) expect(task).toBe(drainStorageDeletions);
+  });
+
+  it("deletes the documents withdrawn applications gave up, after the response, and none for a pause", async () => {
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "keep" });
+    expect(after).not.toHaveBeenCalled();
+
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "withdraw" });
+    expect(after).toHaveBeenCalledExactlyOnceWith(drainStorageDeletions);
+  });
+
+  it("does not check anything again when a move fails", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "22023", message: "Choose another" } });
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "move", targetJobId: OTHER_JOB_ID });
+    expect(after).not.toHaveBeenCalled();
+  });
+
+  it("takes the job off the job board at once", async () => {
+    await unpublishJobPosting({ jobId: JOB_ID, applicants: "keep" });
+    expect(updateTag).toHaveBeenCalledExactlyOnceWith("jobs");
+  });
+
   it("shares the publish limit, 30 a minute", async () => {
     await unpublishJobPosting({ jobId: JOB_ID, applicants: "keep" });
     expect(hit).toHaveBeenCalledWith("publish-job:user-1", 60_000);
@@ -535,6 +682,7 @@ describe("unpublishJobPosting", () => {
       error: "Job not found.",
     });
     expect(refresh).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 });
 

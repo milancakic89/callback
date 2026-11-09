@@ -6,13 +6,15 @@ import { cn } from "cn";
 import { Initials } from "@/components/landing/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { matchesPlaylist, type PlaylistFilter, type StageFilter } from "@/lib/review/navigation";
+import type { PlaylistOrder } from "@/lib/review/order";
 import { HIRING_STAGE_LABELS, HIRING_STAGES, type HiringStage } from "@/lib/review/stages";
 import { StageDot } from "./ats-panel";
 
 // The applicants of the job as a playlist (features/applicant-review.md): who is open now, who has
 // been viewed (Next marks them), their status (features/application-status.md), who was liked, and
-// how many required filters each one's CV meets. Any row opens that applicant, and Next carries on
-// from there. All / Liked and the status select narrow the list together.
+// how many required filters each one's CV meets (features/cv-screening.md). Any row opens that
+// applicant, and Next carries on from there. All / Liked and the status select narrow the list
+// together, and the order is either the order the applications came in or the best keyword match first.
 
 export type PlaylistItem = {
   id: string;
@@ -21,8 +23,9 @@ export type PlaylistItem = {
   viewed: boolean;
   liked: boolean;
   stage: HiringStage;
-  // "3/4" or null when there is nothing to show (no required filters, or not checked yet).
-  requiredScore: { met: number; total: number } | null;
+  // "3/4" or null when there is nothing to show (no required filters, or not checked yet). `unverified`
+  // counts the required filters a keyword can't decide, which the reviewer reads the CV for.
+  requiredScore: { met: number; total: number; unverified: number } | null;
 };
 
 function StageFilterLabel({ value, count }: { value: StageFilter; count: number }) {
@@ -42,6 +45,8 @@ export function CandidatePlaylist({
   onFilter,
   stageFilter,
   onStageFilter,
+  order,
+  onOrder,
   onSelect,
 }: {
   items: PlaylistItem[];
@@ -50,6 +55,9 @@ export function CandidatePlaylist({
   onFilter: (filter: PlaylistFilter) => void;
   stageFilter: StageFilter;
   onStageFilter: (filter: StageFilter) => void;
+  // Null when the job has no filters, so there is nothing to order by.
+  order: PlaylistOrder | null;
+  onOrder: (order: PlaylistOrder) => void;
   onSelect: (id: string) => void;
 }) {
   const listRef = useRef<HTMLOListElement>(null);
@@ -90,6 +98,32 @@ export function CandidatePlaylist({
           </button>
         ))}
       </div>
+      {order !== null && (
+        <div className="mx-3 mb-2 flex shrink-0 items-center gap-2">
+          <span className="text-[11px] text-(--l-fg-subtle)">Order</span>
+          <div className="flex flex-1 gap-1 rounded-lg bg-white/[0.03] p-0.5" role="group" aria-label="Order">
+            {(
+              [
+                ["applied", "Applied"],
+                ["match", "Best match"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={order === value}
+                onClick={() => onOrder(value)}
+                className={cn(
+                  "inline-flex h-6 flex-1 items-center justify-center rounded-md text-[11.5px] font-medium transition-colors",
+                  order === value ? "bg-white/[0.08] text-(--l-fg)" : "text-(--l-fg-subtle) hover:text-(--l-fg-muted)",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mx-3 mb-2 shrink-0">
         <Select value={stageFilter} onValueChange={(value) => value && onStageFilter(value as StageFilter)}>
           <SelectTrigger
@@ -186,13 +220,18 @@ export function CandidatePlaylist({
                     )}
                     {item.requiredScore && (
                       <span
-                        title="Required filters met"
+                        title={
+                          item.requiredScore.unverified > 0
+                            ? `Required filters met, by keywords (${item.requiredScore.unverified} to check by eye)`
+                            : "Required filters met, by keywords"
+                        }
                         className={cn(
                           "font-mono text-[10.5px] tabular-nums",
                           allMet ? "text-(--l-lime)" : "text-(--l-fg-subtle)",
                         )}
                       >
                         {item.requiredScore.met}/{item.requiredScore.total}
+                        {item.requiredScore.unverified > 0 && <span aria-hidden>?</span>}
                       </span>
                     )}
                   </span>

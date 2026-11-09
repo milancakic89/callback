@@ -16,22 +16,40 @@ export function Eyebrow({ children, className }: { children: React.ReactNode; cl
 }
 
 // Marks what exists today versus what is still being built, so the page never presents a planned
-// employer feature as shipped.
-export function AvailabilityTag({ status }: { status: "live" | "soon" }) {
+// feature as shipped. "partial" is for a section that mixes both: some of it works today and some of
+// it is still to come, which the text of the section then says.
+const AVAILABILITY = {
+  live: {
+    label: "Available now",
+    tag: "border-(--l-lime)/25 bg-(--l-lime)/[0.07] text-(--l-lime)",
+    dot: "bg-(--l-lime)",
+  },
+  partial: {
+    label: "Partly available",
+    tag: "border-(--l-lime)/20 bg-white/[0.03] text-(--l-fg-muted)",
+    dot: "bg-(--l-lime)",
+  },
+  soon: {
+    label: "Coming soon",
+    tag: "border-(--l-line-strong) bg-white/[0.03] text-(--l-fg-muted)",
+    dot: "bg-(--l-fg-subtle)",
+  },
+} as const;
+
+export type Availability = keyof typeof AVAILABILITY;
+
+export function AvailabilityTag({ status, className }: { status: Availability; className?: string }) {
+  const { label, tag, dot } = AVAILABILITY[status];
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10.5px] font-medium tracking-[0.08em] uppercase",
-        status === "live"
-          ? "border-(--l-lime)/25 bg-(--l-lime)/[0.07] text-(--l-lime)"
-          : "border-(--l-line-strong) bg-white/[0.03] text-(--l-fg-muted)",
+        tag,
+        className,
       )}
     >
-      <span
-        aria-hidden
-        className={cn("size-1.5 rounded-full", status === "live" ? "bg-(--l-lime)" : "bg-(--l-fg-subtle)")}
-      />
-      {status === "live" ? "Available now" : "Coming soon"}
+      <span aria-hidden className={cn("size-1.5 rounded-full", dot)} />
+      {label}
     </span>
   );
 }

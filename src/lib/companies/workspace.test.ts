@@ -172,8 +172,11 @@ describe("getJobApplicants", () => {
     liked_at: null,
     stage: "APPLIED",
     matched_filters: null,
+    unverified_filters: null,
+    screening_outcome: null,
     cv_path: null,
     cover_letter_path: null,
+    cover_letter_text: null,
     candidate: { full_name: "Someone", location: null, sample_key: null },
     ...fields,
   });
@@ -207,6 +210,8 @@ describe("getJobApplicants", () => {
           liked_at: "2026-10-31T10:01:00+00:00",
           stage: "INTERVIEW",
           matched_filters: ["Figma"],
+          unverified_filters: ["5+ years"],
+          screening_outcome: "checked",
           cv_path: "user-9/real/My CV.pdf",
           candidate: { full_name: "Real Person", location: "Novi Sad", sample_key: null },
         }),
@@ -224,10 +229,36 @@ describe("getJobApplicants", () => {
       liked: true,
       stage: "INTERVIEW",
       matchedFilters: ["Figma"],
+      unverifiedFilters: ["5+ years"],
+      screeningOutcome: "checked",
       cvFileName: "My CV.pdf",
       coverLetterFileName: null,
+      coverLetterText: null,
     });
     expect(JSON.stringify(applicant)).not.toContain("user-9/");
+  });
+
+  it("passes on a cover letter typed in the apply dialog", async () => {
+    applicantsReturns.mockResolvedValue({ data: [row({ cover_letter_text: "Dear team,\n\nHello." })], error: null });
+
+    const [applicant] = await getJobApplicants(JOB_ID);
+    expect(applicantsSelect).toHaveBeenCalledWith(expect.stringContaining("cover_letter_text"));
+    expect(applicant).toMatchObject({ coverLetterFileName: null, coverLetterText: "Dear team,\n\nHello." });
+  });
+
+  it("reads what the CV screening saved, and nothing is made up for an application that wasn't checked", async () => {
+    applicantsReturns.mockResolvedValue({
+      data: [
+        row({ id: "scan", screening_outcome: "unreadable" }),
+        row({ id: "new" }),
+      ],
+      error: null,
+    });
+
+    const [scan, fresh] = await getJobApplicants(JOB_ID);
+    expect(applicantsSelect).toHaveBeenCalledWith(expect.stringContaining("unverified_filters, screening_outcome"));
+    expect(scan).toMatchObject({ matchedFilters: null, unverifiedFilters: null, screeningOutcome: "unreadable" });
+    expect(fresh).toMatchObject({ matchedFilters: null, unverifiedFilters: null, screeningOutcome: null });
   });
 
   it("gives a mock candidate's documents the landing demo's file names", async () => {
