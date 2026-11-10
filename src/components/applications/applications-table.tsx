@@ -18,7 +18,7 @@ import {
 } from "@/components/jobs/table-parts";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { compareApplications, itemKey, type SortField } from "@/lib/applications/list";
+import { compareApplications, isCallbackItem, itemKey, type SortField } from "@/lib/applications/list";
 import type { ApplicationListItem, ApplicationStatus, ManualApplicationItem } from "@/lib/applications/types";
 import type { SortDirection } from "@/lib/jobs/filter";
 import { cn } from "cn";
@@ -165,7 +165,7 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
               </TableRow>
             ) : (
               rows.map((item) =>
-                item.kind === "callback" ? (
+                isCallbackItem(item) ? (
                   <CallbackApplicationRow key={itemKey(item)} item={item} />
                 ) : (
                   <ManualApplicationRow

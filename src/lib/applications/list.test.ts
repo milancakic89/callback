@@ -3,6 +3,7 @@ import type { CallbackApplication, CallbackStatus } from "@/lib/cvs/types";
 import {
   compareApplications,
   fromCallbackApplication,
+  isCallbackItem,
   isOpenItem,
   itemKey,
   mergeApplications,
@@ -96,6 +97,21 @@ describe("itemKey", () => {
     expect(itemKey(manual({ jobId: "x" }))).toBe("manual:x");
     expect(itemKey(callback({ id: "x", jobId: "y" }))).toBe("callback:x");
     expect(itemKey(manual({ jobId: "x" }))).not.toBe(itemKey(callback({ id: "x" })));
+  });
+});
+
+describe("isCallbackItem", () => {
+  it("is true only for an application to a job posted on Callback", () => {
+    expect(isCallbackItem(callback())).toBe(true);
+    expect(isCallbackItem(manual())).toBe(false);
+  });
+
+  it("gives the table and the keys the same answer, so a row is never keyed as one kind and drawn as the other", () => {
+    // A row without its kind, as an out-of-date server would send it, is a job tracked by hand to both.
+    const withoutKind = { ...manual({ jobId: "x" }), kind: undefined } as unknown as ApplicationListItem;
+
+    expect(isCallbackItem(withoutKind)).toBe(false);
+    expect(itemKey(withoutKind)).toBe("manual:x");
   });
 });
 

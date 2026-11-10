@@ -32,9 +32,15 @@ export function mergeApplications(
   return [...manual, ...callback.map(fromCallbackApplication)];
 }
 
+// The one question both the table and the keys ask: is this an application to a job posted on Callback?
+// Anything else is a job tracked by hand.
+export function isCallbackItem(item: ApplicationListItem): item is CallbackApplicationItem {
+  return item.kind === "callback";
+}
+
 // A manual row is the scraped job's id, a Callback one its application's: the two can't clash.
 export function itemKey(item: ApplicationListItem): string {
-  return item.kind === "manual" ? `manual:${item.jobId}` : `callback:${item.id}`;
+  return isCallbackItem(item) ? `callback:${item.id}` : `manual:${item.jobId}`;
 }
 
 // Whether the job is still open to the application. Not the same as "active" to the company: a job the
