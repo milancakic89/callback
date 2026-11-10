@@ -78,7 +78,7 @@ export function JobEditor({
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-2">
-      <form action={formAction} className="grid gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:p-6">
+      <form action={formAction} className="grid gap-7 rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:p-6">
         <FormAlert state={state} />
         <CandidateStepsNotice steps={candidateSteps} companySlug={companySlug} />
         {job && <input type="hidden" name="jobId" value={job.id} />}
@@ -113,7 +113,7 @@ export function JobEditor({
           />
           <FieldError id="job-description-error" errors={errors?.description} />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-7 sm:grid-cols-2 sm:gap-6">
           <div className="grid content-start gap-2">
             <Label htmlFor="job-location">
               Location <span className="font-normal text-muted-foreground">(optional)</span>
