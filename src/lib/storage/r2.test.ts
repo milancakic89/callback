@@ -43,6 +43,24 @@ describe("put", () => {
     expect(authorization).toContain("SignedHeaders=");
   });
 
+  it("sends the length of the file, so R2 never gets a chunked body without one (411 MissingContentLength)", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+    const bytes = new Uint8Array(130_000).fill(37);
+
+    await store.put("candidates/user-1/cvs/cv-1/cv.pdf", bytes, "application/pdf");
+
+    expect(lastRequest().headers.get("content-length")).toBe("130000");
+  });
+
+  it("keeps the length out of the signature, so signing is unchanged", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+
+    await store.put("a/b.pdf", new Uint8Array(1000), "application/pdf");
+
+    const signedHeaders = /SignedHeaders=([^,]+)/.exec(lastRequest().headers.get("authorization") ?? "")?.[1] ?? "";
+    expect(signedHeaders.split(";")).not.toContain("content-length");
+  });
+
   it("throws, naming the key and R2's error code, when R2 refuses", async () => {
     fetchMock.mockResolvedValue(new Response("<Error><Code>AccessDenied</Code><Message>x</Message></Error>", { status: 403 }));
 

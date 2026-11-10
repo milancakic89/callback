@@ -43,7 +43,12 @@ export function createDocumentStore({ endpoint, accessKeyId, secretAccessKey, bu
     async put(key, bytes, contentType) {
       const response = await client.fetch(urlOf(key), {
         method: "PUT",
-        headers: { "Content-Type": contentType },
+        // The length is sent explicitly. aws4fetch hands `fetch` a ready-made Request, and inside a Next.js
+        // production server that Request's body reaches the network as a stream of unknown length, which
+        // goes out chunked with no Content-Length; R2 answers that with `411 MissingContentLength`
+        // (features/r2-upload-content-length.md). A header the signature doesn't cover (aws4fetch leaves
+        // Content-Length out of it), so signing is unaffected.
+        headers: { "Content-Type": contentType, "Content-Length": String(bytes.byteLength) },
         body: bytes as BodyInit,
       });
       if (!response.ok) await fail("put", key, response);
