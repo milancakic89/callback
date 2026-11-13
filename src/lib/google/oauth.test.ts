@@ -35,7 +35,7 @@ describe("buildAuthUrl", () => {
     expect(url.searchParams.get("scope")?.split(" ")).toEqual([
       "openid",
       "email",
-      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.events.owned",
     ]);
   });
 });

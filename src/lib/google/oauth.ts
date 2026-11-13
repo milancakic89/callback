@@ -8,7 +8,7 @@ const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 
 // The least that does the job: events in the calendars the account can edit (the primary one is
 // used), and the account's email, so settings can show which account is connected.
-export const GOOGLE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/calendar.events"] as const;
+export const GOOGLE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/calendar.events.owned"] as const;
 
 // The cookie that holds the OAuth `state` between /api/google/connect and /api/google/callback.
 export const GOOGLE_STATE_COOKIE = "cb_google_state";

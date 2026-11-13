@@ -16,7 +16,8 @@ describe("googleData", () => {
   });
 
   it("names the one calendar permission and what it is used for", () => {
-    expect(html).toContain("https://www.googleapis.com/auth/calendar.events");
+    expect(html).toContain("https://www.googleapis.com/auth/calendar.events.owned");
+    expect(html).toContain("reaches only events on calendars the account owns");
     expect(html).toContain("primary calendar");
     expect(html).toContain("add the candidate as a guest once the candidate confirms");
     expect(html).toContain("delete that event if the candidate declines, the invitation expires or the employer cancels it");

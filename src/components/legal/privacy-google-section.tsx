@@ -34,7 +34,8 @@ export function googleData(operator: LegalOperator): LegalSectionContent {
           <strong>What we do with the calendar</strong>
         </p>
         <p>
-          We ask for one calendar permission, <code>https://www.googleapis.com/auth/calendar.events</code>, and use it only to:
+          We ask for one calendar permission, <code>https://www.googleapis.com/auth/calendar.events.owned</code>, which
+          reaches only events on calendars the account owns, and use it only to:
         </p>
         <ul>
           <li>create an event with a Google Meet link in the account&rsquo;s primary calendar when the employer sends an invitation;</li>

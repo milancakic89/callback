@@ -72,7 +72,7 @@ The goal: when the employer moves a candidate to a step that is an interview, th
 
 ### Google (plain `fetch`, no `googleapis` package)
 - **`src/lib/google/oauth.ts`** (`server-only`):
-  - `authUrl(state)` with the scopes `openid email https://www.googleapis.com/auth/calendar.events`, `access_type=offline` and `prompt=consent`;
+  - `authUrl(state)` with the scopes `openid email https://www.googleapis.com/auth/calendar.events.owned` (was `calendar.events`, see the update at the end), `access_type=offline` and `prompt=consent`;
   - `exchangeCode()` and `accessToken(refreshToken)`;
   - an `invalid_grant` answer sets `broken_at`, and Settings then shows "Reconnect".
 - **`src/lib/google/calendar.ts`:**
@@ -128,9 +128,9 @@ The goal: when the employer moves a candidate to a step that is an interview, th
 
 ## Manual Google setup (by the project owner)
 1. In the Google Cloud Console, create a project and enable the **Google Calendar API**.
-2. OAuth consent screen: type External; scopes `openid`, `email` and `calendar.events`; add test users.
+2. OAuth consent screen: type External; scopes `openid`, `email` and `calendar.events.owned`; add test users.
 3. Create an OAuth client (Web application). Redirect URIs: `http://localhost:3000/api/google/callback` and `https://callback.rs/api/google/callback`.
-4. **Before production:** `calendar.events` is a sensitive scope, so Google has to verify the app (a verified `callback.rs` domain, a privacy policy and a video demo; it takes days to weeks; the policy and the Terms are [legal-pages.md](./legal-pages.md), at `/privacy` and `/terms`, once deployed). Until then only test users can connect (at most 100), and their refresh tokens expire after 7 days.
+4. **Before production:** `calendar.events.owned` is a sensitive scope, so Google has to verify the app (a verified `callback.rs` domain, a privacy policy and a video demo; it takes days to weeks; the policy and the Terms are [legal-pages.md](./legal-pages.md), at `/privacy` and `/terms`, once deployed). Until then only test users can connect (at most 100), and their refresh tokens expire after 7 days.
 
 ## Verification
 1. `npm test` with the new tests, `npm run lint`, `npx tsc --noEmit` and `npm run build`. The new unit tests cover:
@@ -154,3 +154,23 @@ The goal: when the employer moves a candidate to a step that is an interview, th
    - A wrong token answers 404. Opening the page again after answering shows the answer and changes nothing.
    - Cancel interview, from the employer's side.
    - Disconnecting Google disables the checkbox in the dialog.
+
+## Update, 2026-11-13: the narrower scope `calendar.events.owned`
+**Status:** implemented on the branch `fix/google-narrower-scope`, 2026-11-13. `npm test` (1,251 tests), `npm run lint`, `npx tsc --noEmit` and `npm run build` pass. Two existing tests changed because the scope changed on purpose: `oauth.test.ts` expects the new scope list, and `privacy-google-section.test.ts` pins the new scope and its "calendars the account owns" sentence. Not yet checked against real Google with the new scope.
+
+**Why.** Google's verification of a sensitive scope asks for the narrowest scope the app needs, and for a justification of why a narrower one would not work; a broader scope is sent back. `calendar.events` is "view and edit events on all calendars", while Callback only works on the connected account's own primary calendar (`calendars/primary/events` in `src/lib/google/calendar.ts`). `calendar.events.owned` ("view, create, change, and delete events on owned calendars") is accepted by every call the app makes: `events.insert` (with `conferenceDataVersion=1` for the Meet link), `events.get` (the second read for the Meet link), `events.patch` (adding the confirmed candidate) and `events.delete` (checked in Google's Calendar API reference on 2026-11-13).
+
+**Why not narrower still.** `calendar.app.created` only reaches secondary calendars the app creates. The interview would then sit in a separate "Callback" calendar instead of the employer's primary one, the employer's availability on the primary calendar would not show it, and the candidate's invitation would come from that secondary calendar's address instead of the employer's own account.
+
+**What changes.**
+- `GOOGLE_SCOPES` in `src/lib/google/oauth.ts`: `openid email https://www.googleapis.com/auth/calendar.events.owned`; `oauth.test.ts` expects the new list (the behaviour changes on purpose).
+- The Privacy Policy's Google part names the new scope and says it covers only calendars the account owns; its test pins the new scope.
+- This file and `project-overview/security.md` name the new scope.
+- **By hand, in the Google Cloud Console:** on Data Access, remove `calendar.events` and add `calendar.events.owned`. Every employer connects again (Settings, Reconnect) so its token carries the new scope; a token granted the old, broader scope keeps working until then.
+
+**Google verification, step by step (by the owner).**
+1. Deploy this change, then connect Google Calendar again on callback.rs.
+2. Google Auth Platform, Data Access: only `openid`, `email` and `calendar.events.owned`; paste the justification.
+3. Google Auth Platform, Audience: publish the app (In production).
+4. Record the demo video (in English, the consent screen's language set to English) and upload it to YouTube as unlisted.
+5. Verification Center: submit, then answer Google's emails.
