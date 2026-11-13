@@ -125,13 +125,17 @@ export async function ensureEmployerWorkspace(): Promise<string> {
 }
 
 // Not cached: reads the session cookie. Row level security scopes both tables to the signed-in
-// employer's company. `active` and `withdrawn` are the same relationship embedded twice; the filters
-// on `<alias>.withdrawn_at` narrow each embed, not the jobs.
-export async function getCompanyJobs(): Promise<CompanyJob[]> {
+// employer's company, but it is a filter applied to every row the query would read: without the
+// `company_id` filter below the database walked every company's postings and threw the others away
+// (322 queries/s at 10,000 companies, 900 at 1,000). `companyId` is what ensureEmployerWorkspace()
+// returns. `active` and `withdrawn` are the same relationship embedded twice; the filters on
+// `<alias>.withdrawn_at` narrow each embed, not the jobs.
+export async function getCompanyJobs(companyId: string): Promise<CompanyJob[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("job_postings")
     .select("id, title, is_demo, published_at, created_at, active:job_applications(count), withdrawn:job_applications(count)")
+    .eq("company_id", companyId)
     .is("active.withdrawn_at", null)
     .not("withdrawn.withdrawn_at", "is", null)
     .order("created_at", { ascending: false })

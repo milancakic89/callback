@@ -16,6 +16,12 @@ WorkingDirectory=/srv/callback/current
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOSTNAME=127.0.0.1
+# V8's heap stops growing at 2 GB (it would otherwise take whatever the machine has, and the garbage
+# collector gets lazy), and systemd restarts the service if the process as a whole passes 3 GB:
+# `Restart=on-failure` brings it back after 3 s, where the kernel's OOM killer would pick a victim
+# (it could be the scraper, or Caddy) (features/performance.md).
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+MemoryMax=3G
 # The production environment (the PRODUCTION_ENV secret, written by the deploy). Variables above win
 # over the file. Wrap values that contain spaces or # in double quotes.
 ExecStart=/usr/bin/node --env-file=/srv/callback/.env server.js

@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Saved jobs | Callback" };
 // cookies, so nothing here can be prerendered: the fallback is just the table's loading skeleton.
 export default function SavedJobsPage() {
   return (
-    <Suspense fallback={<JobsExplorerFallback jobs={[]} showApplied showSaved loading fillHeight />}>
+    <Suspense fallback={<JobsExplorerFallback previewRows={[]} totalCount={0} showApplied showSaved loading fillHeight />}>
       <AuthedSavedJobs />
     </Suspense>
   );

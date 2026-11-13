@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { from, selectJobs, selectJob, order, returns, is, not, eq, maybeSingle } = vi.hoisted(() => {
+const { from, selectJobs, selectJob, order, returns, is, not, eq, eqCompany, maybeSingle } = vi.hoisted(() => {
   const returns = vi.fn();
   const order = vi.fn(() => ({ returns }));
   const not = vi.fn(() => ({ order }));
   const is = vi.fn(() => ({ not }));
-  const selectJobs = vi.fn(() => ({ is }));
+  const eqCompany = vi.fn(() => ({ is }));
+  const selectJobs = vi.fn(() => ({ eq: eqCompany }));
   const maybeSingle = vi.fn();
   const eq = vi.fn(() => ({ maybeSingle }));
   const selectJob = vi.fn(() => ({ eq }));
@@ -18,6 +19,7 @@ const { from, selectJobs, selectJob, order, returns, is, not, eq, maybeSingle } 
     is,
     not,
     eq,
+    eqCompany,
     maybeSingle,
   };
 });
@@ -28,6 +30,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from }) }
 import { getCompanyJob, getCompanyJobs, getJobApplicants } from "./workspace";
 
 const JOB_ID = "0b2f4d6e-8a1c-4e3b-9d5f-7a1b2c3d4e5f";
+const COMPANY_ID = "5e1d3c7a-2b4f-4a6e-8c9d-0f1e2d3c4b5a";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -63,7 +66,7 @@ describe("getCompanyJobs", () => {
       error: null,
     });
 
-    expect(await getCompanyJobs()).toEqual([
+    expect(await getCompanyJobs(COMPANY_ID)).toEqual([
       {
         id: "a",
         title: "Published job",
@@ -92,7 +95,15 @@ describe("getCompanyJobs", () => {
   it("throws on a database error", async () => {
     returns.mockResolvedValue({ data: null, error: { message: "boom" } });
 
-    await expect(getCompanyJobs()).rejects.toThrow("getCompanyJobs: boom");
+    await expect(getCompanyJobs(COMPANY_ID)).rejects.toThrow("getCompanyJobs: boom");
+  });
+
+  it("reads the postings of the company it is given, not every posting row level security lets through", async () => {
+    returns.mockResolvedValue({ data: [], error: null });
+
+    await getCompanyJobs(COMPANY_ID);
+
+    expect(eqCompany).toHaveBeenCalledExactlyOnceWith("company_id", COMPANY_ID);
   });
 });
 

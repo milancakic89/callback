@@ -35,6 +35,10 @@ const nextConfig: NextConfig = {
   // `node server.js`. It is what the GitHub Actions deploy ships; see project-overview/deployment.md.
   output: "standalone",
   poweredByHeader: false,
+  // Caddy compresses the responses (deploy/Caddyfile: `encode zstd gzip`), on all of the server's
+  // cores. Next's own gzip ran on the one thread that renders, and would compress what Caddy then
+  // compresses again. `next start` without Caddy in front sends everything uncompressed.
+  compress: false,
   cacheComponents: true,
   partialPrefetching: true,
   experimental: {

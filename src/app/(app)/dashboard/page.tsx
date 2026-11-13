@@ -4,38 +4,35 @@ import { Suspense } from "react";
 import { JobsExplorer } from "@/components/jobs/jobs-explorer";
 import { JobsExplorerFallback } from "@/components/jobs/jobs-explorer-fallback";
 import { requireAccountType } from "@/lib/auth/dal";
+import { previewOf, type JobsPreview } from "@/lib/jobs/preview";
 import { getActiveJobs, getAppliedJobIds, getSavedJobIds } from "@/lib/jobs/queries";
-import type { JobListItem } from "@/lib/jobs/types";
 
 export const metadata: Metadata = { title: "Dashboard | Callback" };
 
 // The shell (sidebar, account block) lives in ../layout.tsx. `getActiveJobs` is cached and
-// cookie-free, so it's safe to call outside Suspense; the per-user part (applied IDs) reads
-// cookies and must stay inside one.
+// cookie-free, so it's safe to call outside Suspense; the per-user part (applied and saved IDs)
+// reads cookies and must stay inside one. The page carries only the first rows of the table and the
+// job count (features/performance.md): the explorer loads the whole list from /api/jobs/list, and
+// the dynamic part sends nothing of it, so a request no longer serializes 6,000 jobs.
 export default async function DashboardPage() {
-  const jobs = await getActiveJobs();
+  const preview = previewOf(await getActiveJobs());
 
   // No page heading — the sidebar's "Home" nav item already says where you are.
   return (
-    <Suspense fallback={<JobsExplorerFallback jobs={jobs} showApplied showSaved fillHeight />}>
-      <AuthedJobsExplorer jobs={jobs} />
+    <Suspense fallback={<JobsExplorerFallback {...preview} showApplied showSaved fillHeight />}>
+      <AuthedJobsExplorer preview={preview} />
     </Suspense>
   );
 }
 
-async function AuthedJobsExplorer({ jobs }: { jobs: JobListItem[] }) {
+async function AuthedJobsExplorer({ preview }: { preview: JobsPreview }) {
   await connection();
   const user = await requireAccountType("candidate");
   const [appliedIds, savedIds] = await Promise.all([getAppliedJobIds(user.id), getSavedJobIds(user.id)]);
 
-  // react-hooks/purity doesn't know about Next's dynamic-API opt-out: connection() above is
-  // exactly what makes a per-request value like this safe to read here — see src/app/page.tsx.
-  // eslint-disable-next-line react-hooks/purity -- request-time value, gated by connection() above
-  const now = Date.now();
   return (
     <JobsExplorer
-      jobs={jobs}
-      now={now}
+      {...preview}
       showApplied
       initialAppliedIds={appliedIds}
       showSaved

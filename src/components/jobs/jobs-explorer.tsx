@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { markApplied, setSaved } from "@/app/(app)/dashboard/actions";
@@ -16,25 +16,34 @@ import {
   type SortField,
 } from "@/lib/jobs/filter";
 import { decodeFilters, encodeFilters, FILTER_FIELDS, type FilterRule } from "@/lib/jobs/filter-schema";
+import { DEFAULT_PAGE_SIZE } from "@/lib/jobs/preview";
 import type { JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
 import { ApplyConfirmDialog } from "./apply-confirm-dialog";
 import { FilterBar } from "./filter-bar";
-import type { DescriptionStatus } from "./filter-rule";
 import { JobDescriptionSheet } from "./job-description-sheet";
+import { JobListError } from "./job-list-error";
 import { JobsSearch } from "./jobs-search";
 import { JobsTable } from "./jobs-table";
+import { useAppliedJobs } from "./use-applied-jobs";
+import { useDescriptionBundle, useJobDescription } from "./use-job-descriptions";
+import { useJobList } from "./use-job-list";
+import { useSavedJobs } from "./use-saved-jobs";
 
 export type JobsExplorerProps = {
-  jobs: JobListItem[];
-  // The server's clock at request time, for "3d ago" — see the callers (src/app/page.tsx,
-  // src/app/(app)/dashboard/page.tsx). Not read with `Date.now()` in here: this subtree still renders
-  // on the server in dev mode and for any truly dynamic request (useSearchParams only forces it
-  // out of the *static build-time* shell, not out of SSR in general), and the server's module
-  // instance and the browser's load at a different moment — a module-level timestamp drifts
-  // between the two and breaks hydration. A prop computed once per request on the server and
-  // passed down hydrates identically on both sides.
-  now: number;
+  // The whole list, for a page that has it already: /saved-jobs passes the visitor's own, small
+  // list. Without it (/jobs and /dashboard) the explorer loads the list from /api/jobs/list when it
+  // mounts, and shows `previewRows` until it arrives — see features/performance.md.
+  jobs?: JobListItem[];
+  // The first page of the table as it opens (newest first) and how many jobs there are in all: what
+  // the table shows until the list arrives, as long as nothing has been searched, filtered, sorted
+  // or paged. The static fallback (jobs-explorer-fallback.tsx) shows the same rows.
+  previewRows?: JobListItem[];
+  totalCount?: number;
+  // The clock for "3d ago", for a page that passes `jobs` and has the server's time. Without it the
+  // time comes from the browser when the list arrives (use-job-list.ts); it is never read while
+  // rendering, since the server's prerender and the browser would disagree.
+  now?: number;
   showApplied?: boolean;
   initialAppliedIds?: string[];
   // The Save job column (signed-in pages only). See features/saved-jobs.md.
@@ -52,11 +61,11 @@ export type JobsExplorerProps = {
 
 const DEFAULT_SORT_FIELD: SortField = "posted";
 const DEFAULT_SORT_DIRECTION: SortDirection = "desc";
-const DEFAULT_PAGE_SIZE = 20;
 const SORT_FIELDS: SortField[] = ["title", "company", "posted", "workMode"];
-// A stable default: the resync-from-props checks below compare the prop by identity, so a fresh
-// `[]` per render would reset the state on every render.
+// Stable defaults: the resync-from-props checks in the hooks compare the prop by identity, so a
+// fresh `[]` per render would reset the state on every render.
 const NO_IDS: string[] = [];
+const NO_JOBS: JobListItem[] = [];
 
 function parseSort(raw: string | null): { field: SortField; direction: SortDirection } {
   const [field, direction] = (raw ?? "").split(".");
@@ -67,11 +76,14 @@ function parseSort(raw: string | null): { field: SortField; direction: SortDirec
 }
 
 // Owns search, filters, sort and paging; reads the URL once on mount and writes it back on every
-// change (via history.replaceState, no navigation). Loads descriptions in the background.
-// See features/dashboard.md "Key design choices" and "URL format".
+// change (via history.replaceState, no navigation). Loads the job list when the page didn't bring
+// it, and the descriptions only when they are needed.
+// See features/dashboard.md "Key design choices" and "URL format", and features/performance.md.
 export function JobsExplorer({
   jobs,
-  now,
+  previewRows,
+  totalCount: previewTotalCount,
+  now: nowFromPage,
   showApplied = false,
   initialAppliedIds = NO_IDS,
   showSaved = false,
@@ -86,65 +98,24 @@ export function JobsExplorer({
   const [{ field: sort, direction }, setSortState] = useState(() => parseSort(searchParams.get("sort")));
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-
-  const [descriptions, setDescriptions] = useState<Record<string, string> | null>(null);
-  const [descStatus, setDescStatus] = useState<DescriptionStatus>("loading");
-
-  const [appliedIds, setAppliedIds] = useState<Set<string>>(() => new Set(initialAppliedIds));
-  const [pendingAppliedId, setPendingAppliedId] = useState<string | null>(null);
-  const [appliedErrors, setAppliedErrors] = useState<Record<string, string>>({});
-  const [confirmingJob, setConfirmingJob] = useState<JobListItem | null>(null);
   const [viewingJob, setViewingJob] = useState<JobListItem | null>(null);
 
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSavedIds));
-  const [pendingSavedIds, setPendingSavedIds] = useState<Set<string>>(() => new Set());
-  const [savedErrors, setSavedErrors] = useState<Record<string, string>>({});
+  const jobList = useJobList(fetch, jobs);
+  const now = nowFromPage ?? jobList.now;
+  const loadedJobs = jobList.jobs ?? NO_JOBS;
 
-  // Next keeps a page mounted (hidden) when you navigate away, so this component outlives the
-  // visit, and the useState initializers above only ever see the first props. When the page
-  // comes back with fresh server data (a heart unticked on /saved-jobs, a job applied to there),
-  // adopt it, in the same adjust-state-during-render way as `committedFilterKey` below.
-  const [syncedAppliedIds, setSyncedAppliedIds] = useState(initialAppliedIds);
-  if (syncedAppliedIds !== initialAppliedIds) {
-    setSyncedAppliedIds(initialAppliedIds);
-    setAppliedIds(new Set(initialAppliedIds));
-  }
-  const [syncedSavedIds, setSyncedSavedIds] = useState(initialSavedIds);
-  if (syncedSavedIds !== initialSavedIds) {
-    setSyncedSavedIds(initialSavedIds);
-    setSavedIds(new Set(initialSavedIds));
-  }
+  const needsDescriptions = useMemo(() => rulesUseField(rules, "description"), [rules]);
+  const descriptionBundle = useDescriptionBundle(fetch, needsDescriptions);
+  const openDescription = useJobDescription(fetch, viewingJob, descriptionBundle);
+  const descriptionsPending = needsDescriptions && descriptionBundle.status === "loading";
+
+  const applied = useAppliedJobs(initialAppliedIds, markApplied);
+  const saved = useSavedJobs(initialSavedIds, setSaved);
 
   const fields = useMemo(
     () => FILTER_FIELDS.filter((field) => field !== "applied" || showApplied),
     [showApplied],
   );
-
-  // Only sets state inside the promise callbacks (never synchronously), so this is safe to call
-  // straight from the mount effect below — descStatus already starts at "loading".
-  const fetchDescriptions = useCallback(() => {
-    fetch("/api/jobs/descriptions")
-      .then((response) => {
-        if (!response.ok) throw new Error(String(response.status));
-        return response.json() as Promise<Record<string, string>>;
-      })
-      .then((data) => {
-        setDescriptions(data);
-        setDescStatus("ready");
-      })
-      .catch(() => setDescStatus("error"));
-  }, []);
-
-  useEffect(() => {
-    fetchDescriptions();
-  }, [fetchDescriptions]);
-
-  // Used by the filter row's "Retry" button (a click handler, not an effect), so resetting to
-  // "loading" synchronously here is fine.
-  function retryDescriptions() {
-    setDescStatus("loading");
-    fetchDescriptions();
-  }
 
   // Keeps the URL shareable without triggering a navigation or a server round-trip.
   useEffect(() => {
@@ -169,48 +140,65 @@ export function JobsExplorer({
     setPage(1);
   }
 
-  const index = useMemo(() => buildIndex(jobs, descriptions), [jobs, descriptions]);
-  const needsDescriptions = useMemo(() => rulesUseField(rules, "description"), [rules]);
-  const blocked = needsDescriptions && descStatus === "loading";
+  // Until the list arrives the table shows the preview rows, which are right only for the table as
+  // it opens: with a search, a filter, another sort or another page the rows aren't known yet, and
+  // the table waits (its skeleton) instead of showing the wrong ones.
+  const hasActiveRule = FILTER_FIELDS.some((field) => rulesUseField(rules, field));
+  const isOpeningView =
+    !search.trim() &&
+    !hasActiveRule &&
+    sort === DEFAULT_SORT_FIELD &&
+    direction === DEFAULT_SORT_DIRECTION &&
+    page === 1 &&
+    pageSize === DEFAULT_PAGE_SIZE;
+  const showingPreview = jobList.jobs === null && previewRows !== undefined && isOpeningView;
+  const waitingForList = jobList.jobs === null && !showingPreview;
+  const blocked = descriptionsPending || waitingForList;
+
+  const index = useMemo(
+    () => buildIndex(loadedJobs, descriptionBundle.descriptions),
+    [loadedJobs, descriptionBundle.descriptions],
+  );
 
   const compiled = useMemo(
-    () => compileRules(rules, { showApplied, includeDescription: descStatus === "ready" }),
-    [rules, showApplied, descStatus],
+    () => compileRules(rules, { showApplied, includeDescription: descriptionBundle.status === "ready" }),
+    [rules, showApplied, descriptionBundle.status],
   );
 
   // On /saved-jobs a job leaves the table as soon as its heart is unticked. The index stays built
   // from every job in `jobs`, so toggling a heart doesn't re-normalize all of their text.
-  const totalCount = useMemo(
-    () => (savedOnly ? jobs.filter((job) => savedIds.has(job.id)).length : jobs.length),
-    [savedOnly, jobs, savedIds],
-  );
+  const listedCount = useMemo(() => {
+    if (jobList.jobs === null) return previewTotalCount ?? 0;
+    return savedOnly ? loadedJobs.filter((job) => saved.savedIds.has(job.id)).length : loadedJobs.length;
+  }, [jobList.jobs, previewTotalCount, savedOnly, loadedJobs, saved.savedIds]);
 
   const matched = useMemo(() => {
     if (blocked) return [];
-    const activeAppliedIds = showApplied ? appliedIds : null;
+    const activeAppliedIds = showApplied ? applied.appliedIds : null;
     return index.filter(
       (nj) =>
-        (!savedOnly || savedIds.has(nj.job.id)) &&
+        (!savedOnly || saved.savedIds.has(nj.job.id)) &&
         matchesSearch(nj, search) &&
         matchesRules(nj, compiled, activeAppliedIds),
     );
-  }, [blocked, index, search, compiled, showApplied, appliedIds, savedOnly, savedIds]);
+  }, [blocked, index, search, compiled, showApplied, applied.appliedIds, savedOnly, saved.savedIds]);
 
   const sortedJobs = useMemo(
     () => sortJobs(matched.map((nj) => nj.job), sort, direction),
     [matched, sort, direction],
   );
-  const pageCount = Math.max(1, Math.ceil(sortedJobs.length / pageSize));
+  const matchCount = showingPreview ? listedCount : sortedJobs.length;
+  const pageCount = Math.max(1, Math.ceil(matchCount / pageSize));
   const clampedPage = Math.min(page, pageCount);
   const rows = useMemo(
-    () => sortedJobs.slice((clampedPage - 1) * pageSize, clampedPage * pageSize),
-    [sortedJobs, clampedPage, pageSize],
+    () => (showingPreview ? (previewRows ?? NO_JOBS) : sortedJobs.slice((clampedPage - 1) * pageSize, clampedPage * pageSize)),
+    [showingPreview, previewRows, sortedJobs, clampedPage, pageSize],
   );
 
   function handleSortChange(field: SortField) {
-    setSortState((prev) =>
-      prev.field === field
-        ? { field, direction: prev.direction === "asc" ? "desc" : "asc" }
+    setSortState((previous) =>
+      previous.field === field
+        ? { field, direction: previous.direction === "asc" ? "desc" : "asc" }
         : { field, direction: field === "posted" ? "desc" : "asc" },
     );
   }
@@ -220,98 +208,36 @@ export function JobsExplorer({
     setRules([]);
   }
 
-  // Runs after the confirm dialog is accepted. Applying is one-way, so there is no "unapply" path:
-  // the ID is added optimistically and only removed again if the Server Action fails.
-  async function handleApply(job: JobListItem) {
-    const jobId = job.id;
-    setConfirmingJob(null);
-    setAppliedErrors((prev) => {
-      if (!(jobId in prev)) return prev;
-      const rest = { ...prev };
-      delete rest[jobId];
-      return rest;
-    });
-    setAppliedIds((prev) => new Set(prev).add(jobId));
-    setPendingAppliedId(jobId);
-
-    const result = await markApplied(jobId);
-
-    setPendingAppliedId(null);
-    if (!result.ok) {
-      setAppliedIds((prev) => {
-        const copy = new Set(prev);
-        copy.delete(jobId);
-        return copy;
-      });
-      setAppliedErrors((prev) => ({ ...prev, [jobId]: result.error }));
-    }
-  }
-
-  // Saving toggles both ways and has no confirm step: the heart flips at once, and flips back
-  // with an error tooltip if the Server Action fails. Same shape as handleApply above.
-  async function handleToggleSaved(job: JobListItem, next: boolean) {
-    const jobId = job.id;
-    setSavedErrors((prev) => {
-      if (!(jobId in prev)) return prev;
-      const rest = { ...prev };
-      delete rest[jobId];
-      return rest;
-    });
-    setSavedIds((prev) => {
-      const copy = new Set(prev);
-      if (next) copy.add(jobId);
-      else copy.delete(jobId);
-      return copy;
-    });
-    setPendingSavedIds((prev) => new Set(prev).add(jobId));
-
-    const result = await setSaved(jobId, next);
-
-    setPendingSavedIds((prev) => {
-      const copy = new Set(prev);
-      copy.delete(jobId);
-      return copy;
-    });
-    if (!result.ok) {
-      setSavedIds((prev) => {
-        const copy = new Set(prev);
-        if (next) copy.delete(jobId);
-        else copy.add(jobId);
-        return copy;
-      });
-      setSavedErrors((prev) => ({ ...prev, [jobId]: result.error }));
-    }
-  }
-
   return (
     <div className={cn("flex flex-col gap-4", fillHeight && "md:h-full md:min-h-0")}>
       <JobsSearch value={search} onChange={setSearch} />
       <FilterBar
         rules={rules}
         fields={fields}
-        descriptionStatus={descStatus}
+        descriptionStatus={descriptionBundle.status}
         onRulesChange={setRules}
-        onRetryDescriptions={retryDescriptions}
+        onRetryDescriptions={descriptionBundle.retry}
       />
+      {jobList.status === "error" && <JobListError onRetry={jobList.retry} />}
       <div className={cn(fillHeight && "md:min-h-0 md:flex-1")}>
         <JobsTable
           rows={rows}
-          matchCount={sortedJobs.length}
-          totalCount={totalCount}
+          matchCount={matchCount}
+          totalCount={listedCount}
           page={clampedPage}
           pageCount={pageCount}
           pageSize={pageSize}
           sort={sort}
           direction={direction}
           showApplied={showApplied}
-          appliedIds={appliedIds}
+          appliedIds={applied.appliedIds}
           now={now}
-          pendingAppliedId={pendingAppliedId}
-          appliedErrors={appliedErrors}
+          pendingAppliedId={applied.pendingAppliedId}
+          appliedErrors={applied.appliedErrors}
           showSaved={showSaved}
-          savedIds={savedIds}
-          pendingSavedIds={pendingSavedIds}
-          savedErrors={savedErrors}
+          savedIds={saved.savedIds}
+          pendingSavedIds={saved.pendingSavedIds}
+          savedErrors={saved.savedErrors}
           loading={blocked}
           scrollable={fillHeight}
           emptyState={
@@ -330,25 +256,21 @@ export function JobsExplorer({
             setPageSize(size);
             setPage(1);
           }}
-          onRequestApply={setConfirmingJob}
-          onToggleSaved={handleToggleSaved}
+          onRequestApply={applied.requestApply}
+          onToggleSaved={saved.toggleSaved}
           onClearFilters={handleClearFilters}
           onViewJob={setViewingJob}
         />
       </div>
       {showApplied && (
-        <ApplyConfirmDialog
-          job={confirmingJob}
-          onCancel={() => setConfirmingJob(null)}
-          onConfirm={handleApply}
-        />
+        <ApplyConfirmDialog job={applied.confirmingJob} onCancel={applied.cancelApply} onConfirm={applied.apply} />
       )}
       <JobDescriptionSheet
         job={viewingJob}
-        description={viewingJob ? descriptions?.[viewingJob.id] : undefined}
-        status={descStatus}
+        description={openDescription.description}
+        status={openDescription.status}
         onClose={() => setViewingJob(null)}
-        onRetry={retryDescriptions}
+        onRetry={openDescription.retry}
       />
     </div>
   );

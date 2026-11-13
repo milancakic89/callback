@@ -194,6 +194,7 @@ npm run dev       # development server
 npm run build     # production build (standalone output)
 npm run lint      # ESLint
 npm test          # unit tests (Vitest); `npm run test:watch` re-runs them as you edit
+npm run load:test -- <url> --concurrency 50 --seconds 15   # HTTP load test of a local production build (features/performance.md)
 ```
 
 `npm run seed:mock-candidates` creates the three fictional candidates that every company's demo job starts with ([`features/demo-job.md`](features/demo-job.md)). It writes to the Supabase project, so run it once, after the `employer_jobs` migration.

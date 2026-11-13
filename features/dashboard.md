@@ -4,6 +4,8 @@
 
 One table of active jobs with a live search box and a rule-based filter builder above it. All active jobs are loaded once, and search and filtering run entirely in the browser.
 
+> **Update (performance):** the page no longer carries the job list and the explorer no longer loads every description on mount. `/jobs` and `/dashboard` send only the first 20 rows and the job count; the explorer loads the list from `/api/jobs/list`, one description from `/api/jobs/descriptions/{jobId}` when the sheet opens, and the whole bundle only once a Description rule has something to look for. See [performance.md](./performance.md); the sections below describe the first design.
+
 > **Update:** jobs posted on Callback now come from the database and are listed first (the development-only fixture is gone); their title links to their own page, `/jobs/{id}`, in the same tab ([apply-with-cv.md](./apply-with-cv.md)).
 
 ## Context
@@ -104,6 +106,7 @@ Description  contains any of   [vue]
 - **Search** is separate from the rules. It matches substrings of title + company, and with several words each word must appear, in any order.
 
 ### Description loading
+- (Changed, see [performance.md](./performance.md): the bundle below is fetched only once a Description rule has something to look for, and the description sheet fetches just its own job's text.)
 - Visiting the page starts `fetch("/api/jobs/descriptions")` in the background.
 - Until the descriptions arrive:
   - Rules on other fields work normally.
@@ -194,7 +197,7 @@ Frontend Engineer (Vue)    Fivetran    1w ago     Remote      [ ]
     - pages through the results 1000 at a time and maps them to camelCase `JobListItem`
   - `getJobDescriptions()`: same caching. Returns `Record<id, description>` for active jobs that have a description.
   - `getAppliedJobIds(userId)`: uses the session client from `src/lib/supabase/server.ts`, so RLS applies. Not cached. Returns `string[]`.
-- **`src/app/api/jobs/descriptions/route.ts`**: `GET` returns `Response.json(await getJobDescriptions())`, and Next compresses the response.
+- **`src/app/api/jobs/descriptions/route.ts`**: `GET` returns `Response.json(await getJobDescriptions())`. (Next no longer compresses responses; Caddy does, see [performance.md](./performance.md).)
 - `cacheLife('hours')` is fine for a list that `publish` refreshes once a day.
 
 ### 4. Applied Server Action — `src/app/dashboard/actions.ts` (`'use server'`)

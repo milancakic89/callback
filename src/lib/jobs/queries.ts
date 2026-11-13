@@ -2,10 +2,12 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { z } from "zod";
 import { isValidSlug } from "@/lib/companies/company";
+import { fetchAllPages } from "@/lib/supabase/paginate";
 import { createClient } from "@/lib/supabase/server";
 import { supabasePublic } from "@/lib/supabase/public";
 import {
   listId,
+  postingIdOf,
   toListItem as toPostedListItem,
   toPublishedJob,
   type PublishedJob,
@@ -49,17 +51,43 @@ function toListItem(row: JobRow): JobListItem {
   };
 }
 
+// What a list id may look like before it is looked up (getJobDescription). A scraped job's id is the
+// scraper's text key, `<source>:<id from that source>`, and the id from the source is anything: 3,500 of
+// the 6,300 active ones have a "/" or a space in them. So the check is only that it is one line of a
+// sane length; a posted job's id (`callback:<uuid>`) is then checked as the uuid it must be.
+const listIdSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[^\u0000-\u001f\u007f]+$/);
+
+// Reads what a call of `published_job_postings` answers, or throws when the database fails, so the
+// callers' caches never keep a list that is missing them.
+async function readPublishedRows(
+  answer: PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<PublishedJobRow[]> {
+  const { data, error } = await answer;
+  if (error) throw new Error(`published_job_postings: ${error.message}`);
+  return (data ?? []) as PublishedJobRow[];
+}
+
 // The jobs companies published on Callback, through the public function that answers what a
 // candidate may see of them (supabase/migrations/20261109130000_published_jobs.sql): no CV filters.
-// Pass an id for a single job, or a company's slug for the jobs of one company. Throws when the
-// database does, so the callers' caches never keep a list that is missing them.
+// Pass an id for a single job, or a company's slug for the jobs of one company. With neither it is
+// every published job, which is read a page at a time: the function's answer is cut at 1000 rows
+// like any other, and the cut is silent. Throws when the database does.
 async function fetchPublishedJobs(filter: { jobId?: string; companySlug?: string } = {}): Promise<PublishedJob[]> {
   const args: { p_job_id?: string; p_company_slug?: string } = {};
   if (filter.jobId) args.p_job_id = filter.jobId;
   if (filter.companySlug) args.p_company_slug = filter.companySlug;
-  const { data, error } = await supabasePublic.rpc("published_job_postings", args);
-  if (error) throw new Error(`published_job_postings: ${error.message}`);
-  return ((data ?? []) as PublishedJobRow[]).map(toPublishedJob);
+  const rows =
+    filter.jobId || filter.companySlug
+      ? await readPublishedRows(supabasePublic.rpc("published_job_postings", args))
+      : await fetchAllPages(
+          (from, to) => readPublishedRows(supabasePublic.rpc("published_job_postings", args).range(from, to)),
+          PAGE_SIZE,
+        );
+  return rows.map(toPublishedJob);
 }
 
 // The dashboard table's data, without `description` (loaded separately — see
@@ -73,24 +101,24 @@ export async function getActiveJobs(): Promise<JobListItem[]> {
   cacheLife("hours");
   cacheTag("jobs");
 
-  const rows: JobRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
+  const rows = await fetchAllPages<JobRow>(async (from, to) => {
     const { data, error } = await supabasePublic
       .from("jobs")
       .select(JOB_COLUMNS)
       .eq("active", true)
       .order("id")
-      .range(from, from + PAGE_SIZE - 1)
+      .range(from, to)
       .returns<JobRow[]>();
     if (error) throw new Error(`getActiveJobs: ${error.message}`);
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) break;
-  }
+    return data ?? [];
+  }, PAGE_SIZE);
   const posted = await fetchPublishedJobs();
   return [...posted.map(toPostedListItem), ...rows.map(toListItem)];
 }
 
-// Served by src/app/api/jobs/descriptions/route.ts, fetched client-side after the table renders.
+// Every description at once, by list id. It is 28 MB of text, so only what filters on the description
+// asks for it; the description sheet reads one job's (getJobDescription). Served by
+// src/app/api/jobs/descriptions/route.ts.
 export async function getJobDescriptions(): Promise<Record<string, string>> {
   "use cache";
   cacheLife("hours");
@@ -100,22 +128,53 @@ export async function getJobDescriptions(): Promise<Record<string, string>> {
   for (const job of await fetchPublishedJobs()) {
     if (job.description) result[listId(job.id)] = job.description;
   }
-  for (let from = 0; ; from += PAGE_SIZE) {
+  const scraped = await fetchAllPages<{ id: string; description: string | null }>(async (from, to) => {
     const { data, error } = await supabasePublic
       .from("jobs")
       .select("id, description")
       .eq("active", true)
       .not("description", "is", null)
       .order("id")
-      .range(from, from + PAGE_SIZE - 1)
+      .range(from, to)
       .returns<{ id: string; description: string | null }[]>();
     if (error) throw new Error(`getJobDescriptions: ${error.message}`);
-    for (const row of data ?? []) {
-      if (row.description) result[row.id] = row.description;
-    }
-    if (!data || data.length < PAGE_SIZE) break;
+    return data ?? [];
+  }, PAGE_SIZE);
+  for (const row of scraped) {
+    if (row.description) result[row.id] = row.description;
   }
   return result;
+}
+
+// One job's description, for the description sheet, by its list id; null when there is none: a job
+// with no text, one that is no longer active or published, and an id nobody has all look the same.
+// Served by src/app/api/jobs/descriptions/[jobId]/route.ts. Cached per job and expired by the same
+// tag as the list. An id that can't be one is answered before the cache sees it, so a request can't
+// fill the cache with ids of its own making (the same as getCompanyPublishedJobs does for slugs).
+export async function getJobDescription(listItemId: string): Promise<string | null> {
+  if (!listIdSchema.safeParse(listItemId).success) return null;
+  const postingId = postingIdOf(listItemId);
+  if (postingId !== null && !z.uuid().safeParse(postingId).success) return null;
+  return readJobDescription(listItemId);
+}
+
+async function readJobDescription(listItemId: string): Promise<string | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("jobs");
+
+  const postingId = postingIdOf(listItemId);
+  if (postingId !== null) {
+    return (await fetchPublishedJobs({ jobId: postingId }))[0]?.description || null;
+  }
+  const { data, error } = await supabasePublic
+    .from("jobs")
+    .select("description")
+    .eq("id", listItemId)
+    .eq("active", true)
+    .maybeSingle<{ description: string | null }>();
+  if (error) throw new Error(`getJobDescription: ${error.message}`);
+  return data?.description || null;
 }
 
 // One published job for its page, /jobs/{id} (features/apply-with-cv.md), or null when there is

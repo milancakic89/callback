@@ -13,7 +13,8 @@
     "jobs:refresh": "npm run scrape -- refresh",
     "seed:mock-candidates": "node --import tsx scripts/seed-mock-candidates.ts",
     "demo:documents": "node --import tsx scripts/build-demo-documents.ts",
-    "landing:screenshots": "node --import tsx scripts/capture-landing-screenshots.ts"
+    "landing:screenshots": "node --import tsx scripts/capture-landing-screenshots.ts",
+    "load:test": "node --import tsx scripts/load-test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

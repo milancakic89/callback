@@ -59,8 +59,8 @@ async function AuthedEmployerDashboard({ params }: { params: Params }) {
   await requireAccountType("employer");
 
   // The first visit makes the company and its demo job, so this has to run before the read.
-  await ensureEmployerWorkspace();
-  const jobs = await getCompanyJobs();
+  const companyId = await ensureEmployerWorkspace();
+  const jobs = await getCompanyJobs(companyId);
   if (jobs.length === 0) return <EmptyState company={company} />;
 
   return (

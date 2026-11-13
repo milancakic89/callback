@@ -4,6 +4,18 @@
 # and sets X-Forwarded-For to the client's address, which src/lib/rate-limit.ts relies on. Don't put
 # another proxy or CDN (e.g. Cloudflare's orange cloud) in front without changing getClientIp().
 callback.rs {
+	# Compression is done here and not by Next (`compress: false` in next.config.ts): Caddy spreads it
+	# over every core, where Next's gzip runs on the one thread that also renders. zstd for the
+	# browsers that take it, gzip for the rest (features/performance.md).
+	encode zstd gzip
+
+	# The job list and the descriptions change at most when the scraper runs or a company publishes,
+	# but Next sends them with only `s-maxage` and no ETag, which a browser can't use: it fetched all
+	# of them again on every visit. A minute in the browser, then ten more served stale while a fresh
+	# copy is fetched. `>` sets the header after the app has answered, over the one Next sent.
+	@jobData path /api/jobs/list /api/jobs/descriptions /api/jobs/descriptions/*
+	header @jobData >Cache-Control "public, max-age=60, stale-while-revalidate=600"
+
 	reverse_proxy 127.0.0.1:3000 {
 		# Next streams pages (Suspense, partial prerendering): hand each chunk on right away
 		# instead of buffering the response.

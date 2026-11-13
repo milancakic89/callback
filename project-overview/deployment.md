@@ -37,10 +37,10 @@ The build happens on GitHub, so the server only runs `node server.js`; its memor
 | `src/app/api/health/route.ts` | What the deploy checks after a restart. It reads the validated environment at request time, so a release with a missing variable answers 500 (the prerendered pages would still answer 200). |
 | `.github/workflows/deploy.yml` | Three jobs. `test` runs the lint and the tests on every push to `main` and on pull requests; `deploy` waits for it, and only on `main` builds, uploads and activates the release; `scraper` runs after `deploy` and ships the scraper's code to the server ([the daily job refresh](#the-daily-job-refresh)). Can also be run by hand. |
 | `deploy/activate-release.sh` | Runs on the server: unpacks the release, repoints `/srv/callback/current`, restarts, checks health, and goes back on failure. |
-| `deploy/callback.service` | The systemd unit. The app listens on `127.0.0.1:3000` only. |
+| `deploy/callback.service` | The systemd unit. The app listens on `127.0.0.1:3000` only; V8's heap is capped at 2 GB and the service at 3 GB (`MemoryMax`), see [Compression and limits](#compression-and-limits). |
 | `deploy/callback-scraper.timer`, `callback-scraper.service` | The daily job refresh: the timer starts the service every morning, and the service runs `npm run jobs:refresh`. |
 | `deploy/update-scraper.sh` | Runs on the server after each deploy: puts the scraper's code and dependencies in `/srv/callback/job-scraper`, and never touches its data. |
-| `deploy/Caddyfile` | HTTPS for `callback.rs`, and `www` redirecting to it. |
+| `deploy/Caddyfile` | HTTPS for `callback.rs`, compression (`encode zstd gzip`), the browser cache for the job list and descriptions, and `www` redirecting to it. |
 | `deploy/setup-server.sh` | One-time server setup: Node 24, Caddy, a `deploy` user, the service and the scraper's timer, the firewall. |
 
 On the server:
@@ -193,11 +193,30 @@ Do it only after a key login works for the account you will use afterwards, in a
 - **Moving to another server:** run the setup there, then change `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` and the DNS records.
 - **Security updates:** `unattended-upgrades` is installed by the setup script. Node itself follows NodeSource's 24.x.
 
+## Compression and limits
+Added with [features/performance.md](../features/performance.md). Next does not compress anything (`compress: false` in `next.config.ts`); Caddy does, on all four cores, where Next's gzip ran on the one thread that also renders pages.
+- **`deploy/Caddyfile`:** `encode zstd gzip` for every response, and `Cache-Control: public, max-age=60, stale-while-revalidate=600` on `/api/jobs/list` and `/api/jobs/descriptions*`. Next sends those with only `s-maxage` and no ETag, which a browser can't use, so it fetched them again on every visit. The header is set with `>` (after the app has answered), over the one Next sends. The job list can lag a minute behind a publish or a scrape in a browser that has it, ten more while it refreshes.
+- **`deploy/callback.service`:** `NODE_OPTIONS=--max-old-space-size=2048` and `MemoryMax=3G`. If the process grows past 3 GB systemd restarts the service (`Restart=on-failure`, after 3 s) instead of the kernel's OOM killer choosing a process, which could be Caddy or the scraper.
+- **`deploy/callback-scraper.service`:** `CPUQuota=200%`, so the 05:00 refresh leaves the app two of the four vCPUs.
+- **`next start` without Caddy** (a local production build) sends everything uncompressed; load tests there (`npm run load:test`, see the performance feature) measure the app, not the compression.
+
+**A manual step after the deploy that adds this.** The deploy workflow ships the app, not `deploy/`: the unit files and the Caddyfile are installed by `setup-server.sh`. On the server, either run `bash deploy/setup-server.sh "<the deploy key's public half>"` again (safe to repeat; it needs the `deploy/` folder copied over), or by hand, as root, from a checkout's `deploy/` folder:
+```bash
+install -m 644 callback.service /etc/systemd/system/callback.service
+install -m 644 callback-scraper.service /etc/systemd/system/callback-scraper.service
+install -m 644 Caddyfile /etc/caddy/Caddyfile
+systemctl daemon-reload
+caddy validate --config /etc/caddy/Caddyfile
+systemctl reload caddy
+systemctl restart callback      # picks up NODE_OPTIONS and MemoryMax
+```
+Then check: `curl -sI -H 'Accept-Encoding: zstd, gzip' https://callback.rs/api/jobs/list` shows `content-encoding: zstd` and the `public, max-age=60` header, and `systemctl show callback -p MemoryMax` shows 3221225472.
+
 ## Mail from `callback.rs`
 `MAIL_FROM` can stay a Gmail address while you launch, but activation emails sent "from" a domain you own land in spam less often. Any SMTP provider works, because the app only uses `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and `SMTP_PASSWORD` (`src/lib/mail.ts`). Whichever one you pick, it gives you SPF, DKIM and DMARC records to add to the `callback.rs` DNS; sending without them is what gets mail flagged.
 
 ## Known limits
 - **The per-IP limit resets on every restart**, so each deploy clears it ([security.md](./security.md)). The auth limits live in Postgres and survive.
-- **`/jobs` is heavy:** about 6.3 MB of HTML before compression (about 0.7 MB gzipped), because the whole job list is embedded, and `/api/jobs/descriptions` is 26 MB before compression. Check the provider's traffic allowance, and compress at Caddy if the gzip from Next is not enough.
+- **`/jobs` and the job data:** the page itself is about 130 KB (it carries the first 20 rows, not the list), `/api/jobs/list` is 2.9 MB before compression (0.37 MB zstd) and `/api/jobs/descriptions` is 27 MB (6.9 MB zstd), fetched only when a Description filter is used. See [Compression and limits](#compression-and-limits). Check the provider's traffic allowance if the job list grows a lot.
 - **One server, no redundancy:** while the service restarts during a deploy (a second or two), requests fail. A second instance would also need the shared cache from the [self-hosting guide](../node_modules/next/dist/docs/01-app/02-guides/self-hosting.md).
 - **HSTS** (`max-age` of two years, without subdomains) is sent in production: after a first visit over HTTPS, browsers refuse plain HTTP for `callback.rs`.
