@@ -40,7 +40,11 @@ export function howLongWeKeepIt(): LegalSectionContent {
           requires us to keep.
         </li>
         <li>An employer&rsquo;s Google connection lasts until the employer disconnects it (see part 5).</li>
-        <li>Counters that limit abusive traffic hold an IP address and a number of requests, and nothing else.</li>
+        <li>
+          Counters that limit abusive traffic hold an IP address, an account&rsquo;s id or, for signing in, choosing an
+          account type and resetting a password, the email address typed in, together with a number of requests and when
+          the count starts again, and nothing else.
+        </li>
       </ul>
     ),
   };

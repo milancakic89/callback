@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LegalSectionContent } from "@/components/legal/legal-document";
-import { ContactLink } from "@/components/legal/legal-links";
+import { ContactLink, ExternalLink } from "@/components/legal/legal-links";
+import { GOOGLE_PRIVACY_POLICY_URL } from "@/components/legal/privacy-google-section";
 import { LEGAL_LINKS, type LegalOperator } from "@/lib/legal/constants";
 
 // The parts of the Privacy Policy about the data itself: who is responsible, what is collected, why,
@@ -77,8 +78,9 @@ export function whatWeCollect(): LegalSectionContent {
         </p>
         <ul>
           <li>
-            Your IP address, kept in a counter that limits abusive traffic. Our server may also keep ordinary technical
-            logs (address, time, page requested) for security and for finding faults.
+            Your IP address, kept in a counter that limits abusive traffic. When you sign in, choose an account type or
+            ask to reset a password, the email address you typed is kept in such a counter too. Our server may also keep
+            ordinary technical logs (address, time, page requested) for security and for finding faults.
           </li>
           <li>The cookies listed in part 9.</li>
         </ul>
@@ -164,7 +166,9 @@ export function whoSeesIt(): LegalSectionContent {
           <strong>When an employer invites you to an interview</strong>, we email you the time, the length and any message
           from the employer. If you confirm, your email address is added as a guest to the event in the employer&rsquo;s
           calendar, so the employer&rsquo;s Google account shows it, and Google sends you the calendar invitation. The
-          employer is told your answer, whichever it is.
+          employer is told your answer, whichever it is. The call itself takes place on Google Meet, which Google runs
+          under <ExternalLink href={GOOGLE_PRIVACY_POLICY_URL}>Google&rsquo;s Privacy Policy</ExternalLink>, not this
+          one.
         </li>
         <li>
           <strong>Authorities</strong>, when the law requires us to disclose data.

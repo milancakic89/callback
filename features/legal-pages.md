@@ -27,7 +27,8 @@
 | Smart Screening is a keyword check shown to the employer, no automated decision | [cv-screening.md](./cv-screening.md) |
 | Files in Cloudflare R2, EU jurisdiction; database and sign-in in Supabase; e-mail through Gmail SMTP; server at Contabo, Europe | `R2_ENDPOINT`, [document-storage.md](./document-storage.md), `SMTP_HOST`, [deployment.md](../project-overview/deployment.md) |
 | Withdrawing an application releases its documents | [callback-applications-in-table.md](./callback-applications-in-table.md) |
-| IP addresses are held in rate-limit counters | `rate_limits`, `getClientIp` |
+| Rate-limit counters hold an IP address, an account's id or, for signing in, choosing an account type and resetting a password, the email address typed in | `rate_limits` and `src/app/(auth)/actions.ts` (`sign-in:<ip>:<email>`, `account-type:email:…`, `forgot-password:email:…`), the in-memory counters keyed by account id (`src/lib/rate-limit.ts`), `getClientIp` |
+| A candidate who joins the interview call does it on Google Meet, under Google's own privacy policy | `meet_url` from `src/lib/google/calendar.ts` |
 | Google: only the account's e-mail and one calendar scope; creates its own events, adds the confirmed candidate, deletes them; refresh token encrypted (AES-256-GCM); Disconnect revokes and deletes | `src/lib/google/*`, [interview-invitations.md](./interview-invitations.md) |
 | **No** self-service account deletion or data export | none exists: the policy says to write to the contact address, and does not promise a button |
 
@@ -41,6 +42,12 @@ These are statements the code can't prove; they are in the text and need a human
 - **Retention.** The policy promises deletion on request and no fixed periods. `rate_limits` rows are never purged (they are overwritten per key), so addresses stay in that table; decide whether to add a purge.
 - **The Serbian regulator and law references** (the Law on Personal Data Protection, the Commissioner at poverenik.rs) and the 30-day answer time.
 - A lawyer's reading before the Google review, if the owner wants one.
+
+## Update, 2026-11-13: what the counters hold, and Google Meet for candidates
+**Status:** implemented on the branch `legal/privacy-update`, 2026-11-13. `npm test` (134 files, 1,251 tests, 3 of them new), `npm run lint`, `npx tsc --noEmit` and `npm run build` pass, and `/privacy` is still a partial prerender (`◐`). No existing test was changed. Not committed, pushed or deployed.
+- **A wrong sentence fixed.** "How long we keep it" said the counters that limit abusive traffic hold "an IP address and a number of requests, and nothing else". The sign-in, account-type and password-reset limits are kept in `rate_limits` under keys that include the email address typed in, and the other limits count per account id (in memory). Both "What we collect" and "How long we keep it" now say so. "What we collect" keeps its first sentence word for word, so its existing test is unchanged; a new test covers the added one.
+- **Google Meet for candidates.** "Who sees your data" now says that the interview call itself happens on Google Meet, under Google's Privacy Policy (`GOOGLE_PRIVACY_POLICY_URL`, next to the other Google links in `privacy-google-section.tsx`). Part 5 still says candidates never sign in with Google.
+- `LEGAL_LAST_UPDATED` stays "13 November 2026": the change is made the same day.
 
 ## Out of scope
 A Serbian translation; a cookie banner (only strictly necessary cookies are set); self-service account deletion and export (the policy names it as a request by e-mail); the Google verification submission itself.

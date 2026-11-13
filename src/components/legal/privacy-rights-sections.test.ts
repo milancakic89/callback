@@ -33,6 +33,14 @@ describe("howLongWeKeepIt", () => {
     expect(html).toContain("until the employer disconnects it");
   });
 
+  // The sign-in, account-type and password-reset limits are keyed by the email typed in; the others by
+  // the IP address or the account (src/app/(auth)/actions.ts, src/lib/rate-limit.ts).
+  it("says what the rate-limit counters hold: an IP address, an account's id or a typed email", () => {
+    expect(html).toContain("Counters that limit abusive traffic hold an IP address");
+    expect(html).toContain(`an account${APOSTROPHE}s id`);
+    expect(html).toContain("the email address typed in");
+  });
+
   // No period is claimed that nothing in the app enforces (features/legal-pages.md).
   it("promises no fixed retention period", () => {
     expect(html).not.toMatch(/\d+\s+(days?|weeks?|months?|years?)/i);

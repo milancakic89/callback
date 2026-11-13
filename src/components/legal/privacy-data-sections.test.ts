@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { howWeUseIt, whatWeCollect, whoSeesIt, whoWeAre } from "./privacy-data-sections";
+import { GOOGLE_PRIVACY_POLICY_URL } from "./privacy-google-section";
 import { APOSTROPHE, renderSection, TEST_OPERATOR } from "./legal-test-utils";
 
 describe("whoWeAre", () => {
@@ -44,6 +45,12 @@ describe("whatWeCollect", () => {
   it("owns up to the IP address kept in the rate-limit counter, and to server logs", () => {
     expect(html).toContain("Your IP address, kept in a counter that limits abusive traffic");
     expect(html).toContain("technical logs");
+  });
+
+  // src/app/(auth)/actions.ts keys these limits by the email typed in (rate_limits).
+  it("owns up to the email address kept in the counters for signing in, the account type and password resets", () => {
+    expect(html).toContain("When you sign in, choose an account type or ask to reset a password");
+    expect(html).toContain("the email address you typed is kept in such a counter too");
   });
 
   it("says the listings from other boards are their publishers", () => {
@@ -97,5 +104,11 @@ describe("whoSeesIt", () => {
   it("says that a candidate who confirms an interview shows their email to the employer", () => {
     expect(html).toContain("your email address is added as a guest");
     expect(html).toContain(`employer${APOSTROPHE}s Google account shows it`);
+  });
+
+  it("says the interview call takes place on Google Meet, under Google's Privacy Policy, linked", () => {
+    expect(html).toContain("The call itself takes place on Google Meet");
+    expect(html).toContain(`href="${GOOGLE_PRIVACY_POLICY_URL}"`);
+    expect(html).toContain(`Google${APOSTROPHE}s Privacy Policy`);
   });
 });

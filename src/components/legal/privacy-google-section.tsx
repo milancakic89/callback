@@ -4,6 +4,7 @@ import type { LegalOperator } from "@/lib/legal/constants";
 
 export const GOOGLE_USER_DATA_POLICY_URL = "https://developers.google.com/terms/api-services-user-data-policy";
 export const GOOGLE_PERMISSIONS_URL = "https://myaccount.google.com/permissions";
+export const GOOGLE_PRIVACY_POLICY_URL = "https://policies.google.com/privacy";
 
 // The part of the Privacy Policy Google's app verification reads (features/legal-pages.md): what an
 // employer's Google data is used for, kept as, and how it is removed. What it says about the calendar
