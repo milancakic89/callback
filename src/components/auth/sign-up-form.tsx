@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { signUp } from "@/app/(auth)/actions";
 import { FieldError, FormAlert } from "@/components/auth/form-feedback";
+import { LegalConsent } from "@/components/auth/legal-consent";
 import { useAuthForm } from "@/components/auth/use-auth-form";
 import { postingNext } from "@/lib/auth/safe-next";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ export function SignUpForm() {
       <Button type="submit" size="lg" className="w-full" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>
+      <LegalConsent />
     </form>
   );
 }

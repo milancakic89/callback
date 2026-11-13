@@ -1,6 +1,7 @@
 import { ChevronDownIcon, ChevronUpIcon, LockIcon, Trash2Icon } from "lucide-react";
 import { FieldError } from "@/components/auth/form-feedback";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,7 +25,7 @@ export function CandidateStepFields({
   total: number;
   nameErrors?: string[];
   descriptionErrors?: string[];
-  onChange: (change: { name?: string; description?: string }) => void;
+  onChange: (change: { name?: string; description?: string; schedulesInterview?: boolean }) => void;
   onMove: (direction: "up" | "down") => void;
   onRemove: () => void;
 }) {
@@ -103,6 +104,21 @@ export function CandidateStepFields({
           {draft.description.length} / {STEP_DESCRIPTION_MAX}
         </p>
         <FieldError id={`${id}-description-error`} errors={descriptionErrors} />
+      </div>
+      {/* features/interview-invitations.md: applying a candidate to this step offers a Google Meet invitation. */}
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id={`${id}-interview`}
+          checked={draft.schedulesInterview}
+          onCheckedChange={(checked) => onChange({ schedulesInterview: checked === true })}
+          className="mt-0.5"
+        />
+        <div className="grid gap-0.5">
+          <Label htmlFor={`${id}-interview`}>Interview step</Label>
+          <p className="text-xs text-muted-foreground">
+            Applying a candidate to this step lets you send a Google Meet invitation they confirm or decline.
+          </p>
+        </div>
       </div>
       {!removable && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

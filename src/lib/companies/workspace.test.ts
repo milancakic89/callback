@@ -241,6 +241,7 @@ describe("getJobApplicants", () => {
       cvFileName: "My CV.pdf",
       coverLetterFileName: null,
       coverLetterText: null,
+      interview: null,
     });
     expect(JSON.stringify(applicant)).not.toContain("user-9/");
   });

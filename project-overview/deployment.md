@@ -158,6 +158,26 @@ On the server:
 - **Stopping it:** as root, `systemctl disable --now callback-scraper.timer` (and `systemctl stop callback-scraper` for a run in progress: the scraper finishes the companies it is on and saves).
 - **Extra settings** for the scraper, such as `HIMALAYAS_API_KEY`, go in `PRODUCTION_ENV` like any other, followed by a deploy.
 
+## Interview invitations
+[features/interview-invitations.md](../features/interview-invitations.md) needs four optional variables in `PRODUCTION_ENV`; without them a release still deploys, and the feature is off:
+```
+GOOGLE_CLIENT_ID=…
+GOOGLE_CLIENT_SECRET=…
+GOOGLE_TOKEN_KEY=<openssl rand -hex 32>    # encrypts the stored refresh tokens; changing it disconnects every company
+CRON_SECRET=<openssl rand -hex 32>         # lets the timer call POST /api/interviews/expire
+```
+The Google OAuth client's redirect URI is `https://callback.rs/api/google/callback` (and `http://localhost:3000/api/google/callback` for development).
+
+**The timer.** `callback-interviews.timer` starts `callback-interviews.service` 5 minutes after boot and then every 15 minutes. The service is a `Type=oneshot` unit that runs as `deploy`, reads `/srv/callback/.env` and calls `POST http://127.0.0.1:3000/api/interviews/expire` with `Authorization: Bearer $CRON_SECRET`. It does nothing while `CRON_SECRET` is unset, and `curl --fail` makes a wrong secret or a 500 a failed run, which shows in the journal. As with the scraper, re-run the setup as root on the existing server to install the units (it is safe to run again):
+```bash
+scp -r deploy root@<IP>:~/deploy
+ssh root@<IP>
+bash ~/deploy/setup-server.sh "ssh-ed25519 AAAA… github-actions-callback"
+systemctl list-timers callback-interviews.timer
+journalctl -u callback-interviews -n 20
+```
+Until the timer runs, the screens already read an unanswered invitation past its deadline as "No response"; the timer only makes the database and the company's calendar agree with that.
+
 ## Hardening the login (after the first deploy works)
 `root` can log in with a password from anywhere, and bots try common passwords on every public address. The `deploy` user can't (it has only the key). Once you have confirmed that `ssh deploy@<IP>` works with the key, either choose a long random root password or, better, turn password login off:
 ```bash

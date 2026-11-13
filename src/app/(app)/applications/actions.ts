@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { APPLICATION_STATUSES } from "@/lib/applications/types";
 import { requireAccountType } from "@/lib/auth/dal";
+import { answerInvitation } from "@/lib/interviews/respond";
 import { rateLimit } from "@/lib/rate-limit";
 import { drainStorageDeletions } from "@/lib/storage/deletions";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
@@ -78,4 +79,41 @@ export async function setApplicationStatus(jobId: string, status: string): Promi
   if (!data || data.length === 0) return { ok: false, error: "Application not found." };
 
   return { ok: true };
+}
+
+export type RespondToInterviewResult = { ok: true; response: "confirmed" | "declined" } | { ok: false; error: string };
+
+// Confirm or Decline on a signed-in candidate's own application (features/interview-invitations.md): the
+// same answer as the email's page, for a candidate who is already here. Who they are comes from the
+// session, and only the application's own candidate can answer.
+export async function respondToMyInterview(invitationId: string, response: "confirm" | "decline"): Promise<RespondToInterviewResult> {
+  const parsed = z.object({ invitationId: z.uuid(), response: z.enum(["confirm", "decline"]) }).safeParse({ invitationId, response });
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+
+  const user = await requireAccountType("candidate");
+
+  const { success } = await rateLimit({
+    key: `interview-respond:user:${user.id}`,
+    limit: 20,
+    windowMs: 15 * 60_000,
+    store: postgresStore,
+  });
+  if (!success) return { ok: false, error: "Too many attempts. Try again in a few minutes." };
+
+  try {
+    const result = await answerInvitation(parsed.data.invitationId, parsed.data.response, { kind: "candidate", userId: user.id });
+    if (result.ok) {
+      refresh();
+      return { ok: true, response: result.response };
+    }
+    if (result.reason === "closed") {
+      // Already answered, expired or cancelled: show them how it stands now.
+      refresh();
+      return { ok: false, error: "This invitation has already closed." };
+    }
+    return { ok: false, error: "This invitation isn't available." };
+  } catch (error) {
+    console.error("respondToMyInterview failed:", error);
+    return { ok: false, error: "Could not save your answer. Try again." };
+  }
 }

@@ -23,6 +23,7 @@ const application = (fields: Partial<CallbackApplication> = {}): CallbackApplica
     stageAt: "2026-11-09T10:00:00+00:00",
     stepUpdatedAt: "2026-11-01T10:00:00+00:00",
   },
+  interview: null,
   ...fields,
 });
 

@@ -11,6 +11,7 @@ const step = (index: number): CandidateStep => ({
   description: "text",
   usedAt: null,
   updatedAt: "2026-11-09T10:00:00+00:00",
+  schedulesInterview: false,
 });
 
 const steps = (count: number) => Array.from({ length: count }, (_, index) => step(index + 1));

@@ -64,6 +64,15 @@ Next.js only sets `X-Forwarded-For` itself when the header is missing, and never
 - Responses never reveal whether an account exists.
 - `/auth/confirm` only redirects to same-origin paths (`next` must start with `/`, not `//` or `/\`).
 
+### Interview invitations ([features/interview-invitations.md](../features/interview-invitations.md))
+- **The company's Google refresh token is encrypted** (AES-256-GCM, a key derived from `GOOGLE_TOKEN_KEY`) in `google_calendar_connections`, a table with RLS on, no policy and no grant: only the secret-key client reads it, after the server has found the caller's own company. The only scope is `calendar.events`, plus `openid email` to show which account is connected. Disconnecting asks Google to revoke the token and deletes the row.
+- **The OAuth `state` is a random value in an `httpOnly`, `sameSite=lax` cookie** limited to `/api/google`, checked in constant time when Google sends the employer back. The connect link is a plain `<a>`, because the CSP's `form-action 'self'` blocks a form that ends at Google. Redirects are built from `APP_URL`, as in `/auth/confirm`.
+- **The candidate answers with a token in the email's link.** 256 random bits; only their sha-256 is stored, compared in constant time. A wrong id or token is a 404 that says nothing about which invitations exist. The page sets `noindex` and `referrer: no-referrer`.
+- **Confirm and Decline are a POST from the page's form, never the link.** Mail scanners (Outlook Safe Links, Gmail) open links in an email; an answer on a GET would be given by the scanner. The answer is one conditional update (still `pending`, before its deadline), so two answers, or an answer racing the expiry job, can't both win.
+- **Limits:** 30 invitations an hour per company user, 30 answers per 15 minutes per IP and 10 per invitation, 20 per 15 minutes for a signed-in candidate, 30 cancellations a minute.
+- **What users type is escaped in the emails** (the job title, the company's and the candidate's names, the message): `escapeHtml()` in `src/lib/mail.ts`. The message is plain text on the pages too.
+- **`/api/interviews/expire` answers 404 without `CRON_SECRET`,** which is compared in constant time, and doesn't exist while the secret is unset.
+
 ### Dashboard (Phase 2)
 See [features/dashboard.md](../features/dashboard.md).
 

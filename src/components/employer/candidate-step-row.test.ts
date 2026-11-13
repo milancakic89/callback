@@ -9,6 +9,7 @@ const draft = (fields: Partial<StepDraft> = {}): StepDraft => ({
   id: null,
   name: "Interview",
   description: "A short call.",
+  schedulesInterview: false,
   locked: false,
   ...fields,
 });

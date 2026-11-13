@@ -34,6 +34,7 @@ const step = (id: string, position: number, name: string, usedAt: string | null 
   description: `About ${name}`,
   usedAt,
   updatedAt: "2026-11-09T10:00:00+00:00",
+  schedulesInterview: false,
 });
 
 const draft = (key: string, name: string, locked = false): StepDraft => ({
@@ -41,6 +42,7 @@ const draft = (key: string, name: string, locked = false): StepDraft => ({
   id: locked ? key : null,
   name,
   description: `About ${name}`,
+  schedulesInterview: false,
   locked,
 });
 
@@ -52,7 +54,7 @@ describe("candidateStepsSchema", () => {
   it("trims the name and the text and normalises line breaks", () => {
     const parsed = candidateStepsSchema.parse([input("  Interview  ", "  One\r\nTwo  ", ID_ONE)]);
 
-    expect(parsed).toEqual([{ id: ID_ONE, name: "Interview", description: "One\nTwo" }]);
+    expect(parsed).toEqual([{ id: ID_ONE, name: "Interview", description: "One\nTwo", schedulesInterview: false }]);
   });
 
   it("needs a name and a text", () => {
@@ -121,7 +123,7 @@ describe("the list in the form", () => {
 
   it("adds a new empty step at the end, with no id, up to 10", () => {
     const one = addStep([], "key-1");
-    expect(one).toEqual([{ key: "key-1", id: null, name: "", description: "", locked: false }]);
+    expect(one).toEqual([{ key: "key-1", id: null, name: "", description: "", schedulesInterview: false, locked: false }]);
 
     const full = Array.from({ length: MAX_CANDIDATE_STEPS }, (_, index) => draft(`k${index}`, `Step ${index}`));
     expect(canAddStep(full)).toBe(false);
@@ -165,13 +167,21 @@ describe("the list in the form", () => {
     expect(next[0]).toBe(drafts[0]);
   });
 
-  it("sends the id, the name and the text, in order, and nothing else", () => {
-    const drafts = [draft(ID_ONE, "A", true), draft("new", "B")];
+  it("sends the id, the name, the text and the interview flag, in order, and nothing else", () => {
+    const drafts = [draft(ID_ONE, "A", true), { ...draft("new", "B"), schedulesInterview: true }];
 
     expect(toStepInputs(drafts)).toEqual([
-      { id: ID_ONE, name: "A", description: "About A" },
-      { id: null, name: "B", description: "About B" },
+      { id: ID_ONE, name: "A", description: "About A", schedulesInterview: false },
+      { id: null, name: "B", description: "About B", schedulesInterview: true },
     ]);
+  });
+
+  it("turns the interview flag on and off for one step", () => {
+    const drafts = [draft("a", "A"), draft("b", "B")];
+
+    const on = updateStep(drafts, 1, { schedulesInterview: true });
+    expect(on.map((step) => step.schedulesInterview)).toEqual([false, true]);
+    expect(updateStep(on, 1, { schedulesInterview: false })[1].schedulesInterview).toBe(false);
   });
 });
 
@@ -185,6 +195,7 @@ describe("helpers", () => {
         description: "We read it.",
         used_at: null,
         updated_at: "2026-11-09T10:00:00+00:00",
+        schedules_interview: false,
       }),
     ).toEqual({
       id: ID_ONE,
@@ -193,6 +204,7 @@ describe("helpers", () => {
       description: "We read it.",
       usedAt: null,
       updatedAt: "2026-11-09T10:00:00+00:00",
+      schedulesInterview: false,
     });
   });
 

@@ -18,6 +18,7 @@ const step = (id: string, position: number, name: string): CandidateStep => ({
   description: `About ${name}`,
   usedAt: null,
   updatedAt: "2026-11-09T10:00:00+00:00",
+  schedulesInterview: false,
 });
 
 const SCREENING = step("11111111-1111-4111-8111-111111111111", 1, "Screening");

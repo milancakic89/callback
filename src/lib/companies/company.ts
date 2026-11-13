@@ -21,7 +21,9 @@ export const APP_ROUTES = [
   "dashboard",
   "dev",
   "forgot-password",
+  "interviews",
   "jobs",
+  "privacy",
   "profile",
   "reset-password",
   "saved-jobs",
@@ -29,6 +31,7 @@ export const APP_ROUTES = [
   "setup",
   "sign-in",
   "sign-up",
+  "terms",
 ] as const;
 
 // What no company may be called: the app's own routes, and words kept for pages it may get. The
@@ -61,7 +64,6 @@ export const RESERVED_SLUGS: readonly string[] = [
   "logout",
   "new",
   "pricing",
-  "privacy",
   "public",
   "review",
   "robots",
@@ -74,7 +76,6 @@ export const RESERVED_SLUGS: readonly string[] = [
   "static",
   "status",
   "support",
-  "terms",
   "test",
   "www",
 ];

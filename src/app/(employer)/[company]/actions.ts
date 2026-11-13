@@ -8,6 +8,9 @@ import { homeFor } from "@/lib/auth/account-type";
 import { requireAccountType } from "@/lib/auth/dal";
 import { jobPostingSchema } from "@/lib/companies/job-posting";
 import { ensureEmployerWorkspace } from "@/lib/companies/workspace";
+import { cancelInvitation } from "@/lib/interviews/cancel";
+import { interviewRequestSchema, type InterviewRequest } from "@/lib/interviews/schedule";
+import { sendInterviewInvitation, sendInterviewInvitations, type InviteOutcome } from "@/lib/interviews/send";
 import { rateLimit } from "@/lib/rate-limit";
 import { isValidChoice, PIPELINE_STAGES, type PipelineStage, type StageChoice } from "@/lib/review/stages";
 import { rescreenJob } from "@/lib/screening/rescreen";
@@ -364,20 +367,31 @@ const applyStagesSchema = z.object({
   jobId: z.uuid(),
   // The most a job's review screen can hold at once is far below this; it only bounds the request.
   changes: z.array(stageChangeSchema).min(1).max(500),
+  // Invitations to send along (features/interview-invitations.md), for candidates the same call applies.
+  interviews: z.array(interviewRequestSchema).max(100).optional(),
 });
 
-export type ApplyStagesResult = { ok: true; appliedIds: string[] } | { ok: false; error: string };
+// `interviews` is there only when invitations were asked for: one outcome for each of them.
+export type ApplyStagesResult =
+  | { ok: true; appliedIds: string[]; interviews?: InviteOutcome[] }
+  | { ok: false; error: string };
 
 // "Apply statuses" on the review screen (features/candidate-steps.md): shows the candidates the
 // statuses the employer chose. `changes` is what the confirmation listed, and the database only
 // updates an application that still stands where the employer saw it, so a change made in another tab
 // meanwhile is not sent unseen. The ids it returns are the ones the candidates now see; the screen
 // updates itself from them, so nothing is refreshed.
+//
+// Invitations (features/interview-invitations.md) go out only after the statuses are applied, and only
+// for candidates the database applied: a status that wasn't applied (changed in another tab) sends no
+// invitation. A failed invitation doesn't undo the status; its outcome says what went wrong, and the
+// review screen offers to send it again.
 export async function applyApplicationStages(
   jobId: string,
   changes: { id: string; stage: PipelineStage; stepId: string | null }[],
+  interviews?: InterviewRequest[],
 ): Promise<ApplyStagesResult> {
-  const parsed = applyStagesSchema.safeParse({ jobId, changes });
+  const parsed = applyStagesSchema.safeParse({ jobId, changes, interviews });
   if (!parsed.success) return { ok: false, error: "Invalid request." };
 
   const user = await requireAccountType("employer");
@@ -404,5 +418,49 @@ export async function applyApplicationStages(
     return { ok: false, error: "Could not apply the statuses. Try again." };
   }
 
-  return { ok: true, appliedIds: (data ?? []) as string[] };
+  const appliedIds = (data ?? []) as string[];
+  if (!parsed.data.interviews?.length) return { ok: true, appliedIds };
+
+  const applied = new Set(appliedIds);
+  const wanted = parsed.data.interviews.filter((request) => applied.has(request.applicationId));
+  const sent = await sendInterviewInvitations(user.id, wanted);
+  const skipped: InviteOutcome[] = parsed.data.interviews
+    .filter((request) => !applied.has(request.applicationId))
+    .map((request) => ({
+      applicationId: request.applicationId,
+      ok: false,
+      error: "The status wasn't applied, so no invitation was sent.",
+    }));
+  return { ok: true, appliedIds, interviews: [...sent, ...skipped] };
+}
+
+// "Send invitation" in the review screen's Interview panel: for a candidate who has been shown an
+// interview step and has no open invitation (the first one failed, or the last one was declined, expired
+// or cancelled).
+export async function inviteToInterview(request: InterviewRequest): Promise<InviteOutcome> {
+  const parsed = interviewRequestSchema.safeParse(request);
+  if (!parsed.success) return { applicationId: "", ok: false, error: "Invalid request." };
+  const user = await requireAccountType("employer");
+  return sendInterviewInvitation(user.id, parsed.data);
+}
+
+export type CancelInterviewResult = { ok: true; calendarCleaned: boolean } | { ok: false; error: string };
+
+// "Cancel interview": the invitation is closed for the candidate and the event leaves the company's
+// calendar (the candidate is told by Google if they had confirmed).
+export async function cancelInterview(invitationId: string): Promise<CancelInterviewResult> {
+  const parsed = z.uuid().safeParse(invitationId);
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+
+  const user = await requireAccountType("employer");
+
+  const { success } = await rateLimit({
+    key: `interview-cancel:${user.id}`,
+    limit: 30,
+    windowMs: 60_000,
+    store: postgresStore,
+  });
+  if (!success) return { ok: false, error: "Too many changes. Try again in a minute." };
+
+  return cancelInvitation(await createClient(), parsed.data);
 }

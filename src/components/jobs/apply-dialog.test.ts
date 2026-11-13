@@ -33,6 +33,7 @@ const APPLICATION: CallbackApplication = {
   cvFileName: "cv.pdf",
   coverLetter: null,
   status: { stage: "APPLIED", stepName: null, stepDescription: null, stageAt: null, stepUpdatedAt: null },
+  interview: null,
 };
 
 const render = (application: CallbackApplication | null) =>

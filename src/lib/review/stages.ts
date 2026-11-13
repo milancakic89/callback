@@ -16,6 +16,9 @@ export type CandidateStep = {
   description: string;
   usedAt: string | null;
   updatedAt: string;
+  // An interview step (features/interview-invitations.md): applying a candidate to it offers to send a
+  // Google Meet invitation.
+  schedulesInterview: boolean;
 };
 
 // A stage, and for a STEP which one. `stepId` is set exactly when `stage` is "STEP".

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isWorkspacePath, slugProblem } from "@/lib/companies/company";
 import { gateRedirect, type Visitor } from "./route-gate";
 
 const guest: Visitor = { isAuthenticated: false, accountType: "candidate", companySlug: null };
@@ -101,5 +102,47 @@ describe("a company's public page", () => {
     expect(gateRedirect("/acme/profile", candidate)).toBe("/dashboard");
     expect(gateRedirect("/acme/profile", employer)).toBeNull();
     expect(gateRedirect("/acme/profile", newEmployer)).toBe("/setup");
+  });
+});
+
+// The page an invitation email leads to (features/interview-invitations.md) is open to everyone: the
+// candidate may have no account, and the token in the address is what lets them in. `interviews` is one
+// of the app's own routes, so it is not mistaken for a company's slug.
+describe("an interview invitation's page", () => {
+  const INTERVIEW_PATHS = ["/interviews/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "/interviews/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d?t=abc"];
+
+  it("is open to a guest, a candidate and an employer, whatever state their company is in", () => {
+    for (const visitor of [guest, candidate, employer, newEmployer]) {
+      for (const path of INTERVIEW_PATHS) expect(gateRedirect(path.split("?")[0], visitor), path).toBeNull();
+    }
+  });
+
+  it("is not a company's workspace", () => {
+    expect(isWorkspacePath("/interviews/9a8b7c6d")).toBe(false);
+  });
+
+  it("can't be the name of a company", () => {
+    expect(slugProblem("interviews")).toBe("reserved");
+  });
+});
+
+// The Privacy Policy and the Terms (features/legal-pages.md) are open to everyone, signed in or not: a
+// Google reviewer reads the policy signed out, and a candidate may open it from the sign-up form. They
+// were reserved words but not in APP_ROUTES, so proxy took them for a company's workspace and sent a
+// signed-out visitor to /sign-in.
+describe("the legal pages", () => {
+  const LEGAL_PATHS = ["/privacy", "/terms"];
+
+  it("are open to a guest, a candidate and an employer, whatever state their company is in", () => {
+    for (const visitor of [guest, candidate, employer, newEmployer]) {
+      for (const path of LEGAL_PATHS) expect(gateRedirect(path, visitor), path).toBeNull();
+    }
+  });
+
+  it("are not a company's workspace, and no company can be called that", () => {
+    for (const path of LEGAL_PATHS) {
+      expect(isWorkspacePath(path), path).toBe(false);
+      expect(slugProblem(path.slice(1)), path).toBe("reserved");
+    }
   });
 });

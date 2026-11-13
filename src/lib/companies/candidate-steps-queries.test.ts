@@ -21,7 +21,7 @@ describe("getCandidateSteps", () => {
     await getCandidateSteps();
 
     expect(from).toHaveBeenCalledWith("company_steps");
-    expect(select).toHaveBeenCalledWith("id, position, name, description, used_at, updated_at");
+    expect(select).toHaveBeenCalledWith("id, position, name, description, used_at, updated_at, schedules_interview");
     expect(order).toHaveBeenCalledWith("position", { ascending: true });
   });
 
@@ -35,6 +35,7 @@ describe("getCandidateSteps", () => {
           description: "We read it.",
           used_at: "2026-11-09T10:00:00+00:00",
           updated_at: "2026-11-09T11:00:00+00:00",
+          schedules_interview: true,
         },
       ],
       error: null,
@@ -48,6 +49,7 @@ describe("getCandidateSteps", () => {
         description: "We read it.",
         usedAt: "2026-11-09T10:00:00+00:00",
         updatedAt: "2026-11-09T11:00:00+00:00",
+        schedulesInterview: true,
       },
     ]);
   });

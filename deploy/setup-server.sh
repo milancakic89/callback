@@ -66,10 +66,16 @@ install -d -m 755 -o deploy -g deploy /srv/callback/job-scraper /srv/callback/jo
 install -m 644 "$HERE/callback-scraper.service" /etc/systemd/system/callback-scraper.service
 install -m 644 "$HERE/callback-scraper.timer" /etc/systemd/system/callback-scraper.timer
 
+# Closes interview invitations nobody answered (features/interview-invitations.md): every 15 minutes it
+# calls the app on loopback. It does nothing until CRON_SECRET is in the production environment.
+install -m 644 "$HERE/callback-interviews.service" /etc/systemd/system/callback-interviews.service
+install -m 644 "$HERE/callback-interviews.timer" /etc/systemd/system/callback-interviews.timer
+
 systemctl daemon-reload
 # Only enabled: there is nothing to run until the first deploy has put a release in place.
 systemctl enable callback
 systemctl enable --now callback-scraper.timer
+systemctl enable --now callback-interviews.timer
 
 # The one thing `deploy` may do as root.
 echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart callback' >/etc/sudoers.d/callback-deploy

@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAccountType, hit, rpc } = vi.hoisted(() => ({
+const { requireAccountType, hit, rpc, redirect, ownCompanyId, deleteGoogleConnection } = vi.hoisted(() => ({
   requireAccountType: vi.fn(),
   hit: vi.fn(),
   rpc: vi.fn(),
+  redirect: vi.fn(),
+  ownCompanyId: vi.fn(),
+  deleteGoogleConnection: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/auth/dal", () => ({ requireAccountType }));
+vi.mock("@/lib/google/connection", () => ({ ownCompanyId, deleteGoogleConnection }));
 vi.mock("@/lib/supabase/rate-limit-store", () => ({ postgresStore: { hit } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc }) }));
 
 import { STEPS_SAVED_MESSAGE } from "@/lib/companies/candidate-steps";
-import { saveCandidateSteps } from "./actions";
+import { disconnectGoogle, saveCandidateSteps } from "./actions";
 
 const STEP_ID = "22222222-2222-4222-8222-222222222222";
 const EMPTY_STATE = {};
@@ -43,9 +48,16 @@ beforeEach(() => {
         description: "A short call.",
         used_at: null,
         updated_at: "2026-11-09T10:00:00+00:00",
+        schedules_interview: false,
       },
     ],
     error: null,
+  });
+  ownCompanyId.mockResolvedValue("company-1");
+  deleteGoogleConnection.mockResolvedValue(undefined);
+  // The real redirect() throws to stop the action; so does this one.
+  redirect.mockImplementation((path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
   });
 });
 
@@ -91,8 +103,19 @@ describe("saveCandidateSteps", () => {
 
     expect(rpc).toHaveBeenCalledExactlyOnceWith("save_company_steps", {
       p_steps: [
-        { id: STEP_ID, name: "Interview", description: "A short call." },
-        { id: null, name: "Offer call", description: "We talk about the offer." },
+        { id: STEP_ID, name: "Interview", description: "A short call.", schedules_interview: false },
+        { id: null, name: "Offer call", description: "We talk about the offer.", schedules_interview: false },
+      ],
+    });
+  });
+
+  it("sends the interview flag of each step", async () => {
+    await saveCandidateSteps(EMPTY_STATE, stepsForm([{ ...interview, schedulesInterview: true }, newStep]));
+
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("save_company_steps", {
+      p_steps: [
+        { id: STEP_ID, name: "Interview", description: "A short call.", schedules_interview: true },
+        { id: null, name: "Offer call", description: "We talk about the offer.", schedules_interview: false },
       ],
     });
   });
@@ -118,6 +141,7 @@ describe("saveCandidateSteps", () => {
         description: "A short call.",
         usedAt: null,
         updatedAt: "2026-11-09T10:00:00+00:00",
+        schedulesInterview: false,
       },
     ]);
   });
@@ -170,5 +194,48 @@ describe("saveCandidateSteps", () => {
       error: "You've saved the steps a lot. Try again in an hour.",
     });
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("disconnectGoogle", () => {
+  const redirected = (path: string) => expect(disconnectGoogle()).rejects.toThrow(`NEXT_REDIRECT:${path}`);
+
+  it("needs an employer account", async () => {
+    const error = new Error("NEXT_REDIRECT:/sign-in");
+    requireAccountType.mockRejectedValue(error);
+
+    await expect(disconnectGoogle()).rejects.toBe(error);
+    expect(requireAccountType).toHaveBeenCalledWith("employer");
+    expect(deleteGoogleConnection).not.toHaveBeenCalled();
+  });
+
+  it("deletes the connection of the caller's own company and goes back to the settings", async () => {
+    await redirected("/acme/settings?google=disconnected");
+
+    expect(ownCompanyId).toHaveBeenCalledOnce();
+    expect(deleteGoogleConnection).toHaveBeenCalledExactlyOnceWith("company-1");
+  });
+
+  it("sends an employer with no company to set it up", async () => {
+    requireAccountType.mockResolvedValue({ id: "user-1", accountType: "employer", companySlug: null });
+
+    await redirected("/setup");
+    expect(deleteGoogleConnection).not.toHaveBeenCalled();
+  });
+
+  it("says so when Google or the database fails, without the detail", async () => {
+    deleteGoogleConnection.mockRejectedValue(new Error("secret detail"));
+
+    await redirected("/acme/settings?google=error");
+  });
+
+  it("is limited to 10 an hour", async () => {
+    await redirected("/acme/settings?google=disconnected");
+    expect(hit).toHaveBeenCalledWith("google-disconnect:user-1", 60 * 60_000);
+
+    hit.mockResolvedValue({ count: 11, resetAt: Date.now() + 60_000 });
+    deleteGoogleConnection.mockClear();
+    await redirected("/acme/settings?google=error");
+    expect(deleteGoogleConnection).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,7 @@ const SCREENING: CandidateStep = {
   description: "We read it.",
   usedAt: null,
   updatedAt: "2026-11-09T10:00:00+00:00",
+  schedulesInterview: false,
 };
 
 const render = (candidateSteps: CandidateStep[]) =>

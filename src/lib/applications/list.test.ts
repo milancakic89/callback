@@ -54,6 +54,7 @@ const application = (fields: Partial<CallbackApplication> = {}): CallbackApplica
   cvFileName: "cv.pdf",
   coverLetter: { kind: "text", text: "Hello" },
   status: stage("APPLIED"),
+  interview: null,
   ...fields,
 });
 

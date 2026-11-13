@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand";
+import { LEGAL_LINKS } from "@/lib/legal/constants";
 import { Container } from "./ui";
 
 const GROUPS = [
@@ -70,9 +71,23 @@ export function SiteFooter() {
         </nav>
       </Container>
       <Container>
-        <p className="border-t border-(--l-line) py-6 text-[12.5px] text-(--l-fg-subtle)">
-          Job listings belong to their publishers. Candidates and documents shown on this page are fictional.
-        </p>
+        <div className="flex flex-col gap-3 border-t border-(--l-line) py-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[12.5px] text-(--l-fg-subtle)">
+            Job listings belong to their publishers. Candidates and documents shown on this page are fictional.
+          </p>
+          {/* Google's app verification wants the privacy policy linked from the home page (features/legal-pages.md). */}
+          <nav aria-label="Legal" className="flex gap-5">
+            {Object.values(LEGAL_LINKS).map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-[12.5px] text-(--l-fg-subtle) transition-colors hover:text-(--l-fg)"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
       </Container>
     </footer>
   );

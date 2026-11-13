@@ -1,6 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { MOCK_CANDIDATES } from "@/lib/candidates/mock-candidates";
+import { latestInterview, type InterviewRow } from "@/lib/interviews/latest";
+import type { Interview } from "@/lib/interviews/types";
 import type { WorkMode } from "@/lib/jobs/types";
 import type { PipelineStage, StageChoice } from "@/lib/review/stages";
 import { createClient } from "@/lib/supabase/server";
@@ -78,6 +80,9 @@ export type JobApplicant = {
   // A cover letter typed in the apply dialog instead of a PDF (features/candidate-cvs.md); an
   // application has one or the other, never both.
   coverLetterText: string | null;
+  // The interview invitation sent for the application (features/interview-invitations.md): the newest one
+  // that wasn't cancelled, or null.
+  interview: Interview | null;
 };
 
 type ApplicantRow = {
@@ -96,6 +101,7 @@ type ApplicantRow = {
   cover_letter_path: string | null;
   cover_letter_text: string | null;
   candidate: { full_name: string; location: string | null; sample_key: string | null } | null;
+  interviews: InterviewRow[] | null;
 };
 
 // A mock candidate's documents carry the file names the landing demo shows; a real one's are named by
@@ -181,7 +187,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
   const { data, error } = await supabase
     .from("job_applications")
     .select(
-      "id, applied_at, viewed_at, liked_at, pipeline_stage, step_id, candidate_stage, candidate_step_id, matched_filters, unverified_filters, screening_outcome, cv_path, cover_letter_path, cover_letter_text, candidate:candidate_profiles(full_name, location, sample_key)",
+      "id, applied_at, viewed_at, liked_at, pipeline_stage, step_id, candidate_stage, candidate_step_id, matched_filters, unverified_filters, screening_outcome, cv_path, cover_letter_path, cover_letter_text, candidate:candidate_profiles(full_name, location, sample_key), interviews:interview_invitations(id, status, starts_at, duration_minutes, time_zone, expires_at, responded_at, meet_url, created_at)",
     )
     .eq("job_posting_id", jobId)
     .is("withdrawn_at", null)
@@ -189,6 +195,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
     .returns<ApplicantRow[]>();
   if (error) throw new Error(`getJobApplicants: ${error.message}`);
 
+  const now = new Date();
   return (data ?? [])
     .map((row) => {
       const sampleKey = row.candidate?.sample_key ?? null;
@@ -207,6 +214,7 @@ export async function getJobApplicants(jobId: string): Promise<JobApplicant[]> {
         cvFileName: fileName(row.cv_path, sampleKey, "cvFile"),
         coverLetterFileName: fileName(row.cover_letter_path, sampleKey, "letterFile"),
         coverLetterText: row.cover_letter_text,
+        interview: latestInterview(row.interviews ?? [], now),
       };
     })
     .sort((a, b) => a.appliedAt.localeCompare(b.appliedAt) || a.name.localeCompare(b.name));

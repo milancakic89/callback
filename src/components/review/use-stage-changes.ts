@@ -11,6 +11,8 @@ import {
   type PendingStageChange,
   type StageStates,
 } from "@/lib/review/pending-stages";
+import type { InterviewRequest } from "@/lib/interviews/schedule";
+import type { Interview } from "@/lib/interviews/types";
 import { sameChoice, type StageChoice } from "@/lib/review/stages";
 import type { ApplyOutcome } from "./apply-stages-button";
 
@@ -23,12 +25,15 @@ export function useStageChanges({
   people,
   jobId,
   onNotice,
+  onInterview,
 }: {
   applicants: readonly { id: string; stage: StageChoice; candidateStage: StageChoice }[];
   // The applicants in the order the playlist shows them: the pending list follows it.
   people: readonly { id: string; name: string }[];
   jobId: string;
   onNotice: (message: string) => void;
+  // An invitation went out with "Apply statuses" (features/interview-invitations.md).
+  onInterview: (applicationId: string, interview: Interview) => void;
 }) {
   const [states, setStates] = useState<StageStates>(() => initialStageStates(applicants));
   const pending = useMemo(() => pendingStageChanges(states, people), [states, people]);
@@ -50,18 +55,36 @@ export function useStageChanges({
     );
   }
 
-  async function applyChanges(changes: PendingStageChange[]): Promise<ApplyOutcome> {
+  async function applyChanges(changes: PendingStageChange[], interviews: InterviewRequest[]): Promise<ApplyOutcome> {
     try {
       const result = await applyApplicationStages(
         jobId,
         changes.map((change) => ({ id: change.id, stage: change.to.stage, stepId: change.to.stepId })),
+        interviews.length > 0 ? interviews : undefined,
       );
       if (!result.ok) return result;
       const applied = changes.filter((change) => result.appliedIds.includes(change.id));
       setStates((all) => withApplied(all, applied));
       const skipped = changes.length - applied.length;
       // An application the employer changed again elsewhere since the confirmation opened is not sent.
-      if (skipped > 0) onNotice(`${skipped} changed in the meantime and ${skipped === 1 ? "was" : "were"} not applied.`);
+      const notes: string[] = [];
+      if (skipped > 0) notes.push(`${skipped} changed in the meantime and ${skipped === 1 ? "was" : "were"} not applied.`);
+
+      // The statuses stand whatever happened to the invitations; a failed one is told, and can be sent
+      // again from the candidate's Interview panel.
+      const failed: string[] = [];
+      for (const outcome of result.interviews ?? []) {
+        if (outcome.ok) {
+          onInterview(outcome.applicationId, outcome.interview);
+        } else {
+          const name = changes.find((change) => change.id === outcome.applicationId)?.name ?? "A candidate";
+          failed.push(`${name}: ${outcome.error}`);
+        }
+      }
+      if (failed.length > 0) {
+        notes.push(`The status was applied, but the invitation wasn't sent. ${failed.join(" ")} Open the candidate to try again.`);
+      }
+      if (notes.length > 0) onNotice(notes.join(" "));
       return { ok: true, skipped };
     } catch {
       return { ok: false, error: "Could not apply the statuses. Check your connection." };

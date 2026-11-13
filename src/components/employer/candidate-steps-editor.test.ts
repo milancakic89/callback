@@ -17,6 +17,7 @@ const step = (position: number, name: string, usedAt: string | null = null): Can
   description: `About ${name}`,
   usedAt,
   updatedAt: "2026-11-09T10:00:00+00:00",
+  schedulesInterview: false,
 });
 
 const render = (steps: CandidateStep[]) =>

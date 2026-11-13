@@ -19,6 +19,9 @@ const {
   currentFilters,
   redirect,
   ensureEmployerWorkspace,
+  sendInterviewInvitation,
+  sendInterviewInvitations,
+  cancelInvitation,
 } = vi.hoisted(() => {
   const select = vi.fn();
   const eq = vi.fn(() => ({ select }));
@@ -50,6 +53,9 @@ const {
     currentFilters,
     redirect: vi.fn(),
     ensureEmployerWorkspace: vi.fn(),
+    sendInterviewInvitation: vi.fn(),
+    sendInterviewInvitations: vi.fn(),
+    cancelInvitation: vi.fn(),
   };
 });
 
@@ -60,13 +66,17 @@ vi.mock("@/lib/storage/deletions", () => ({ drainStorageDeletions }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/auth/dal", () => ({ requireAccountType }));
 vi.mock("@/lib/companies/workspace", () => ({ ensureEmployerWorkspace }));
+vi.mock("@/lib/interviews/send", () => ({ sendInterviewInvitation, sendInterviewInvitations }));
+vi.mock("@/lib/interviews/cancel", () => ({ cancelInvitation }));
 vi.mock("@/lib/supabase/rate-limit-store", () => ({ postgresStore: { hit } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from, rpc }) }));
 
 import {
   applyApplicationStages,
+  cancelInterview,
   createJobPosting,
   deleteJobPosting,
+  inviteToInterview,
   markApplicationViewed,
   publishJobPosting,
   setApplicationLiked,
@@ -943,5 +953,159 @@ describe("applyApplicationStages", () => {
       error: "Too many changes. Try again in a minute.",
     });
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyApplicationStages with interview invitations", () => {
+  const change = { id: APPLICATION_ID, stage: "STEP", stepId: STEP_ID } as const;
+  const request = {
+    applicationId: APPLICATION_ID,
+    startsAt: "2030-01-15T10:00:00.000Z",
+    durationMinutes: 45,
+    timeZone: "Europe/Belgrade",
+  };
+  const interview = {
+    id: "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+    status: "pending",
+    startsAt: request.startsAt,
+    durationMinutes: 45,
+    timeZone: "Europe/Belgrade",
+    expiresAt: "2030-01-13T10:00:00.000Z",
+    respondedAt: null,
+    meetUrl: "https://meet.google.com/abc-defg-hij",
+  };
+
+  it("answers no invitations when none were asked for", async () => {
+    rpc.mockResolvedValue({ data: [APPLICATION_ID], error: null });
+
+    expect(await applyApplicationStages(JOB_ID, [change])).toEqual({ ok: true, appliedIds: [APPLICATION_ID] });
+    expect(sendInterviewInvitations).not.toHaveBeenCalled();
+  });
+
+  it("sends the invitations only after the statuses are applied, and answers each outcome", async () => {
+    rpc.mockResolvedValue({ data: [APPLICATION_ID], error: null });
+    sendInterviewInvitations.mockResolvedValue([{ applicationId: APPLICATION_ID, ok: true, interview }]);
+
+    const result = await applyApplicationStages(JOB_ID, [change], [request]);
+
+    expect(result).toEqual({
+      ok: true,
+      appliedIds: [APPLICATION_ID],
+      interviews: [{ applicationId: APPLICATION_ID, ok: true, interview }],
+    });
+    expect(sendInterviewInvitations).toHaveBeenCalledExactlyOnceWith("user-1", [request]);
+    expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(sendInterviewInvitations.mock.invocationCallOrder[0]);
+  });
+
+  it("sends no invitation for a status the database did not apply", async () => {
+    rpc.mockResolvedValue({ data: [], error: null });
+    sendInterviewInvitations.mockResolvedValue([]);
+
+    const result = await applyApplicationStages(JOB_ID, [change], [request]);
+
+    expect(sendInterviewInvitations).toHaveBeenCalledExactlyOnceWith("user-1", []);
+    expect(result).toEqual({
+      ok: true,
+      appliedIds: [],
+      interviews: [{ applicationId: APPLICATION_ID, ok: false, error: "The status wasn't applied, so no invitation was sent." }],
+    });
+  });
+
+  it("keeps the applied statuses when an invitation fails", async () => {
+    rpc.mockResolvedValue({ data: [APPLICATION_ID], error: null });
+    sendInterviewInvitations.mockResolvedValue([{ applicationId: APPLICATION_ID, ok: false, error: "Google is down" }]);
+
+    const result = await applyApplicationStages(JOB_ID, [change], [request]);
+    expect(result).toMatchObject({ ok: true, appliedIds: [APPLICATION_ID] });
+  });
+
+  it("refuses a malformed invitation before anything runs", async () => {
+    const bad = [
+      { ...request, applicationId: "nope" },
+      { ...request, startsAt: "tomorrow" },
+      { ...request, durationMinutes: 50 },
+      { ...request, timeZone: "Mars/Olympus" },
+      { ...request, message: "x".repeat(1001) },
+    ];
+    for (const item of bad) {
+      expect(await applyApplicationStages(JOB_ID, [change], [item]), JSON.stringify(item)).toEqual({
+        ok: false,
+        error: "Invalid request.",
+      });
+    }
+    expect(rpc).not.toHaveBeenCalled();
+    expect(sendInterviewInvitations).not.toHaveBeenCalled();
+  });
+});
+
+describe("inviteToInterview", () => {
+  const request = {
+    applicationId: APPLICATION_ID,
+    startsAt: "2030-01-15T10:00:00.000Z",
+    durationMinutes: 60,
+    timeZone: "Europe/Belgrade",
+  };
+
+  it("refuses a malformed request before anything runs", async () => {
+    expect(await inviteToInterview({ ...request, durationMinutes: 7 })).toEqual({
+      applicationId: "",
+      ok: false,
+      error: "Invalid request.",
+    });
+    expect(requireAccountType).not.toHaveBeenCalled();
+    expect(sendInterviewInvitation).not.toHaveBeenCalled();
+  });
+
+  it("needs an employer account", async () => {
+    const redirected = new Error("NEXT_REDIRECT");
+    requireAccountType.mockRejectedValue(redirected);
+
+    await expect(inviteToInterview(request)).rejects.toBe(redirected);
+    expect(requireAccountType).toHaveBeenCalledWith("employer");
+    expect(sendInterviewInvitation).not.toHaveBeenCalled();
+  });
+
+  it("sends it as the signed-in employer and answers the outcome", async () => {
+    const outcome = { applicationId: APPLICATION_ID, ok: false, error: "Connect Google Calendar in Settings first." };
+    sendInterviewInvitation.mockResolvedValue(outcome);
+
+    expect(await inviteToInterview(request)).toBe(outcome);
+    expect(sendInterviewInvitation).toHaveBeenCalledExactlyOnceWith("user-1", request);
+  });
+});
+
+describe("cancelInterview", () => {
+  const INVITATION_ID = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+
+  it("refuses an id that isn't a uuid, before anything else runs", async () => {
+    expect(await cancelInterview("nope")).toEqual({ ok: false, error: "Invalid request." });
+    expect(requireAccountType).not.toHaveBeenCalled();
+    expect(cancelInvitation).not.toHaveBeenCalled();
+  });
+
+  it("needs an employer account", async () => {
+    const redirected = new Error("NEXT_REDIRECT");
+    requireAccountType.mockRejectedValue(redirected);
+
+    await expect(cancelInterview(INVITATION_ID)).rejects.toBe(redirected);
+    expect(cancelInvitation).not.toHaveBeenCalled();
+  });
+
+  it("cancels through the employer's own client and answers the outcome", async () => {
+    cancelInvitation.mockResolvedValue({ ok: true, calendarCleaned: true });
+
+    expect(await cancelInterview(INVITATION_ID)).toEqual({ ok: true, calendarCleaned: true });
+    expect(cancelInvitation).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ rpc }), INVITATION_ID);
+  });
+
+  it("is limited to 30 a minute", async () => {
+    cancelInvitation.mockResolvedValue({ ok: true, calendarCleaned: true });
+    await cancelInterview(INVITATION_ID);
+    expect(hit).toHaveBeenCalledWith("interview-cancel:user-1", 60_000);
+
+    hit.mockResolvedValue({ count: 31, resetAt: Date.now() + 60_000 });
+    cancelInvitation.mockClear();
+    expect(await cancelInterview(INVITATION_ID)).toEqual({ ok: false, error: "Too many changes. Try again in a minute." });
+    expect(cancelInvitation).not.toHaveBeenCalled();
   });
 });

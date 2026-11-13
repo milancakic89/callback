@@ -1,14 +1,17 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { requireAccountType } from "@/lib/auth/dal";
 import {
   candidateStepsSchema,
+  settingsPath,
   stepFieldErrors,
   STEPS_SAVED_MESSAGE,
   toCandidateStep,
   type CandidateStepsFormState,
   type CompanyStepRow,
 } from "@/lib/companies/candidate-steps";
+import { deleteGoogleConnection, ownCompanyId } from "@/lib/google/connection";
 import { rateLimit } from "@/lib/rate-limit";
 import { postgresStore } from "@/lib/supabase/rate-limit-store";
 import { createClient } from "@/lib/supabase/server";
@@ -53,7 +56,12 @@ export async function saveCandidateSteps(
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("save_company_steps", {
-    p_steps: parsed.data.map((step) => ({ id: step.id, name: step.name, description: step.description })),
+    p_steps: parsed.data.map((step) => ({
+      id: step.id,
+      name: step.name,
+      description: step.description,
+      schedules_interview: step.schedulesInterview,
+    })),
   });
   if (error) return failure(error);
 
@@ -69,4 +77,34 @@ function failure(error: RpcError): CandidateStepsFormState {
   if (error.code === "23514") return { error: "Check the steps: a name or a text is not allowed." };
   console.error("saveCandidateSteps failed:", error.code, error.message);
   return { error: "Could not save the steps. Try again." };
+}
+
+// "Disconnect" on the Google Calendar card (features/interview-invitations.md): Google is asked to
+// forget the token and the saved connection is deleted. Events already in the calendar stay, and an
+// invitation that still waits for an answer can no longer be changed in it. A form action, so it
+// redirects back to the settings with a flag the page reads.
+export async function disconnectGoogle(): Promise<void> {
+  const user = await requireAccountType("employer");
+  if (!user.companySlug) redirect("/setup");
+
+  const { success } = await rateLimit({
+    key: `google-disconnect:${user.id}`,
+    limit: 10,
+    windowMs: 60 * 60_000,
+    store: postgresStore,
+  });
+  let flag = "disconnected";
+  if (!success) {
+    flag = "error";
+  } else {
+    try {
+      const companyId = await ownCompanyId();
+      if (companyId) await deleteGoogleConnection(companyId);
+    } catch (error) {
+      console.error("disconnectGoogle failed:", error);
+      flag = "error";
+    }
+  }
+  // Outside the try: redirect() works by throwing.
+  redirect(`${settingsPath(user.companySlug)}?google=${flag}`);
 }

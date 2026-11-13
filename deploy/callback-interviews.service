@@ -1,0 +1,25 @@
+# systemd unit that closes unanswered interview invitations (features/interview-invitations.md): it
+# calls POST /api/interviews/expire on the app, started every 15 minutes by callback-interviews.timer.
+# Installed as /etc/systemd/system/callback-interviews.service by deploy/setup-server.sh.
+[Unit]
+Description=Callback: close interview invitations nobody answered
+After=callback.service
+Wants=callback.service
+# Without CRON_SECRET the route does not exist, so there is nothing to call: the unit is skipped, not
+# failed ("Condition check resulted in ... skipped" in the journal).
+ConditionPathExists=/srv/callback/.env
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+# The same file the app reads, for CRON_SECRET.
+EnvironmentFile=/srv/callback/.env
+# The app listens on loopback only (callback.service). `--fail` makes a 404 (no secret set, or a wrong
+# one) or a 500 a failed run, which shows in the journal; the secret is passed from the environment, not
+# written on the command line.
+ExecStart=/bin/sh -c 'test -n "$CRON_SECRET" || { echo "CRON_SECRET is not set, nothing to do"; exit 0; }; exec /usr/bin/curl --fail --silent --show-error --max-time 120 -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/interviews/expire'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true

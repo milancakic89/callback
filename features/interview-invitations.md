@@ -1,0 +1,156 @@
+# Feature: Interview Invitations (Google Meet from the review screen)
+
+**Status:** Implemented in code on the branch `feature/interview-invitations`, 2026-11-13. `npm test` (all files), `npm run lint`, `npx tsc --noEmit` and `npm run build` pass, and the timer's command was run against a fake local server (a right secret succeeds, a wrong one fails, no secret is skipped). **Not done yet:**
+- **The migration `supabase/migrations/20261113120000_interview_invitations.sql` is applied to the Supabase project (2026-11-13) and checked against it.** It was run by hand (not through `apply_migration`, which was declined), so the project's migration history (`list_migrations`) does not list it; the same is true of `candidate_steps` and the other recent migrations, whose objects exist in the database. The code must not be deployed to a database without it, because `my_job_applications()` and the new `schedules_interview` column come from it.
+  - **Checked** (a test in one transaction that ended in an error, so nothing was kept; the row counts were the same afterwards): `create_interview_invitation` refuses a candidate not on an interview step (`P0001`), a time under 3 hours away and a length of 5 minutes (`23514`), an unknown time zone (`22023`), a second open invitation (`23505`), another company's application, a withdrawn application and a demo candidate (`P0002`); a valid call returns a deadline 2 days ahead, and a new one is allowed after a cancel. `cancel_interview_invitation` is refused to another company and returns the event id and `was_confirmed` to the owner. Another company and the candidate read no rows from `interview_invitations`; the owner reads their own but `token_hash` and `google_event_id` are `permission denied`, as are a direct insert and update; `google_calendar_connections` is `permission denied` for the owner; `anon` can't call the functions. `my_job_applications()` shows the candidate a `pending` invitation without the Meet link, the link once `confirmed`, nothing once `cancelled`, and `expired` for a `pending` one past its deadline. `save_company_steps` stores `schedules_interview`; `company_slug_valid('interviews')` is false.
+  - **Not checked:** that `save_company_steps` leaves `updated_at` alone when only the flag changes (the whole test ran inside one transaction, where `now()` doesn't move).
+- **Nothing was run against real Google or in a browser.** The Google calls are checked with a stubbed `fetch` only; the first real run (see [Manual Google setup](#manual-google-setup-by-the-project-owner)) is still to do.
+- Not committed, not pushed.
+
+## Where the code differs from the plan
+- **The time zone is the browser's, shown and not chosen.** The dialog says "Time zone: Europe/Belgrade" under the time. It sends the instant (from the browser's own local time) and the zone's name; the email and the event show the time in that zone.
+- **No `respond_my_interview` function.** The email's page and the signed-in candidate's Confirm and Decline share one function, `answerInvitation()` (`src/lib/interviews/respond.ts`), which reads the row with the secret-key client and checks the proof first: the token's hash, or `application.candidate_id = session user`. One path is easier to test and to keep correct than two.
+- **A new top-level route, `/interviews`,** so it is in `APP_ROUTES` and `RESERVED_SLUGS`, and the migration replaces `company_slug_valid()` with `interviews` added. `company.test.ts` now reads the newest migration that defines that function. A company already called "interviews" would not be touched (a check runs on a row when it is written), but none exists.
+- **Google's environment is optional.** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY` and `CRON_SECRET` can be missing: a release without them still deploys. Settings then says Google isn't set up on the server, and the Apply statuses dialog offers no invitation.
+- **An invitation's stale row is closed by the next invitation.** A `pending` invitation past its deadline blocks the "one open invitation per application" index until the expiry job runs, so `sendInterviewInvitation()` closes such a row first (and a still-open one is refused with "Cancel it first").
+- **Candidate answers in two places:** the email's page and the invitation block on the application panel in `/applications`.
+- **Cancelling sends the candidate nothing of its own.** A candidate who had confirmed hears from Google (the event is deleted with `sendUpdates=all`); one who hasn't finds the link says "This interview was cancelled".
+
+## Known limits
+- **A candidate who withdraws the application** leaves a confirmed event in the company's calendar. The page says the invitation is no longer available, but nothing deletes the event.
+- **A confirmed candidate Google couldn't invite** (the company's connection broke in between) is still confirmed in Callback. The company's email says to send them the Meet link, and the candidate's page shows it.
+- **The primary calendar only.** Events go to the connected account's primary calendar.
+- **No reminders and no rescheduling:** a different time is a new invitation.
+
+## Context
+On the review screen (`/{slug}/jobs/{id}/review`, [applicant-review.md](./applicant-review.md)) the employer sets a status and shows it to the candidate with **Apply statuses** (`applyApplicationStages` in `src/app/(employer)/[company]/actions.ts`, RPC `apply_application_stages`, [candidate-steps.md](./candidate-steps.md)). Today the candidate only sees the new step in `/applications`, and the employer has to leave Callback to arrange the call.
+
+The goal: when the employer moves a candidate to a step that is an interview, the same Apply statuses dialog asks for a time. Callback then creates a Google Calendar event with a Meet link in the company's calendar, and emails the candidate to confirm or decline. Callback keeps the outcome either way: **confirmed, declined or no response**.
+
+## Decisions (agreed with the user, 2026-11-13)
+- **The company connects its own Google account.** The event is in the company's calendar, the company is the Meet organizer, and the candidate is a guest.
+- **One time, Confirm or Decline.** The employer picks the date, time and length. The candidate can't pick another time.
+- **Deadline:** 48 hours after the invitation is sent, and at the latest 2 hours before the interview. After that it is "No response".
+- **No sign-in needed to answer.** The email link carries a one-time token. A signed-in candidate can also answer in `/applications`.
+
+## The flow
+1. **Settings → Candidate steps:** each step gets a switch, "Interview (sends a Google Meet invitation)".
+2. **Settings → Google Calendar:** "Connect Google Calendar" (OAuth). Once connected, the card shows the Google email and "Disconnect".
+3. **Review screen → Apply statuses:** in the dialog, every change to an interview step gets a row with:
+   - the date, the time and the length (30 / 45 / 60 / 90 min);
+   - the time zone (the browser's, shown);
+   - an optional message to the candidate;
+   - "Send a Google Meet invitation", checked by default.
+
+   Without a Google connection the checkbox is disabled, with a link to Settings.
+4. **After Confirm:**
+   - the statuses are applied as today;
+   - for each candidate with a time, an event with a Meet link is created in the company's calendar. The candidate is **not** a guest yet, so the event only holds the slot;
+   - the candidate gets the email.
+5. **The candidate** opens `/interviews/{id}?t={token}` from the email, sees the job, the company, the time and the length, and clicks **Confirm** or **Decline**:
+   - **Confirm:** the candidate is added as a guest (`sendUpdates=all`), so Google sends them the real calendar invitation. The page shows the Meet link, and the company gets an email ("Ana Novak confirmed…").
+   - **Decline:** the event is deleted from the company's calendar, and the company gets an email.
+   - **No answer by the deadline:** the status becomes `expired`, and the event is deleted.
+6. **The employer sees the outcome:**
+   - in the playlist, as a calendar badge (Pending / Confirmed / Declined / No response);
+   - in the ATS panel, in an "Interview" block: the time, the status, when they answered, the Meet link, **Cancel interview**, and **Send a new invitation** (after a decline, an expiry or a failure).
+7. **A signed-in candidate** sees the same invitation with Confirm and Decline in their application panel (`src/components/applications/my-application-panel.tsx`).
+
+## Database: `supabase/migrations/<ts>_interview_invitations.sql`
+- **`company_steps.schedules_interview boolean not null default false`.** `save_company_steps()` is replaced (`create or replace`, same signature) and reads the new key from each item.
+- **`google_calendar_connections`:** `company_id` (primary key), `google_email`, `refresh_token_ciphertext`, `connected_by`, `connected_at`, `broken_at`.
+  - RLS on, no policies, `revoke all`. Only the secret-key client reads or writes it, after the server checks ownership.
+- **Enum `interview_status`:** `pending`, `confirmed`, `declined`, `expired`, `cancelled`.
+- **`interview_invitations`:** `id`, `application_id` (fk, cascade), `company_id`, `step_id`, `starts_at`, `duration_minutes` (check 15–240), `time_zone`, `message` (≤ 1000), `status`, `expires_at`, `token_hash bytea unique`, `responded_at`, `google_event_id`, `meet_url`, `created_by`, `created_at`.
+  - `expires_at = least(created_at + 48h, starts_at - 2h)`. A check keeps `starts_at` at least 3 hours ahead (otherwise there is no window to answer in) and at most 90 days ahead.
+  - A partial unique index allows at most one `pending` or `confirmed` invitation per application.
+  - **Reads go through RLS:** the job's owner (through `job_postings → companies.owner_id`) and the candidate (through `job_applications.candidate_id`). **The select grant leaves out `token_hash`.**
+  - **Writes go only through security definer RPCs:** `create_interview_invitation` and `cancel_interview_invitation` for the owner, `respond_my_interview` for a signed-in candidate. An answer by token goes through the secret-key client.
+- `my_job_applications()` also returns the latest invitation: its status and time, and the Meet link only once it is confirmed.
+
+## Code
+
+### Google (plain `fetch`, no `googleapis` package)
+- **`src/lib/google/oauth.ts`** (`server-only`):
+  - `authUrl(state)` with the scopes `openid email https://www.googleapis.com/auth/calendar.events`, `access_type=offline` and `prompt=consent`;
+  - `exchangeCode()` and `accessToken(refreshToken)`;
+  - an `invalid_grant` answer sets `broken_at`, and Settings then shows "Reconnect".
+- **`src/lib/google/calendar.ts`:**
+  - `createInterviewEvent()` sends `POST calendars/primary/events?conferenceDataVersion=1&sendUpdates=none` with `conferenceData.createRequest` (`hangoutsMeet`, `requestId` = the invitation's id). It returns `eventId` and `hangoutLink`.
+  - `addAttendee(eventId, email)` sends a PATCH with `sendUpdates=all`.
+  - `deleteEvent(eventId, notify)` deletes the event.
+- **`src/lib/google/token-crypto.ts`:** AES-256-GCM with `GOOGLE_TOKEN_KEY`. Look at how `src/lib/auth/pending-signup.ts` encrypts its cookie first, and reuse that approach.
+
+### Routes and actions
+- **`src/app/api/google/connect/route.ts`:** `requireAccountType("employer")`, a signed `state` cookie, then a redirect to Google.
+  - Settings links to it with a **link, not a form**: the CSP's `form-action 'self'` blocks a form's redirect to Google.
+- **`src/app/api/google/callback/route.ts`:** checks `state`, exchanges the `code`, stores the encrypted refresh token, and redirects back to `/{slug}/settings`.
+- **`src/app/(employer)/[company]/(workspace)/settings/actions.ts`:** a new `disconnectGoogle` (revoke, then delete), and `schedules_interview` in `saveCandidateSteps`.
+- **`src/app/interviews/[invitationId]/page.tsx`:** a public page (the route gate doesn't protect it), with `Cache-Control: no-store`.
+  - The token is read from `searchParams` inside `<Suspense>`, because of `cacheComponents`.
+  - The server compares `sha256(token)` with `token_hash`, in constant time.
+  - A wrong token or id answers 404.
+- **`src/app/interviews/[invitationId]/actions.ts`:** `respondToInterview(id, token, "confirm" | "decline")`.
+  - It checks the token, `pending` and the deadline again, then changes the status and does the Google step.
+  - **An answer is only ever a POST from the page's form, never the email link itself.** Mail scanners (Outlook Safe Links, Gmail) open the links in an email, and would otherwise confirm invitations on their own.
+  - Rate limited per IP and per invitation.
+- **`src/app/api/interviews/expire/route.ts`:** a POST with `CRON_SECRET`. It moves every `pending` invitation past its `expires_at` to `expired` and deletes its Google event.
+  - A new `deploy/callback-interviews.timer` calls it every 15 minutes, like `callback-scraper.timer`.
+  - Until it has run, the UI shows a `pending` invitation past its deadline as "No response".
+
+### Review screen
+- **`applyApplicationStages(jobId, changes, interviews)`** gains a zod array of `{ applicationId, startsAt, durationMinutes, timeZone, message?, sendInvite }`. In order:
+  1. the existing RPC;
+  2. for each applied id, an RPC creates the `pending` row and returns the token;
+  3. the Google event is created, and its `event_id` and `meet_url` are stored;
+  4. the email is sent.
+- **The result is per candidate.** If Google or the mail fails, the status stays applied, the invitation is cancelled, and the dialog and the ATS panel offer "Send a new invitation". Limit: 30 invitations an hour per company.
+- **New actions for the ATS panel:** `sendInterviewInvitation` and `cancelInterview`.
+- **UI changes:**
+  - `src/components/review/apply-stages-button.tsx`: the time rows in the dialog;
+  - `src/components/review/ats-panel.tsx`: the "Interview" block;
+  - `src/components/review/candidate-playlist.tsx`: the status badge;
+  - `src/components/employer/candidate-step-row.tsx`: the interview switch;
+  - the Settings page: the "Google Calendar" card.
+
+### Email (`src/lib/mail.ts`)
+- **`sendInterviewInvitationEmail`** sends the candidate the time in the company's time zone (with the zone's name), the length, the company's message and a "Respond to the invitation" button.
+- **`sendInterviewResponseEmail`** tells the company the candidate confirmed or declined.
+- **The job title, the company name and the message are user text, so they must be HTML-escaped.** The existing templates never needed it: they only insert a URL.
+
+### Environment (`src/lib/env.ts`, `.env.example`)
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY` (≥ 32 characters) and `CRON_SECRET` (≥ 32 characters).
+
+### Docs
+- `project-overview/security.md`: the encrypted refresh token, the minimal scope, the hashed token, and why the answer is a POST.
+- `project-overview/deployment.md`: the new timer and the new variables.
+- `project-overview/roadmap.md`: an entry for this feature.
+
+## Manual Google setup (by the project owner)
+1. In the Google Cloud Console, create a project and enable the **Google Calendar API**.
+2. OAuth consent screen: type External; scopes `openid`, `email` and `calendar.events`; add test users.
+3. Create an OAuth client (Web application). Redirect URIs: `http://localhost:3000/api/google/callback` and `https://callback.rs/api/google/callback`.
+4. **Before production:** `calendar.events` is a sensitive scope, so Google has to verify the app (a verified `callback.rs` domain, a privacy policy and a video demo; it takes days to weeks; the policy and the Terms are [legal-pages.md](./legal-pages.md), at `/privacy` and `/terms`, once deployed). Until then only test users can connect (at most 100), and their refresh tokens expire after 7 days.
+
+## Verification
+1. `npm test` with the new tests, `npm run lint`, `npx tsc --noEmit` and `npm run build`. The new unit tests cover:
+   - the `expires_at` computation and the limits on the time;
+   - hashing and checking the token;
+   - how the Google requests are built (with a mocked `fetch`);
+   - the zod schemas;
+   - that `gateRedirect` lets `/interviews/*` through;
+   - the actions, like the existing `*.test.ts` files.
+2. RLS, through the Supabase MCP:
+   - another company can't see the invitation;
+   - a candidate sees only their own;
+   - `token_hash` can't be read by any client;
+   - `google_calendar_connections` can't be read, not even by its owner.
+3. In a browser, with a Google test account:
+   - Connect Google, mark a step as an interview, and apply a status with a time. The event with a Meet link shows in the company's calendar, and the email reaches the candidate.
+   - Opening the email link **only shows the page and confirms nothing** (a curl GET without the POST leaves the status unchanged).
+   - Confirm: the status is `confirmed`, the candidate gets the Google invitation, the company gets the email, and the review screen shows "Confirmed" and the Meet link.
+   - Decline: the status is `declined`, and the event is gone.
+   - Expiry: move `expires_at` into the past with SQL and call `/api/interviews/expire`. The status is `expired`, and the event is gone.
+   - A wrong token answers 404. Opening the page again after answering shows the answer and changes nothing.
+   - Cancel interview, from the employer's side.
+   - Disconnecting Google disables the checkbox in the dialog.

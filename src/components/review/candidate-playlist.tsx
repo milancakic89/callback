@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckIcon, HeartIcon } from "lucide-react";
+import { CalendarClockIcon, CheckIcon, HeartIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { cn } from "cn";
 import { Initials } from "@/components/landing/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { INTERVIEW_BADGE_LABELS, type InterviewStatus } from "@/lib/interviews/types";
 import { matchesPlaylist, type PlaylistFilter, type StageFilter } from "@/lib/review/navigation";
 import type { PlaylistOrder } from "@/lib/review/order";
 import { choiceLabel, type StageChoice, type StageOption } from "@/lib/review/stages";
@@ -28,6 +29,8 @@ export type PlaylistItem = {
   // "3/4" or null when there is nothing to show (no required filters, or not checked yet). `unverified`
   // counts the required filters a keyword can't decide, which the reviewer reads the CV for.
   requiredScore: { met: number; total: number; unverified: number } | null;
+  // Where the interview invitation stands (features/interview-invitations.md); null or missing for none.
+  interview?: InterviewStatus | null;
 };
 
 function StageFilterLabel({
@@ -230,6 +233,17 @@ export function CandidatePlaylist({
                         </span>
                       ) : (
                         <span className="shrink-0 text-(--l-lime)/80">New</span>
+                      )}
+                      {item.interview && (
+                        <span
+                          title={`Interview: ${INTERVIEW_BADGE_LABELS[item.interview]}`}
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-0.5",
+                            item.interview === "confirmed" ? "text-(--l-lime)" : "text-(--l-fg-subtle)",
+                          )}
+                        >
+                          <CalendarClockIcon aria-hidden className="size-3" /> {INTERVIEW_BADGE_LABELS[item.interview]}
+                        </span>
                       )}
                       {item.location && <span className="truncate">· {item.location}</span>}
                     </span>

@@ -26,6 +26,14 @@ const envSchema = z.object({
   // Shared with the scraper, which calls POST /api/jobs/revalidate after writing jobs. Optional:
   // without it that route is disabled and the job list refreshes on its cacheLife instead.
   REVALIDATE_SECRET: z.string().min(32).optional(),
+  // Interview invitations (features/interview-invitations.md). All optional: without the three Google
+  // ones the company can't connect a calendar and no invitation is offered, and without CRON_SECRET
+  // POST /api/interviews/expire is disabled. A release without them still deploys.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  // Encrypts the refresh tokens kept in google_calendar_connections.
+  GOOGLE_TOKEN_KEY: z.string().min(32).optional(),
+  CRON_SECRET: z.string().min(32).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

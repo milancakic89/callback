@@ -8,6 +8,7 @@ import { cn } from "cn";
 import { markApplicationViewed, setApplicationLiked } from "@/app/(employer)/[company]/actions";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { JobApplicant } from "@/lib/companies/workspace";
+import type { GoogleStatus, Interview } from "@/lib/interviews/types";
 import { documentUrl } from "@/lib/review/documents";
 import { summarizeFilters } from "@/lib/review/matches";
 import { orderApplicants, type PlaylistOrder } from "@/lib/review/order";
@@ -30,6 +31,7 @@ import {
 } from "@/lib/review/stages";
 import { ApplyStagesButton } from "./apply-stages-button";
 import { ApplicantSummary, NoAutoRejectNote, ReviewActions, ScreeningOverview } from "./ats-panel";
+import { InterviewPanel } from "./interview-panel";
 import { CandidatePlaylist, type PlaylistItem } from "./candidate-playlist";
 import { usePdfDocuments } from "./pdf";
 import { DocumentHeader, PdfPages, SHEET_CLASS } from "./pdf-viewer";
@@ -71,12 +73,15 @@ export function ApplicantReview({
   job,
   applicants,
   steps,
+  google,
 }: {
   companySlug: string;
   job: ReviewJob;
   applicants: JobApplicant[];
   // The company's candidate steps (features/candidate-steps.md), between Applied and Offer.
   steps: CandidateStep[];
+  // Whether its Google Calendar is connected, for interview invitations (features/interview-invitations.md).
+  google: GoogleStatus;
 }) {
   const searchParams = useSearchParams();
   const [marks, setMarks] = useState<Marks>(() =>
@@ -84,6 +89,13 @@ export function ApplicantReview({
   );
   const [notice, setNotice] = useState<string | null>(null);
   const options = useMemo(() => stageOptions(steps), [steps]);
+  // The steps that offer an interview invitation, and each applicant's invitation (it changes when one is
+  // sent or cancelled here, so it is state, not the prop).
+  const interviewStepIds = useMemo(() => new Set(steps.filter((step) => step.schedulesInterview).map((step) => step.id)), [steps]);
+  const [interviews, setInterviews] = useState<Record<string, Interview | null>>(() =>
+    Object.fromEntries(applicants.map((a) => [a.id, a.interview])),
+  );
+  const settingsHref = `/${companySlug}/settings`;
   // What the screening saved for each applicant, and what the screen shows of it
   // (features/cv-screening.md).
   const summaries = useMemo(
@@ -110,10 +122,11 @@ export function ApplicantReview({
     people,
     jobId: job.id,
     onNotice: setNotice,
+    onInterview: (id, interview) => setInterviews((all) => ({ ...all, [id]: interview })),
   });
   const items = useMemo(
-    () => ordered.map((a) => ({ ...a, ...marks[a.id], ...states[a.id] })),
-    [ordered, marks, states],
+    () => ordered.map((a) => ({ ...a, ...marks[a.id], ...states[a.id], interview: interviews[a.id] ?? null })),
+    [ordered, marks, states, interviews],
   );
   // With no filters there is nothing to put in order by.
   const canOrder = job.requiredFilters.length + job.optionalFilters.length > 0;
@@ -146,6 +159,7 @@ export function ApplicantReview({
       liked: item.liked,
       stage: item.stage,
       pending: !sameChoice(item.stage, item.candidateStage),
+      interview: item.interview?.status ?? null,
       requiredScore:
         s.status === "checked" && s.required.length > 0
           ? { met: s.requiredMet, total: s.required.length, unverified: s.requiredUnverified }
@@ -342,7 +356,14 @@ export function ApplicantReview({
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  const applyButton = <ApplyStagesButton changes={pending} options={options} onApply={applyChanges} />;
+  const applyButton = (
+    <ApplyStagesButton
+      changes={pending}
+      options={options}
+      onApply={applyChanges}
+      interviews={{ stepIds: interviewStepIds, google, settingsHref }}
+    />
+  );
   const docAnimation = direction === "next" ? "l-doc-next" : direction === "prev" ? "l-doc-prev" : undefined;
   const playlistProps = {
     items: playlist,
@@ -500,6 +521,17 @@ export function ApplicantReview({
           <div className="l-scroll min-h-0 flex-1 overflow-y-auto p-4">
             <div key={current.id} className={cn("flex flex-col gap-5", docAnimation)}>
               <ApplicantSummary name={current.name} location={current.location} appliedAt={current.appliedAt} />
+              <InterviewPanel
+                applicationId={current.id}
+                candidateName={current.name}
+                candidateStage={current.candidateStage}
+                interview={current.interview}
+                interviewStepIds={interviewStepIds}
+                google={google}
+                settingsHref={settingsHref}
+                onChange={(interview) => setInterviews((all) => ({ ...all, [current.id]: interview }))}
+                onNotice={setNotice}
+              />
               <div className="h-px bg-(--l-line)" />
               <ScreeningOverview summary={summary} />
               <NoAutoRejectNote />

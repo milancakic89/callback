@@ -10,7 +10,7 @@ export async function getCandidateSteps(): Promise<CandidateStep[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("company_steps")
-    .select("id, position, name, description, used_at, updated_at")
+    .select("id, position, name, description, used_at, updated_at, schedules_interview")
     .order("position", { ascending: true })
     .returns<CompanyStepRow[]>();
   if (error) throw new Error(`getCandidateSteps: ${error.message}`);

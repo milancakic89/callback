@@ -1,6 +1,7 @@
 // The candidate's side of features/candidate-cvs.md, as the pages and the apply dialog see it. Plain
 // module: client components use the types.
 
+import type { CandidateInterview } from "@/lib/interviews/types";
 import type { PipelineStage } from "@/lib/review/stages";
 
 // A CV on the candidate's account. `activeOn` names the jobs ("Title at Company") whose active
@@ -48,6 +49,8 @@ export type CallbackApplication = {
   coverLetter: { kind: "text"; text: string } | { kind: "pdf" } | null;
   // Null once the application is withdrawn: there is no status to follow then.
   status: CallbackStatus | null;
+  // The company's latest interview invitation (features/interview-invitations.md), or null.
+  interview: CandidateInterview | null;
 };
 
 // The candidate's own CV, opened in a new tab (src/app/api/cvs/[cvId]/route.ts).

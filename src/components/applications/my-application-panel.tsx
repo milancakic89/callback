@@ -1,6 +1,7 @@
 import { CircleCheckIcon, ExternalLinkIcon, FileTextIcon } from "lucide-react";
 import Link from "next/link";
 import { CandidateStage } from "@/components/applications/candidate-stage";
+import { InterviewInvitation } from "@/components/applications/interview-invitation";
 import { WithdrawButton } from "@/components/applications/withdraw-button";
 import type { CallbackApplication } from "@/lib/cvs/types";
 import { formatAbsolute } from "@/lib/jobs/format";
@@ -31,6 +32,10 @@ export function MyApplicationPanel({ application }: { application: CallbackAppli
           <span className="text-muted-foreground">Status</span>
           <CandidateStage status={application.status} />
         </div>
+      )}
+
+      {application.interview && holdsDocuments && (
+        <InterviewInvitation interview={application.interview} companyName={application.companyName} />
       )}
 
       {holdsDocuments && <Documents application={application} />}

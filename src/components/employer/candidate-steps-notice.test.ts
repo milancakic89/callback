@@ -11,6 +11,7 @@ const step = (position: number, name: string): CandidateStep => ({
   description: "text",
   usedAt: null,
   updatedAt: "2026-11-09T10:00:00+00:00",
+  schedulesInterview: false,
 });
 
 const render = (steps: CandidateStep[]) =>

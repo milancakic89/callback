@@ -32,6 +32,7 @@ export type StepInput = {
   id: string | null;
   name: string;
   description: string;
+  schedulesInterview: boolean;
 };
 
 const stepSchema = z.object({
@@ -51,6 +52,8 @@ const stepSchema = z.object({
       .min(1, "Tell the candidate what this step means.")
       .max(STEP_DESCRIPTION_MAX, tooLong(STEP_DESCRIPTION_MAX)),
   ),
+  // Missing means not an interview step: a form from before this field existed still saves.
+  schedulesInterview: z.boolean().default(false),
 });
 
 export const candidateStepsSchema = z
@@ -85,6 +88,7 @@ export type CompanyStepRow = {
   description: string;
   used_at: string | null;
   updated_at: string;
+  schedules_interview: boolean;
 };
 
 export function toCandidateStep(row: CompanyStepRow): CandidateStep {
@@ -95,6 +99,7 @@ export function toCandidateStep(row: CompanyStepRow): CandidateStep {
     description: row.description,
     usedAt: row.used_at,
     updatedAt: row.updated_at,
+    schedulesInterview: row.schedules_interview,
   };
 }
 
@@ -112,6 +117,7 @@ export function draftsFromSteps(steps: readonly CandidateStep[]): StepDraft[] {
       id: step.id,
       name: step.name,
       description: step.description,
+      schedulesInterview: step.schedulesInterview,
       locked: step.usedAt !== null,
     }));
 }
@@ -122,7 +128,7 @@ export function canAddStep(drafts: readonly StepDraft[]): boolean {
 
 export function addStep(drafts: readonly StepDraft[], key: string): StepDraft[] {
   if (!canAddStep(drafts)) return [...drafts];
-  return [...drafts, { key, id: null, name: "", description: "", locked: false }];
+  return [...drafts, { key, id: null, name: "", description: "", schedulesInterview: false, locked: false }];
 }
 
 export function canRemoveStep(draft: StepDraft): boolean {
@@ -147,11 +153,11 @@ export function moveStep(drafts: readonly StepDraft[], index: number, direction:
 export function updateStep(
   drafts: readonly StepDraft[],
   index: number,
-  change: Partial<Pick<StepDraft, "name" | "description">>,
+  change: Partial<Pick<StepDraft, "name" | "description" | "schedulesInterview">>,
 ): StepDraft[] {
   return drafts.map((draft, position) => (position === index ? { ...draft, ...change } : draft));
 }
 
 export function toStepInputs(drafts: readonly StepDraft[]): StepInput[] {
-  return drafts.map(({ id, name, description }) => ({ id, name, description }));
+  return drafts.map(({ id, name, description, schedulesInterview }) => ({ id, name, description, schedulesInterview }));
 }

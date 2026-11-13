@@ -1,0 +1,13 @@
+# Starts callback-interviews.service every 15 minutes (project-overview/deployment.md, "Interview
+# invitations"). Installed as /etc/systemd/system/callback-interviews.timer by deploy/setup-server.sh.
+[Unit]
+Description=Close unanswered interview invitations every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+# Spreads the call so it doesn't land on the same second as other timers.
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target

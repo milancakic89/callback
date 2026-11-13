@@ -164,7 +164,16 @@ describe("the app's routes", () => {
 
 describe("the database's reserved words", () => {
   it("are the same as RESERVED_SLUGS", () => {
-    const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261109120000_company_slugs.sql"), "utf8");
+    // The newest migration that defines company_slug_valid(): a new word needs a new migration that
+    // replaces the function, and that one has the whole list.
+    const dir = join(process.cwd(), "supabase/migrations");
+    const newest = readdirSync(dir)
+      .filter((file) => file.endsWith(".sql"))
+      .sort()
+      .filter((file) => /create or replace function public\.company_slug_valid/.test(readFileSync(join(dir, file), "utf8")))
+      .at(-1);
+    expect(newest).toBeDefined();
+    const sql = readFileSync(join(dir, newest!), "utf8");
     const list = /array\[([^\]]+)\]/.exec(sql)?.[1] ?? "";
     const words = [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]);
     expect(words.length).toBeGreaterThan(0);

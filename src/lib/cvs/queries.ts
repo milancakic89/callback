@@ -1,4 +1,6 @@
 import "server-only";
+import { effectiveStatus } from "@/lib/interviews/schedule";
+import { isInterviewStatus, type CandidateInterview } from "@/lib/interviews/types";
 import type { PipelineStage } from "@/lib/review/stages";
 import { createClient } from "@/lib/supabase/server";
 import { CALLBACK_APPLICATION_STATES, type CallbackApplication, type CallbackApplicationState, type CandidateCv } from "./types";
@@ -20,6 +22,14 @@ type CallbackApplicationRow = {
   step_description: string | null;
   stage_at: string | null;
   step_updated_at: string | null;
+  interview_id: string | null;
+  interview_status: string | null;
+  interview_starts_at: string | null;
+  interview_duration_minutes: number | null;
+  interview_time_zone: string | null;
+  interview_expires_at: string | null;
+  interview_message: string | null;
+  interview_meet_url: string | null;
 };
 
 // The signed-in candidate's CVs, newest first (features/candidate-cvs.md). Not cached: per user. The
@@ -40,6 +50,25 @@ export async function getMyCvs(): Promise<CandidateCv[]> {
 
 function toState(value: string): CallbackApplicationState {
   return (CALLBACK_APPLICATION_STATES as readonly string[]).includes(value) ? (value as CallbackApplicationState) : "active";
+}
+
+// The invitation of an application, if it has an open or answered one and the application is still
+// active. A pending one past its deadline reads as expired (my_job_applications() does the same, this
+// covers the moment between the query and the page).
+function toInterview(row: CallbackApplicationRow, state: CallbackApplicationState): CandidateInterview | null {
+  if (state === "withdrawn" || state === "you_withdrew") return null;
+  if (!row.interview_id || !isInterviewStatus(row.interview_status) || !row.interview_starts_at) return null;
+  if (!row.interview_expires_at || !row.interview_time_zone || row.interview_duration_minutes === null) return null;
+  return {
+    id: row.interview_id,
+    status: effectiveStatus(row.interview_status, row.interview_expires_at, new Date()),
+    startsAt: row.interview_starts_at,
+    durationMinutes: row.interview_duration_minutes,
+    timeZone: row.interview_time_zone,
+    expiresAt: row.interview_expires_at,
+    message: row.interview_message,
+    meetUrl: row.interview_meet_url,
+  };
 }
 
 // The signed-in candidate's applications to jobs posted on Callback, newest first, for
@@ -75,6 +104,7 @@ export async function getMyCallbackApplications(): Promise<CallbackApplication[]
               stageAt: row.stage_at,
               stepUpdatedAt: row.step_updated_at,
             },
+      interview: toInterview(row, state),
     };
   });
 }
