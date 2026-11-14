@@ -76,6 +76,34 @@
   mask-image: linear-gradient(to bottom, black 62%, transparent 98%);
 }
 
+/* The promo film's play button (promo-film.tsx, promo-video-player.tsx). Its ::after covers the whole
+   frame, so a click anywhere on the poster plays the film; the lime disc is what the eye lands on. The
+   hover scale is on the disc, not the button: a transformed button would shrink the ::after to itself.
+   The focus ring is white with a dark gap, since the lime button sits on a poster of any colour. */
+[data-landing] .l-film-play {
+  cursor: pointer;
+}
+
+[data-landing] .l-film-play::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+[data-landing] .l-film-play:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 4px var(--l-bg);
+}
+
+[data-landing] .l-film-play-disc {
+  transition: background-color 0.2s ease;
+}
+
+[data-landing] .l-film-play:hover .l-film-play-disc {
+  background-color: var(--l-lime-hover);
+}
+
 @keyframes l-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
@@ -135,6 +163,20 @@
 
   .l-ping {
     animation: l-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  [data-landing] .l-film-play-disc {
+    transition:
+      background-color 0.2s ease,
+      transform 0.25s var(--l-ease);
+  }
+
+  [data-landing] .l-film-play:hover .l-film-play-disc {
+    transform: scale(1.06);
+  }
+
+  [data-landing] .l-film-play:active .l-film-play-disc {
+    transform: scale(0.97);
   }
 }
 

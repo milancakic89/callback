@@ -66,4 +66,137 @@ Frames at 30 fps. Scenes are joined with 15-frame transitions (fade, or a slide 
 - Nothing else changes. The total stays 1,800 frames.
 - The outputs are rendered again (master, web version at CRF 22 with faststart, poster) and copied over `job-manager/public/videos/callback-promo.mp4` and `callback-promo-poster.webp`.
 
-**Status (revision):** implemented, 2026-11-14, in `../promo-video`: beats 4a, 4b and 4c as above, `jobs-desktop.png` and its capture script deleted (nothing renders a third-party company or job board), total still 1,800 frames. `npx tsc --noEmit` passes; 4a, 4b and 4c stills looked at (each status change, the pulse and the tooltip); master `out/callback-promo.mp4` re-rendered (60.000 s, 1920x1080, 30 fps, H.264 High, yuv420p, 175.8 MB), web version `out/callback-promo-web.mp4` (CRF 22, faststart, no audio, 16.4 MB) and poster `out/callback-promo-poster.png` / `.webp` made. **Not done:** copying the web version and the poster over `public/videos/callback-promo.mp4` and `callback-promo-poster.webp` in this repo; that overwrite was blocked by the permission system, so the two files there are still the previous version. To finish: `cp ../promo-video/out/callback-promo-web.mp4 public/videos/callback-promo.mp4 && cp ../promo-video/out/callback-promo-poster.webp public/videos/callback-promo-poster.webp`.
+**Status (revision):** implemented, 2026-11-14, in `../promo-video`: beats 4a, 4b and 4c as above, `jobs-desktop.png` and its capture script deleted (nothing renders a third-party company or job board), total still 1,800 frames. `npx tsc --noEmit` passes; 4a, 4b and 4c stills looked at (each status change, the pulse and the tooltip); master `out/callback-promo.mp4` re-rendered (60.000 s, 1920x1080, 30 fps, H.264 High, yuv420p, 175.8 MB), web version `out/callback-promo-web.mp4` (CRF 22, faststart, no audio, 16.4 MB) and poster `out/callback-promo-poster.png` / `.webp` made. The agent's copy over `public/videos/` was blocked by the permission system; it was done afterwards at the owner's request (the file there is byte for byte the new web version) and committed in `9dcd199`.
+
+## Revision, 2026-11-14 (2): a voiceover in the video
+**Why (the owner).** The video needs sound: a voice telling the story, embedded in the MP4 itself, not a script to voice somewhere else.
+
+**The voice.** There is no ElevenLabs or OpenAI key on this machine, and the macOS voices installed are the robotic ones. So the voice is **Kokoro-82M** (Apache 2.0: commercial use allowed, no attribution required), run locally with the npm package `kokoro-js` (ONNX on the CPU), model `onnx-community/Kokoro-82M-v1.0-ONNX` at `fp32`, voice `af_heart` (a warm American female voice, the model's best-rated), speed 1.0. The voice and the speed are one constant each, so another voice is a one-line change and a new run.
+
+**The script** (about 120 words). Absolute frames in the finished video, at 30 fps. A line starts a few frames after its headline (or the logo) appears, so the voice and the text land together, and must be over by its last frame. Scene starts: silence 0, pile 180, reveal 330, candidates 480 (beats at 480, 590, 700), employers 810 (post 810, review 930, decide 1200), interviews 1320 (invite 1320, confirm 1470), end card 1620.
+
+| Id | Starts | Over by | Line | On screen then |
+|---|---|---|---|---|
+| `silence-applied` | 40 | 104 | You applied. | "You applied." (36) |
+| `silence-nothing` | 112 | 190 | Then… nothing. | "Then… nothing." (108) |
+| `pile` | 208 | 380 | Recruiters? Buried in PDFs, inboxes and tabs. | the pile's headline (204) |
+| `reveal-meet` | the logo's frame + 6 | 388 | Meet Callback. | the logo (read from `RevealScene.tsx`) |
+| `reveal-tagline` | 396 | 476 | Because every application deserves a response. | the tagline (392) |
+| `candidates-search` | 490 | 598 | For candidates: apply to companies hiring on Callback. | 4a (484) |
+| `candidates-apply` | 602 | 706 | Apply with the CV you already have. | 4b (594) |
+| `candidates-track` | 712 | 816 | Your status updates itself. No more guessing. | 4c (704) |
+| `employers-post` | 820 | 932 | For employers: post a job, and publish it. | 5a (814) |
+| `employers-documents` | 940 | 1036 | See the original CV and cover letter, side by side. | the title (936), caption 1 (986) |
+| `employers-keywords` | 1040 | 1120 | With a keyword check against your requirements. | caption 2 (1050) |
+| `employers-next` | 1125 | 1200 | Then set the stage, and press Next. | caption 3 (1110) |
+| `employers-decide` | 1212 | 1318 | Nothing is rejected automatically. You decide. | 5c (1206) |
+| `interviews-invite` | 1330 | 1466 | Invite them to an interview, with Google Meet included. | 6a (1324) |
+| `interviews-confirm` | 1480 | 1616 | The candidate confirms, and everyone knows where they stand. | 6b (1474) |
+| `end` | 1646 | 1770 | Callback. Find a job, or start hiring, at callback dot R S. | the end card (1642); the fade to black starts at 1785 |
+
+A line that runs past its "over by" frame is shortened (the fallbacks: `candidates-search` → "Apply to companies hiring on Callback.", `end` → "Find a job or start hiring at callback dot R S.") or spoken at up to 1.1; the visuals are never moved for the voice. "callback dot R S" is spelled so the voice reads the domain as letters.
+
+**How it is built** (in `../promo-video`):
+- `src/voiceover.json`: the lines above (`id`, `text`, `startFrame`, `endFrame`), the one source both the generator and the composition read.
+- `scripts/generate-voiceover.mjs` (`npm run voiceover`): one WAV per line in `public/voiceover/<id>.wav`; it measures each clip and fails, naming the line, if it runs past `endFrame`. `kokoro-js` at an exact version at least two weeks old, as a devDependency.
+- `src/components/Voiceover.tsx`: one `<Sequence from={startFrame}>` with an `<Audio>` per line, at the top of `CallbackPromo` (outside the `TransitionSeries`, so the frames are absolute). From now on `npm run render` has the voice.
+- **Voice only, no music**: there is no licensed track on hand. Music can be added later under the voice (ducked) from a track the owner picks.
+- **Outputs:** the composition's audio rendered alone (`--codec=wav`), loudness-normalised to −16 LUFS integrated with true peak at most −1.5 dBTP (ffmpeg `loudnorm`, two passes), as AAC 48 kHz stereo 192 kbps, and muxed into the existing master `out/callback-promo.mp4` and web version `out/callback-promo-web.mp4` with the video stream copied: the frames stay exactly as they were, and nothing is re-encoded. Then copied over `public/videos/callback-promo.mp4` here. The poster doesn't change.
+
+**Checks.** `npx tsc --noEmit` passes. `npm run voiceover` passes its fit check. `ffprobe` on both MP4s: one H.264 stream and one AAC stream, both 60.0 s, and the video stream identical to the previous file's. `ffmpeg -af ebur128` measures about −16 LUFS. `silencedetect` puts the start of speech within 0.2 s of each line's `startFrame`. Nothing in this repo changes but this file and `public/videos/callback-promo.mp4`.
+
+**Status (voiceover):** implemented, 2026-11-14, in `../promo-video`, as planned, with `kokoro-js` 1.2.1 (2025-05-03), voice `af_heart`. Two lines needed `speed` 1.1 to fit, `reveal-meet` (also started at the logo's frame + 4, i.e. 362, not + 6) and `employers-documents`; no fallback text was needed. Kokoro's 0.3 s of leading silence is trimmed from every clip. Checks: `npx tsc --noEmit` passes; `npm run voiceover` reports all 16 lines fit; both MP4s have one H.264 and one AAC stream (LC, 48 kHz, stereo), both exactly 60.000 s; the video stream's md5 is unchanged (`de836f4f…` web, `cdf38362…` master); −16.0 LUFS integrated, true peak −1.5 dBTP; speech starts within 0.03 s of every line's `startFrame`. Web version 17.4 MB (AAC averages ~131 kbps, the track being mostly silence), copied over `public/videos/callback-promo.mp4`. No unit tests: the promo project has no test runner. Not listened to by a person yet. Not committed.
+
+## Revision, 2026-11-14 (3): a subtle music bed under the voice
+**Why (the owner).** "Some subtle music: not distracting, but not quiet between the words." Today the gaps between the lines are silence, which feels empty.
+
+**Where the music comes from.** No licensed track is on hand, and the open music models are either non-commercial (MusicGen's weights are CC BY-NC) or too heavy for this machine. So the music is **composed in code** for this video: original, with no licence to track, and its changes land on the scene changes. It is synthesised in Node (no numpy here), with ffmpeg for the reverb (`afir` with a generated impulse response) and the final polish. Everything random comes from a seeded generator, so the same run gives the same file.
+
+**The piece.** 120 BPM, so a beat is exactly 15 frames and a bar exactly 2 s (60 frames); D major. Warm and soft: rounded tones, no sharp transients, nothing above a gentle shimmer.
+| Bars | Time | Scene | Music |
+|---|---|---|---|
+| 1–3 | 0–6 s | Silence | A soft fade-in (1.5 s) to a dark, low-passed pad (Bm(add9), then Gmaj7), and a single low felt-piano note now and then. Sparse, a little uneasy. |
+| 4–6 | 6–12 s | The pile | The pad goes on; a soft, low-passed bass pulse in eighth notes adds tension; a quiet filtered-noise riser from 10.0 s to the logo. |
+| — | 11.93 s (frame 358) | The logo | A soft "bloom": a short, low sub swell, and the pad's filter opens over about a second. |
+| 7–8 | 12–16 s | Reveal | The pad opens to D major (Dmaj9, then A(add9)), bright but still slow. No beat yet. |
+| 9–27 | 16–54 s | Candidates, employers, interviews | The body: one chord a bar, Dmaj7, A/C♯, Bm7, Gmaj7, looped. A soft eighth-note pluck arpeggio (electric piano or marimba-like, highs rolled off, a little stereo delay), a root-note bass, a soft round kick on beats 1 and 3, and a very quiet shaker on the off-beats. From bar 23 (44 s, interviews) a higher pluck layer for a small lift. |
+| 28–30 | 54–60 s | End card | The rhythm stops; one last Dmaj9 (pad, a plucked chord and the bass) rings out with the reverb and fades to nothing by 60 s (the picture fades to black from 59.5 s). |
+
+**Levels.** "Not quiet between the words": the music is always there under the voice. On its own, the music's integrated loudness sits **12 dB below the voice's** (one constant). While a line is actually being spoken, it dips by **only 3 dB** (down over 6 frames, starting 3 frames before the speech, back up over 12 frames after it), so it never drops away between the words or the lines. The first scene is a few dB quieter than the body, as part of the composition. The whole mix (voice + music) is then normalised as before: −16 LUFS integrated, true peak at most −1.5 dBTP.
+
+**How it is built** (in `../promo-video`):
+- `scripts/compose-music.mjs` (`npm run music`): writes `public/music/bed.wav`, 48 kHz stereo, exactly 60.000 s. The tempo, the key, the chords, the section bars and the level of each instrument are named constants at the top.
+- `scripts/generate-voiceover.mjs` also writes each line's measured length in frames to `src/voiceover-durations.json`, so the dip follows the real speech, not the line's window.
+- `src/music-ducking.ts`: a pure function, the music's volume at a frame, given the lines, their lengths, the dip and the ramps as parameters.
+- `src/components/MusicBed.tsx`: one `<Audio>` for `music/bed.wav` from frame 0, its `volume` that function. It is rendered next to `<Voiceover>` in `CallbackPromo`, outside the `TransitionSeries`.
+- **Outputs**, as for the voice: the audio rendered alone, normalised in two passes, AAC 48 kHz stereo 192 kbps, muxed into the master and the web MP4s with the video stream copied (it replaces the voice-only track). Also `out/music-bed-preview.m4a`, the music alone, for listening, and `out/music-spectrum.png` and `out/mix-spectrum.png` (`showspectrumpic`), to check the shape by eye.
+
+**Checks.** `npx tsc --noEmit` passes. `npm run music` twice gives the same md5. `bed.wav` is 60.000 s and its true peak is below −1 dBTP. The music alone measures 12 ± 1 dB below the voice alone (`ebur128`). The final mix measures −16 LUFS and a true peak of at most −1.5 dBTP. `silencedetect` (−50 dB, 0.3 s) finds no silence in the final mix between 1.5 s and 59.5 s. Both MP4s have one H.264 and one AAC stream, both 60.000 s, and an unchanged video md5. Then the web version is copied over `public/videos/callback-promo.mp4` here.
+
+**Status (music):** implemented, 2026-11-14, in `../promo-video`, as planned. `scripts/compose-music.mjs` (`npm run music`, seed `0x0ca11bac`, the same md5 on every run) and `scripts/master-audio.mjs` (`npm run audio`: the audio render, the two-pass loudnorm, the AAC and the mux, in one rerunnable script). `src/music-ducking.ts`, `src/components/MusicBed.tsx` and `src/voiceover-durations.json` (the voice clips came out byte-identical on regeneration). Remotion rounds a frame-varying volume to multiples of 1/97, so the bed's output gain is set so the base volume is exactly 24/97 and the 3 dB dip exactly 17/97. Checks: `npx tsc --noEmit` passes. The bed alone at base volume measures 12.0 dB under the voice; with the dips counted, 14.1 dB. In the body's gaps the music is about 11 dB under the speech, and the only silence in the mix is the first 0.48 s of the fade-in. Final mix −16.0 LUFS, true peak −1.7 dBTP. To hold that, an `alimiter` sits before loudnorm's second pass; it touches 1.45 % of the audio, by at most 3.3 dB. One H.264 and one AAC stream, both 60.000 s; video md5 unchanged. Web version 17.9 MB, copied over `public/videos/callback-promo.mp4`. A music-only preview is in `out/music-bed-preview.m4a`. No unit tests: the promo project has no test runner. Not listened to by a person yet. Not committed.
+
+## Revision, 2026-11-15 (4): the film on the landing page
+**Why (the owner).** "Put it somewhere on the landing page, your choice."
+
+**Where.** A new section right under the hero, before "The problem" (`src/app/page.tsx`): the film opens with the same problem, so it leads straight into that section. The hero itself doesn't change.
+
+**The section** (`src/components/landing/promo-film.tsx`, a server component):
+- The landing page's own parts: `Container`, `Eyebrow` ("In 60 seconds"), a short heading ("See how Callback works.") and one muted line ("For candidates and employers: from the application to the interview."), `data-reveal` like the other sections, `id="film"`, a top border like "The problem".
+- The video in a frame in the landing page's style: rounded, the `--l-line-strong` border, the product shot's shadow, `aspect-video`, so nothing shifts while the poster loads.
+- Under it, a small mono line: "1:00 · Sound on · Captions available".
+
+**The player** (`src/components/landing/promo-video-player.tsx`, a client component, kept small):
+- `<video preload="none" playsInline poster="/videos/callback-promo-poster.webp">`, with `<source src="/videos/callback-promo.mp4" type="video/mp4">` and `<track kind="captions" src="/videos/callback-promo.en.vtt" srclang="en" label="English">` (off by default: the film already has its headlines on screen).
+- **`preload="none"`:** nothing of the 17.9 MB file loads until the visitor presses play; only the poster (about 160 KB) does. **No autoplay**: the film has a voice, and browsers block autoplay with sound anyway.
+- **Progressive enhancement.** The server markup is a plain `<video controls>`, which plays without JavaScript. Once hydrated (`useSyncExternalStore`, not a `useEffect` that sets state), the native controls are hidden behind an overlay: a large lime round play button with the accessible name "Play the 60-second film", and "Watch the film · 1:00" beside it. Pressing it calls `play()`, removes the overlay and shows the native controls. If `play()` is refused, the controls show anyway.
+- The markup is a presentational part (`PromoVideoFrame`, with `enhanced`, `started` and `onPlay` as props) inside a thin stateful wrapper, so both states can be render-tested.
+- The file paths are constants in one place (`src/components/landing/promo-video-files.ts`).
+
+**Poster.** The current poster is the end card, and it would repeat the hero's tagline right under the hero. The new poster is a frame of beat 4a (the Callback job board with the "Auto-tracked" rows and "Apply to companies hiring on Callback."), once that frame is fully drawn. It is rendered with `remotion still`, saved as WebP at about quality 80, 1920×1080, and copied over `public/videos/callback-promo-poster.webp`. The end card stays in `../promo-video/out/`.
+
+**Captions.**
+- `../promo-video/scripts/write-captions.mjs` (`npm run captions`) writes `out/callback-promo.en.vtt` from `src/voiceover.json` and `src/voiceover-durations.json`: one cue per line, from `startFrame` to the end of the speech plus a few frames.
+- An optional `caption` field in `voiceover.json` covers a line whose written text differs from the spoken one: `end` reads "Callback. Find a job, or start hiring, at callback.rs.", not "callback dot R S". The file is copied to `public/videos/callback-promo.en.vtt`.
+
+**Not changed, and why:**
+- **The CSP:** `default-src 'self'` already covers `media-src`, and the poster is under `img-src 'self'`.
+- **The proxy matcher:** a path with a dot is never a workspace path (`isWorkspacePath`), so nobody is redirected, and the global rate limit stays on the media requests.
+- **The Caddyfile:** `encode` doesn't compress `video/mp4`, and Caddy passes `Range` requests through.
+- **The privacy policy:** the film is served from our own server, with no third-party player or tracking.
+
+**The landing doc.** In `features/landing.md`:
+- Add the section to the page structure.
+- Correct the copy rule. Since `features/candidate-steps.md` (2026-11-09), a candidate's status does follow the company's stage, so "your application status updates automatically" is true. What is still not built is *telling* the candidate (an email), and neither the page nor the film may claim that.
+
+**Tests** (vitest, render tests like the rest of `src/components/landing`):
+- `promo-film.test.ts`: the eyebrow, heading and line; the section's `id`.
+- `promo-video-player.test.ts`: `PromoVideoFrame` in its three states:
+  - not enhanced: native controls, no overlay;
+  - enhanced, not started: the overlay button with its accessible name, no `controls`;
+  - started: `controls`, no overlay.
+  In every state: `preload="none"`, `playsinline`, the poster, the source with its type, and the track with `kind`, `srclang` and `label`.
+- A test that each path in `promo-video-files.ts` exists under `public/`, so a renamed file fails a test and not the page.
+- No existing test is changed.
+
+**Checks.**
+- `npm test`, `npm run lint`, `npx tsc --noEmit` and `npm run build` pass, and `/` is still prerendered as before.
+- On a production build (`npm run build && npm start`):
+  - `curl -H "Range: bytes=0-1"` on the MP4 answers 206 with `Content-Range` (Safari needs it for video);
+  - the VTT answers `text/vtt`;
+  - the page loads no byte of the MP4 before play.
+- In Chromium (the repo's Playwright), at 1440, 768, 390 and 320 px:
+  - no horizontal overflow, no console errors, no CSP violation;
+  - the overlay's button starts the film (`currentTime` advances);
+  - captions can be turned on;
+  - the section is checked with reduced motion as well.
+- `public/videos/callback-promo-music-only.m4a` (a listening copy) is not committed.
+
+**Status (landing page):** implemented, 2026-11-15, on the branch `feat/promo-video`, as planned, with the deviations below. Not committed.
+- **In `../promo-video`:** `caption` added to `VoiceoverLine` and set on `end` only ("Callback. Find a job, or start hiring, at callback.rs."); no `text` changed, the voice and the audio were not regenerated. `scripts/write-captions.mjs` (`npm run captions`) writes `out/callback-promo.en.vtt` (16 cues, `WEBVTT`, `HH:MM:SS.mmm`). `scripts/png-to-webp.mjs` (`npm run webp -- <in.png> <out.webp> [quality] [width]`, sharp from this repo's `node_modules`) made `out/callback-promo-cover.webp`. `npx tsc --noEmit` passes there.
+- **The poster** is frame 568 of beat 4a (beat frame 88), 1920x1080 WebP at quality 80, 67 KB (the end card it replaces was 161 KB). Stills of 560, 568 and 575 were looked at; all three have the headline, the four chips and the five rows fully drawn, and 568 is the safest: the last chip is in by beat frame ~83 and the exit fade starts at 98 (frame 578). The plan's 590 is the first frame of beat 4b, so it was not used. `out/callback-promo-cover.webp` and `out/callback-promo.en.vtt` were copied into `public/videos/` (`callback-promo-poster.webp` overwritten, `callback-promo.en.vtt` new); no permission was refused.
+- **In this repo:** `src/components/landing/promo-video-files.ts`, `promo-video-player.tsx` (`PromoVideoFrame`, presentational, and `PromoVideoPlayer`, the stateful wrapper), `promo-film.tsx`, `use-hydrated.ts` (the `useSyncExternalStore` hook, kept apart so it can be reused and tested), `<PromoFilm />` after `<Hero>` in `src/app/page.tsx`, the `.l-film-play*` rules in `landing.css`, and `features/landing.md` (a new row 2 in the page structure, the rows after it renumbered, the copy rule corrected: a candidate's status updating by itself is true, telling the candidate is not built). The play button is a lime disc inside a dark pill ("Watch the film · 1:00"); the button is the disc, named "Play the 60-second film", and its `::after` covers the whole frame so a click anywhere on the poster plays. The focus ring is white with a dark gap (visible on the poster of any colour). The disc's hover scale is on an inner element (a transformed button would shrink its own `::after`). Pressing it sets `started` first and then calls `play()`, so a refusal still leaves the native controls showing; the focus moves to the video. The line under the frame uses `--l-fg-muted`, not `--l-fg-subtle` (about 3.9:1 on the page background, too faint for the information it carries).
+- **Tests:** `promo-film.test.ts`, `promo-video-player.test.ts` (the three states, each with `preload="none"`, `playsInline`, the poster, the source with its type, the track with `kind`, `srcLang` and `label`; and the wrapper's server markup), `promo-video-files.test.ts` (each path exists under `public/`; the MP4 starts with `ftyp`, the poster is a 1920x1080 WebP, the captions start with `WEBVTT` and write the domain as `callback.rs`) and `use-hydrated.test.ts`: 4 files, 37 tests. No existing test was changed. React writes `playsInline` and `srcLang` in camel case, which HTML reads without regard to case, so those two assertions are case-insensitive.
+- **Checks:** `npm test` 138 files, 1,321 tests pass (134 and 1,284 before); `npm run lint` and `npx tsc --noEmit` pass; `npm run build` passes and its route table is identical to the one from before the change (`/` is still `○ Static`, revalidate 1h, expire 1d).
+  - **Production server** (`next start`, port 3100, because port 3000 is held by your own `next dev`, which was left alone): `Range: bytes=0-1` on the MP4 gives 206 with `Content-Range: bytes 0-1/17880601` and `Accept-Ranges: bytes`; the VTT gives `Content-Type: text/vtt; charset=UTF-8`; the poster gives 200 `image/webp`.
+  - **Chromium (Playwright), 148 of 148 checks:** at 1440, 768, 390 and 320 px, each with motion and with `reducedMotion: 'reduce'`: no horizontal overflow (before and after play), no console errors or warnings, no CSP violation, the MP4 not requested before the click and then answered with a 206, one English captions track that can be set to `showing`, the play button found by its name, a 16:9 frame (288x162 at 320 px), the clicked button playing the film (`currentTime` about 1.4 s after 1.6 s, with sound: the headless browser did not need the page muted), the overlay gone and the native controls back, and the focus on the video. Also: Enter on the focused button starts the film; the button shows a 3 px white focus ring from the keyboard; with JavaScript off the film is a plain `<video controls>` with no play button.
+- **Not done / not checked:** Safari and Firefox (Safari needs the 206 the server gives, but it was not run); the film was not watched or listened to in the browser beyond the first seconds; the captions were not read on screen, only switched on; no real device. The plan's "port 3000" was not used for the reason above.

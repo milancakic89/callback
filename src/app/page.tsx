@@ -9,6 +9,7 @@ import { Hero } from "@/components/landing/hero";
 import { newestPerCompany } from "@/components/landing/newest-jobs";
 import { Pricing } from "@/components/landing/pricing";
 import { Problem } from "@/components/landing/problem";
+import { PromoFilm } from "@/components/landing/promo-film";
 import { Screening } from "@/components/landing/screening";
 import { ScrollReveal } from "@/components/landing/scroll-reveal";
 import { SiteFooter } from "@/components/landing/site-footer";
@@ -44,6 +45,7 @@ export default async function LandingPage() {
       <SiteNav />
       <main className="flex-1">
         <Hero openRoles={openRoles} />
+        <PromoFilm />
         <Problem />
         <ForCandidates openRoles={openRoles} jobs={newest} />
         <ForEmployers />
