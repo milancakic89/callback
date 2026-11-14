@@ -15,7 +15,7 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-import { sendAuthEmail, sendInterviewInvitationEmail, sendInterviewResponseEmail } from "./mail";
+import { sendAuthEmail, sendInterviewConfirmedEmail, sendInterviewInvitationEmail, sendInterviewResponseEmail } from "./mail";
 
 const POSTING = "/jobs/7c9e6679-7425-40de-944b-e07fc1f90ae7?apply=1";
 
@@ -143,5 +143,90 @@ describe("the interview response email", () => {
 
     expect(sent().subject).toBe("Ana Novak declined the interview for Product Designer");
     expect(sent().text).not.toContain("meet.google.com");
+  });
+});
+
+describe("the interview confirmed email", () => {
+  const confirmed = {
+    to: "ana@example.com",
+    candidateName: "Ana Novak",
+    companyName: "Acme",
+    jobTitle: "Product Designer",
+    when: "Tuesday, 15 January 2030, 11:00 (Europe/Belgrade)",
+    duration: "45 minutes",
+    meetUrl: "https://meet.google.com/abc-defg-hij",
+    organizerEmail: "boss@acme.example" as string | null,
+    calendarInviteFailed: false,
+  };
+  const sent = () => sendMail.mock.calls[0][0] as { to: string; subject: string; text: string; html: string };
+  const SPAM_SENTENCE = "If it isn't in your inbox, look in Spam: moving it to the inbox puts the interview in your calendar.";
+  const KEEP_THIS_EMAIL_SENTENCE = "so keep this email: the link above is the one to join.";
+
+  it("tells the candidate when, how long and where, with the Meet link and a button to join", async () => {
+    await sendInterviewConfirmedEmail(confirmed);
+
+    expect(sent().to).toBe("ana@example.com");
+    expect(sent().subject).toBe("Interview confirmed: Product Designer at Acme");
+    expect(sent().text).toContain("Your interview is confirmed");
+    expect(sent().text).toContain("Hi Ana Novak,");
+    expect(sent().text).toContain("You confirmed the interview with Acme for Product Designer.");
+    for (const part of [confirmed.when, "Length: 45 minutes", `Google Meet: ${confirmed.meetUrl}`]) {
+      expect(sent().text, part).toContain(part);
+      expect(sent().html, part).toContain(part);
+    }
+    expect(sent().html).toContain(`href="${confirmed.meetUrl}"`);
+    expect(sent().html).toContain("Join on Google Meet");
+  });
+
+  it("names the organizer the calendar invitation comes from, and Spam", async () => {
+    await sendInterviewConfirmedEmail(confirmed);
+
+    expect(sent().text).toContain("Google Calendar is sending you an invitation from boss@acme.example.");
+    expect(sent().text).toContain(SPAM_SENTENCE);
+    expect(sent().text).not.toContain(KEEP_THIS_EMAIL_SENTENCE);
+  });
+
+  it("leaves out the 'from' when the organizer is not known", async () => {
+    await sendInterviewConfirmedEmail({ ...confirmed, organizerEmail: null });
+
+    expect(sent().text).toContain("Google Calendar is sending you an invitation. ");
+    expect(sent().text).not.toContain("invitation from");
+    expect(sent().text).toContain(SPAM_SENTENCE);
+  });
+
+  it("says to keep the email, and not to look in Spam, when Google could not invite the candidate", async () => {
+    await sendInterviewConfirmedEmail({ ...confirmed, calendarInviteFailed: true });
+
+    expect(sent().text).toContain("Google could not send you a calendar invitation");
+    expect(sent().text).toContain(KEEP_THIS_EMAIL_SENTENCE);
+    expect(sent().text).not.toContain("Spam");
+    expect(sent().text).not.toContain("boss@acme.example");
+  });
+
+  it("has no Meet line and no button without a Meet link", async () => {
+    await sendInterviewConfirmedEmail({ ...confirmed, meetUrl: null });
+
+    expect(sent().text).not.toContain("Google Meet:");
+    expect(sent().html).not.toContain("Join on Google Meet");
+    expect(sent().html).not.toContain("<a href");
+  });
+
+  it("escapes what users typed, and the organizer's address", async () => {
+    await sendInterviewConfirmedEmail({
+      ...confirmed,
+      companyName: "Acme <b>&</b>",
+      jobTitle: "<script>alert(1)</script>",
+      candidateName: '"><img src=x>',
+      organizerEmail: "<i>boss</i>@acme.example",
+    });
+
+    const { html, subject } = sent();
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<b>");
+    expect(html).not.toContain("<i>");
+    expect(html).toContain("&lt;script&gt;");
+    // The subject is a header, not HTML: it keeps the text as typed.
+    expect(subject).toBe("Interview confirmed: <script>alert(1)</script> at Acme <b>&</b>");
   });
 });

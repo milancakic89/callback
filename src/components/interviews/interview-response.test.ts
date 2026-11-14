@@ -19,6 +19,7 @@ const view = (fields: Partial<InvitationView> = {}): InvitationView => ({
   message: "A short call.",
   expiresAt: "2030-01-13T10:00:00.000Z",
   meetUrl: null,
+  organizerEmail: null,
   ...fields,
 });
 
@@ -56,6 +57,23 @@ describe("InterviewResponse", () => {
     expect(html).toContain('href="https://meet.google.com/abc-defg-hij"');
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).not.toContain('name="response"');
+  });
+
+  it("names the organizer's address and Spam in the confirmed state", () => {
+    const html = render(
+      view({ state: "confirmed", meetUrl: "https://meet.google.com/abc-defg-hij", organizerEmail: "boss@acme.example" }),
+    );
+
+    expect(html).toContain("Acme has been told.");
+    expect(html).toContain("Google is sending you a calendar invitation from boss@acme.example.");
+    expect(html).toContain("If it isn\u2019t in your inbox, look in Spam.");
+  });
+
+  it("leaves out the organizer's address when it is not known", () => {
+    const html = render(view({ state: "confirmed", meetUrl: "https://meet.google.com/abc-defg-hij", organizerEmail: null }));
+
+    expect(html).toContain("Google is sending you a calendar invitation. If it isn\u2019t in your inbox, look in Spam.");
+    expect(html).not.toContain("invitation from");
   });
 
   it("says a declined, closed or cancelled invitation is, with no buttons", () => {

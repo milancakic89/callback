@@ -48,7 +48,7 @@ The goal: when the employer moves a candidate to a step that is an interview, th
    - for each candidate with a time, an event with a Meet link is created in the company's calendar. The candidate is **not** a guest yet, so the event only holds the slot;
    - the candidate gets the email.
 5. **The candidate** opens `/interviews/{id}?t={token}` from the email, sees the job, the company, the time and the length, and clicks **Confirm** or **Decline**:
-   - **Confirm:** the candidate is added as a guest (`sendUpdates=all`), so Google sends them the real calendar invitation. The page shows the Meet link, and the company gets an email ("Ana Novak confirmed…").
+   - **Confirm:** the candidate is added as a guest (`sendUpdates=all`), so Google sends them the real calendar invitation. The page shows the Meet link, the candidate gets a confirmation email with the same link (added 2026-11-14), and the company gets an email ("Ana Novak confirmed…").
    - **Decline:** the event is deleted from the company's calendar, and the company gets an email.
    - **No answer by the deadline:** the status becomes `expired`, and the event is deleted.
 6. **The employer sees the outcome:**
@@ -116,6 +116,7 @@ The goal: when the employer moves a candidate to a step that is an interview, th
 ### Email (`src/lib/mail.ts`)
 - **`sendInterviewInvitationEmail`** sends the candidate the time in the company's time zone (with the zone's name), the length, the company's message and a "Respond to the invitation" button.
 - **`sendInterviewResponseEmail`** tells the company the candidate confirmed or declined.
+- **`sendInterviewConfirmedEmail`** (added 2026-11-14, see the last update) sends the candidate, after Confirm, the time, the length, the Meet link and a "Join on Google Meet" button, and says where Google's calendar invitation comes from.
 - **The job title, the company name and the message are user text, so they must be HTML-escaped.** The existing templates never needed it: they only insert a URL.
 
 ### Environment (`src/lib/env.ts`, `.env.example`)
@@ -192,3 +193,27 @@ The goal: when the employer moves a candidate to a step that is an interview, th
 - `addAttendee` and `deleteEvent` carry the reason as well.
 
 **Then (by the owner):** deploy, try one invitation, and read the reason with `journalctl -u callback --since "10 minutes ago" --no-pager | grep -A8 createInterviewEvent`.
+
+**Outcome (2026-11-14).** The log said `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`: the saved token had no calendar grant. Connecting again, with the calendar box ticked on Google's consent screen, fixed it, and invitations go out with `calendar.events.owned`, Meet link included. So the narrower scope does create Meet events. The callback still saves a connection whatever Google granted; checking the returned `scope` would catch this at once (not done yet).
+
+## Update, 2026-11-14: the candidate's confirmation email, and where the calendar invitation comes from
+**Status:** implemented on the branch `feat/candidate-confirmation-email`, 2026-11-14. `npm test` (134 files, 1,284 tests), `npm run lint` and `npx tsc --noEmit` pass; `npm run build` was not run. One existing assertion gained a key: the `toEqual` of the whole view in `respond.test.ts` ("shows the invitation to whoever has the token") lists `organizerEmail: null`, because the view has a new field. The Privacy Policy lists the emails Callback sends, so it names the new one too (`privacy-data-sections.tsx`, with two new tests); its "Last updated" date is unchanged. Not checked against real Google or a real mailbox.
+
+**Why.** In the first real test the Google Calendar invitation landed in Spam, and Gmail doesn't add an invitation that is in Spam to the calendar, so the interview wasn't in the candidate's calendar until it was moved to the inbox. Google sends it from the connected Google account (the event's organizer), which a candidate has usually never written to: Gmail shows "invitation from an unknown sender" and is strict with those. Callback can't change that. But after Confirm, Callback sent the candidate nothing: the Meet link was only on the page and in Google's invitation, so a candidate who closed the page and whose invitation went to Spam had no link.
+
+**What changes.**
+- **`src/lib/mail.ts`:** `sendInterviewConfirmedEmail` to the candidate, in the same layout (`sendLayoutEmail`). Subject `Interview confirmed: <job> at <company>`, heading "Your interview is confirmed"; the paragraphs: `Hi <name>,`, that they confirmed the interview with the company for the job, `When:` and `Length:` (as in the invitation email), `Google Meet: <link>` when there is one, and one sentence about the calendar invitation:
+  - Google added them: "Google Calendar is sending you an invitation from <organizer email>. If it isn't in your inbox, look in Spam: moving it to the inbox puts the interview in your calendar." (without "from <organizer email>" when the address isn't known);
+  - Google couldn't add them (`calendarInviteFailed`): "Google could not send you a calendar invitation, so keep this email: the link above is the one to join."
+  The button is "Join on Google Meet" with the Meet link, and no button without one.
+- **`src/lib/interviews/respond.ts`:**
+  - `answerInvitation`, on Confirm only: the candidate's address is read before the Google step (it is already read there, for `addAttendee`), so the email can go even when Google fails. After the Google step and next to the company's email, the candidate's email goes, best effort: a failure is logged (`answerInvitation: the candidate's confirmation email failed:`) and doesn't change the answer or the company's email. `when` and `duration` are formatted with `formatInterviewTime` and `formatDuration` (`./format`).
+  - The organizer's address is the connected account's email, from `getGoogleStatus(company_id)` (`src/lib/google/connection.ts`, already there). It is read only for a confirmed invitation, and an error reading it leaves it `null`.
+  - `InvitationView` gets `organizerEmail: string | null`, set only when confirmed (like `meetUrl`). `toView` takes it as a parameter (it stays a plain function); `loadInvitationView` and `answerInvitation` pass it.
+- **`src/components/interviews/interview-response.tsx`**, the confirmed state: "<company> has been told. Google is sending you a calendar invitation from <organizer email>. If it isn't in your inbox, look in Spam." (without "from …" when it is `null`).
+- This file's emails list names the new email; the Privacy Policy is checked for a list of the emails Callback sends, and the new one added if there is one.
+
+**Tests** (new tests; existing tests keep their assertions. Adding the new functions to the existing `vi.mock` factories in `respond.test.ts` is the only change to an existing test file's setup.)
+- `mail.test.ts`: the confirmed email has the time, length and Meet link and the button; the Spam sentence names the organizer; without an organizer, no "from"; with `calendarInviteFailed`, the "keep this email" sentence and not the Spam one; no Meet link, no button; user-typed names escaped.
+- `respond.test.ts`: Confirm sends the candidate's email with the organizer and `calendarInviteFailed: false`; Google failing still sends it with `calendarInviteFailed: true`; the email failing still returns `ok` and still emails the company; Decline sends the candidate nothing; the view has `organizerEmail` only when confirmed.
+- `interview-response.test.ts`: the confirmed state names the organizer and Spam, and leaves out "from" when there is no organizer.

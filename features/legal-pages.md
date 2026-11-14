@@ -49,6 +49,9 @@ These are statements the code can't prove; they are in the text and need a human
 - **Google Meet for candidates.** "Who sees your data" now says that the interview call itself happens on Google Meet, under Google's Privacy Policy (`GOOGLE_PRIVACY_POLICY_URL`, next to the other Google links in `privacy-google-section.tsx`). Part 5 still says candidates never sign in with Google.
 - `LEGAL_LAST_UPDATED` stays "13 November 2026": the change is made the same day.
 
+## Update, 2026-11-14: the candidate's confirmation email
+**Status:** implemented on the branch `feat/candidate-confirmation-email`, 2026-11-14 ([interview-invitations.md](./interview-invitations.md), the last update). The Privacy Policy names the new email in both places that list the interview emails: "Emailing you" (the invitation, the confirmation the candidate gets once they confirm, and the answer the employer is told) and "When an employer invites you to an interview" (if you confirm, we email you again with the time and the Google Meet link). `LEGAL_LAST_UPDATED` is "14 November 2026".
+
 ## Out of scope
 A Serbian translation; a cookie banner (only strictly necessary cookies are set); self-service account deletion and export (the policy names it as a request by e-mail); the Google verification submission itself.
 

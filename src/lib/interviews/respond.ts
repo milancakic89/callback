@@ -1,10 +1,10 @@
 import "server-only";
 import { env } from "@/lib/env";
-import { accessTokenFor } from "@/lib/google/connection";
+import { accessTokenFor, getGoogleStatus } from "@/lib/google/connection";
 import { addAttendee, deleteEvent } from "@/lib/google/calendar";
-import { sendInterviewResponseEmail } from "@/lib/mail";
+import { sendInterviewConfirmedEmail, sendInterviewResponseEmail } from "@/lib/mail";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { formatInterviewTime } from "./format";
+import { formatDuration, formatInterviewTime } from "./format";
 import { effectiveStatus } from "./schedule";
 import { fromPgBytea, tokenMatches } from "./token";
 import { isInterviewStatus, type InterviewStatus } from "./types";
@@ -67,9 +67,13 @@ export type InvitationView = {
   expiresAt: string;
   // Only once confirmed.
   meetUrl: string | null;
+  // The Google address the calendar invitation comes from, so the candidate knows where to look in Spam.
+  // Only once confirmed, and null when it can't be read.
+  organizerEmail: string | null;
 };
 
-function toView(row: InvitationRow, now: Date): InvitationView {
+// `organizerEmail` is read by the caller (see organizerEmailOf), so this stays a plain function.
+function toView(row: InvitationRow, now: Date, organizerEmail: string | null): InvitationView {
   const status = isInterviewStatus(row.status) ? row.status : "cancelled";
   const state = row.application?.withdrawn_at ? "unavailable" : effectiveStatus(status, row.expires_at, now);
   const company = row.application?.job?.company;
@@ -84,14 +88,31 @@ function toView(row: InvitationRow, now: Date): InvitationView {
     message: row.message,
     expiresAt: row.expires_at,
     meetUrl: status === "confirmed" ? row.meet_url : null,
+    organizerEmail: status === "confirmed" ? organizerEmail : null,
   };
+}
+
+// The company's connected Google address. An error reading it gives null: it only decorates the page and
+// the email, and must never break either.
+async function organizerEmailOf(companyId: string): Promise<string | null> {
+  try {
+    return (await getGoogleStatus(companyId)).email;
+  } catch (error) {
+    console.error("organizerEmailOf: reading the Google connection failed:", error);
+    return null;
+  }
+}
+
+// The address is only worth reading for an invitation that is confirmed.
+async function organizerEmailIfConfirmed(row: InvitationRow): Promise<string | null> {
+  return row.status === "confirmed" ? organizerEmailOf(row.company_id) : null;
 }
 
 // The invitation behind a link, or null when the id or the token is wrong: the page answers 404, which
 // says nothing about which invitations exist.
 export async function loadInvitationView(invitationId: string, proof: Proof): Promise<InvitationView | null> {
   const row = await loadRow(invitationId, proof);
-  return row ? toView(row, new Date()) : null;
+  return row ? toView(row, new Date(), await organizerEmailIfConfirmed(row)) : null;
 }
 
 export type AnswerResult =
@@ -100,21 +121,29 @@ export type AnswerResult =
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "closed"; view: InvitationView };
 
+// A user's email address, or null when it can't be read: what needs it is best effort, after the answer is saved.
 async function emailOf(userId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
-  return data?.user?.email ?? null;
+  try {
+    const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch (error) {
+    console.error("emailOf: reading the user failed:", error);
+    return null;
+  }
 }
 
 // Confirm or Decline. The row changes in one conditional update (still pending, still before its
 // deadline), so two answers, or an answer racing the expiry job, can't both win. Then, best effort: the
 // candidate becomes a guest of the event (confirm) or the event goes (decline), and the company is told.
-// The answer is kept whatever Google does: that is what Callback is for.
+// A candidate who confirms gets an email of their own too, with the time and the Meet link, because
+// Google's invitation can end up in Spam. The answer is kept whatever Google or the mail does: that is
+// what Callback is for.
 export async function answerInvitation(invitationId: string, response: "confirm" | "decline", proof: Proof): Promise<AnswerResult> {
   const row = await loadRow(invitationId, proof);
   if (!row?.application) return { ok: false, reason: "not_found" };
 
   const now = new Date();
-  const view = toView(row, now);
+  const view = toView(row, now, await organizerEmailIfConfirmed(row));
   if (view.state !== "pending") return { ok: false, reason: "closed", view };
 
   const status = response === "confirm" ? "confirmed" : "declined";
@@ -128,17 +157,20 @@ export async function answerInvitation(invitationId: string, response: "confirm"
   if (error) throw new Error(`answerInvitation: ${error.message}`);
   if (!updated?.length) {
     const fresh = await loadRow(invitationId, proof);
-    return fresh ? { ok: false, reason: "closed", view: toView(fresh, new Date()) } : { ok: false, reason: "not_found" };
+    return fresh
+      ? { ok: false, reason: "closed", view: toView(fresh, new Date(), await organizerEmailIfConfirmed(fresh)) }
+      : { ok: false, reason: "not_found" };
   }
 
   const application = row.application;
   const company = application.job?.company;
+  // Read once, for the guest of the event and for the candidate's own email.
+  const candidateEmail = status === "confirmed" ? await emailOf(application.candidate_id) : null;
   let calendarInviteFailed = false;
   try {
     const accessToken = await accessTokenFor(row.company_id);
     if (row.google_event_id) {
       if (status === "confirmed") {
-        const candidateEmail = await emailOf(application.candidate_id);
         if (!candidateEmail) throw new Error("the candidate has no email address");
         await addAttendee(accessToken, row.google_event_id, candidateEmail);
       } else {
@@ -150,6 +182,9 @@ export async function answerInvitation(invitationId: string, response: "confirm"
     calendarInviteFailed = true;
   }
 
+  const organizerEmail = status === "confirmed" ? await organizerEmailOf(row.company_id) : null;
+  const when = formatInterviewTime(row.starts_at, row.time_zone);
+
   try {
     const ownerEmail = company ? await emailOf(company.owner_id) : null;
     if (ownerEmail && company?.slug) {
@@ -158,7 +193,7 @@ export async function answerInvitation(invitationId: string, response: "confirm"
         candidateName: application.candidate?.full_name ?? "A candidate",
         jobTitle: application.job?.title ?? "the job",
         response: status,
-        when: formatInterviewTime(row.starts_at, row.time_zone),
+        when,
         meetUrl: row.meet_url,
         calendarInviteFailed: status === "confirmed" && calendarInviteFailed,
         reviewUrl: `${env.APP_URL}/${company.slug}/jobs/${application.job_posting_id}/review?candidate=${application.id}`,
@@ -168,5 +203,27 @@ export async function answerInvitation(invitationId: string, response: "confirm"
     console.error("answerInvitation: telling the company failed:", mailError);
   }
 
-  return { ok: true, response: status, view: { ...view, state: status, meetUrl: status === "confirmed" ? row.meet_url : null } };
+  if (candidateEmail) {
+    try {
+      await sendInterviewConfirmedEmail({
+        to: candidateEmail,
+        candidateName: application.candidate?.full_name ?? "there",
+        companyName: view.companyName,
+        jobTitle: view.jobTitle,
+        when,
+        duration: formatDuration(row.duration_minutes),
+        meetUrl: row.meet_url,
+        organizerEmail,
+        calendarInviteFailed,
+      });
+    } catch (mailError) {
+      console.error("answerInvitation: the candidate's confirmation email failed:", mailError);
+    }
+  }
+
+  return {
+    ok: true,
+    response: status,
+    view: { ...view, state: status, meetUrl: status === "confirmed" ? row.meet_url : null, organizerEmail },
+  };
 }

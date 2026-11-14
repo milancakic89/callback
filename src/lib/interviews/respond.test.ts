@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   accessTokenFor: vi.fn(),
   addAttendee: vi.fn(),
   deleteEvent: vi.fn(),
+  getGoogleStatus: vi.fn(),
+  sendInterviewConfirmedEmail: vi.fn(),
   sendInterviewResponseEmail: vi.fn(),
   getUserById: vi.fn(),
   load: vi.fn(),
@@ -15,9 +17,12 @@ const m = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/env", () => ({ env: { APP_URL: "https://callback.rs" } }));
-vi.mock("@/lib/google/connection", () => ({ accessTokenFor: m.accessTokenFor }));
+vi.mock("@/lib/google/connection", () => ({ accessTokenFor: m.accessTokenFor, getGoogleStatus: m.getGoogleStatus }));
 vi.mock("@/lib/google/calendar", () => ({ addAttendee: m.addAttendee, deleteEvent: m.deleteEvent }));
-vi.mock("@/lib/mail", () => ({ sendInterviewResponseEmail: m.sendInterviewResponseEmail }));
+vi.mock("@/lib/mail", () => ({
+  sendInterviewConfirmedEmail: m.sendInterviewConfirmedEmail,
+  sendInterviewResponseEmail: m.sendInterviewResponseEmail,
+}));
 vi.mock("@/lib/supabase/admin", () => ({
   supabaseAdmin: {
     auth: { admin: { getUserById: m.getUserById } },
@@ -76,9 +81,16 @@ beforeEach(() => {
   m.addAttendee.mockResolvedValue(undefined);
   m.deleteEvent.mockResolvedValue(undefined);
   m.sendInterviewResponseEmail.mockResolvedValue(undefined);
+  m.sendInterviewConfirmedEmail.mockResolvedValue(undefined);
+  m.getGoogleStatus.mockResolvedValue({ configured: true, connected: true, email: "boss.calendar@gmail.example", broken: false });
   m.getUserById.mockImplementation(async (id: string) => ({
     data: { user: { email: id === "owner-1" ? "boss@acme.example" : "ana@example.com" } },
   }));
+});
+
+// Puts console.error back after the tests that silence it.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("loadInvitationView", () => {
@@ -94,6 +106,7 @@ describe("loadInvitationView", () => {
       message: "A short call.",
       expiresAt: expect.any(String),
       meetUrl: null,
+      organizerEmail: null,
     });
   });
 
@@ -109,6 +122,34 @@ describe("loadInvitationView", () => {
 
     m.load.mockResolvedValue({ data: row({ status: "declined" }), error: null });
     expect((await loadInvitationView(INVITATION_ID, TOKEN))?.meetUrl).toBeNull();
+  });
+
+  it("gives the organizer's address only once it is confirmed", async () => {
+    m.load.mockResolvedValue({ data: row({ status: "confirmed" }), error: null });
+    expect((await loadInvitationView(INVITATION_ID, TOKEN))?.organizerEmail).toBe("boss.calendar@gmail.example");
+    expect(m.getGoogleStatus).toHaveBeenCalledExactlyOnceWith("company-1");
+
+    m.getGoogleStatus.mockClear();
+    for (const status of ["pending", "declined", "expired", "cancelled"]) {
+      m.load.mockResolvedValue({ data: row({ status }), error: null });
+      expect((await loadInvitationView(INVITATION_ID, TOKEN))?.organizerEmail, status).toBeNull();
+    }
+    expect(m.getGoogleStatus).not.toHaveBeenCalled();
+  });
+
+  it("leaves the organizer's address out, without breaking, when reading the connection fails", async () => {
+    m.load.mockResolvedValue({ data: row({ status: "confirmed" }), error: null });
+    m.getGoogleStatus.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await loadInvitationView(INVITATION_ID, TOKEN)).toMatchObject({ state: "confirmed", organizerEmail: null });
+  });
+
+  it("leaves the organizer's address out when the company has no Google connection", async () => {
+    m.load.mockResolvedValue({ data: row({ status: "confirmed" }), error: null });
+    m.getGoogleStatus.mockResolvedValue({ configured: true, connected: false, email: null, broken: false });
+
+    expect((await loadInvitationView(INVITATION_ID, TOKEN))?.organizerEmail).toBeNull();
   });
 
   it("reads a pending invitation past its deadline as expired", async () => {
@@ -167,6 +208,101 @@ describe("answerInvitation: confirm", () => {
     m.sendInterviewResponseEmail.mockRejectedValue(new Error("smtp down"));
 
     expect(await answerInvitation(INVITATION_ID, "confirm", TOKEN)).toMatchObject({ ok: true });
+  });
+});
+
+describe("answerInvitation: the candidate's confirmation email", () => {
+  it("goes to the candidate on Confirm, with the time, the Meet link and the organizer", async () => {
+    const result = await answerInvitation(INVITATION_ID, "confirm", TOKEN);
+
+    expect(m.sendInterviewConfirmedEmail).toHaveBeenCalledExactlyOnceWith({
+      to: "ana@example.com",
+      candidateName: "Ana Novak",
+      companyName: "Acme",
+      jobTitle: "Product Designer",
+      when: "Tuesday, 15 January 2030, 11:00 (Europe/Belgrade)",
+      duration: "45 minutes",
+      meetUrl: "https://meet.google.com/abc-defg-hij",
+      organizerEmail: "boss.calendar@gmail.example",
+      calendarInviteFailed: false,
+    });
+    expect(result).toMatchObject({ ok: true, view: { organizerEmail: "boss.calendar@gmail.example" } });
+  });
+
+  it("reads the candidate's address once, for the guest and for the email", async () => {
+    await answerInvitation(INVITATION_ID, "confirm", TOKEN);
+
+    expect(m.getUserById.mock.calls.filter(([userId]) => userId === "cand-1")).toHaveLength(1);
+    expect(m.addAttendee).toHaveBeenCalledWith("access-token", "evt-1", "ana@example.com");
+  });
+
+  it("still goes, saying the calendar invitation failed, when Google can't add the guest", async () => {
+    m.addAttendee.mockRejectedValue(new Error("Google is down"));
+
+    expect(await answerInvitation(INVITATION_ID, "confirm", TOKEN)).toMatchObject({ ok: true, response: "confirmed" });
+    expect(m.sendInterviewConfirmedEmail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ calendarInviteFailed: true }));
+  });
+
+  it("still goes when the company's calendar is gone", async () => {
+    m.accessTokenFor.mockRejectedValue(new Error("needs to be connected again"));
+
+    await answerInvitation(INVITATION_ID, "confirm", TOKEN);
+
+    expect(m.sendInterviewConfirmedEmail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ calendarInviteFailed: true }));
+  });
+
+  it("goes without an organizer's address when it can't be read", async () => {
+    m.getGoogleStatus.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await answerInvitation(INVITATION_ID, "confirm", TOKEN)).toMatchObject({ ok: true, view: { organizerEmail: null } });
+    expect(m.sendInterviewConfirmedEmail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ organizerEmail: null }));
+  });
+
+  it("keeps the answer, and still emails the company, when the email to the candidate fails", async () => {
+    m.sendInterviewConfirmedEmail.mockRejectedValue(new Error("smtp down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await answerInvitation(INVITATION_ID, "confirm", TOKEN)).toMatchObject({ ok: true, response: "confirmed" });
+    expect(m.sendInterviewResponseEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "boss@acme.example" }));
+    expect(logged).toHaveBeenCalledWith("answerInvitation: the candidate's confirmation email failed:", expect.any(Error));
+  });
+
+  it("does not stop the candidate's email when the email to the company fails", async () => {
+    m.sendInterviewResponseEmail.mockRejectedValue(new Error("smtp down"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await answerInvitation(INVITATION_ID, "confirm", TOKEN)).toMatchObject({ ok: true });
+    expect(m.sendInterviewConfirmedEmail).toHaveBeenCalledOnce();
+  });
+
+  it("is not sent when the candidate has no email address, and the Google step counts as failed as before", async () => {
+    m.getUserById.mockImplementation(async (id: string) => ({ data: { user: { email: id === "owner-1" ? "boss@acme.example" : null } } }));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await answerInvitation(INVITATION_ID, "confirm", TOKEN)).toMatchObject({ ok: true, response: "confirmed" });
+    expect(m.addAttendee).not.toHaveBeenCalled();
+    expect(m.sendInterviewConfirmedEmail).not.toHaveBeenCalled();
+    expect(m.sendInterviewResponseEmail).toHaveBeenCalledWith(expect.objectContaining({ calendarInviteFailed: true }));
+  });
+
+  it("is not sent on Decline, which leaves out the candidate's address and the organizer's too", async () => {
+    const result = await answerInvitation(INVITATION_ID, "decline", TOKEN);
+
+    expect(result).toMatchObject({ ok: true, response: "declined", view: { organizerEmail: null } });
+    expect(m.sendInterviewConfirmedEmail).not.toHaveBeenCalled();
+    expect(m.getGoogleStatus).not.toHaveBeenCalled();
+    expect(m.getUserById).not.toHaveBeenCalledWith("cand-1");
+  });
+
+  it("is not sent when the answer lost to another one", async () => {
+    m.updateSelect.mockResolvedValue({ data: [], error: null });
+    m.load.mockResolvedValueOnce({ data: row(), error: null }).mockResolvedValueOnce({ data: row({ status: "confirmed" }), error: null });
+
+    const result = await answerInvitation(INVITATION_ID, "confirm", TOKEN);
+
+    expect(result).toMatchObject({ ok: false, reason: "closed", view: { state: "confirmed", organizerEmail: "boss.calendar@gmail.example" } });
+    expect(m.sendInterviewConfirmedEmail).not.toHaveBeenCalled();
   });
 });
 

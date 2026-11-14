@@ -108,7 +108,8 @@ export function howWeUseIt(): LegalSectionContent {
           </li>
           <li>
             <strong>Emailing you</strong>: confirming your sign-up, resetting a password and, when an employer invites a
-            candidate to an interview, the invitation and the answer to it. Ground: the same agreement.
+            candidate to an interview, the invitation, the confirmation the candidate gets once they confirm and the
+            answer the employer is told. Ground: the same agreement.
           </li>
           <li>
             <strong>Keeping Callback safe</strong>: limiting abusive traffic, preventing fraud and fixing faults. Ground:
@@ -164,8 +165,9 @@ export function whoSeesIt(): LegalSectionContent {
         </li>
         <li>
           <strong>When an employer invites you to an interview</strong>, we email you the time, the length and any message
-          from the employer. If you confirm, your email address is added as a guest to the event in the employer&rsquo;s
-          calendar, so the employer&rsquo;s Google account shows it, and Google sends you the calendar invitation. The
+          from the employer. If you confirm, we email you again with the time and the Google Meet link, your email
+          address is added as a guest to the event in the employer&rsquo;s calendar, so the employer&rsquo;s Google
+          account shows it, and Google sends you the calendar invitation. The
           employer is told your answer, whichever it is. The call itself takes place on Google Meet, which Google runs
           under <ExternalLink href={GOOGLE_PRIVACY_POLICY_URL}>Google&rsquo;s Privacy Policy</ExternalLink>, not this
           one.

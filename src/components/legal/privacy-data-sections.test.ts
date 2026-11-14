@@ -68,6 +68,10 @@ describe("howWeUseIt", () => {
     }
   });
 
+  it("lists the emails sent for an interview: the invitation, the candidate's confirmation and the answer", () => {
+    expect(html).toContain("the invitation, the confirmation the candidate gets once they confirm and the answer the employer is told");
+  });
+
   it("links the Terms the agreement refers to", () => {
     expect(html).toContain('href="/terms"');
     expect(html).toContain("Terms of Service");
@@ -104,6 +108,10 @@ describe("whoSeesIt", () => {
   it("says that a candidate who confirms an interview shows their email to the employer", () => {
     expect(html).toContain("your email address is added as a guest");
     expect(html).toContain(`employer${APOSTROPHE}s Google account shows it`);
+  });
+
+  it("says a candidate who confirms an interview is emailed the time and the Meet link", () => {
+    expect(html).toContain("If you confirm, we email you again with the time and the Google Meet link");
   });
 
   it("says the interview call takes place on Google Meet, under Google's Privacy Policy, linked", () => {

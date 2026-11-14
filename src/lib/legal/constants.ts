@@ -26,7 +26,7 @@ export const LEGAL_OPERATOR: LegalOperator = {
 
 // Written by hand, not read from the clock: reading it here would bake the build date into the static
 // pages (and Next stops a prerender that reads `Date.now()`). Change it whenever a text changes.
-export const LEGAL_LAST_UPDATED = "13 November 2026";
+export const LEGAL_LAST_UPDATED = "14 November 2026";
 
 // The two documents, for every place that links to them (the landing footer, the legal pages' footer,
 // the sign-up form).

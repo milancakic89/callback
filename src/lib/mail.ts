@@ -172,3 +172,40 @@ export async function sendInterviewResponseEmail(email: InterviewResponseEmail) 
     action: { label: "Open the review", url: email.reviewUrl },
   });
 }
+
+export type InterviewConfirmedEmail = {
+  to: string;
+  candidateName: string;
+  companyName: string;
+  jobTitle: string;
+  // Already formatted in the company's time zone (src/lib/interviews/format.ts).
+  when: string;
+  duration: string;
+  meetUrl: string | null;
+  // The Google address the calendar invitation comes from (the company's connected account), when known.
+  organizerEmail: string | null;
+  // Google could not add the candidate to the event, so no calendar invitation is on its way.
+  calendarInviteFailed: boolean;
+};
+
+// Sent to the candidate after Confirm. Google's own invitation can land in Spam (it comes from an
+// address the candidate has never written to), and a candidate who closed the page would then have no
+// Meet link, so this email carries it too.
+export async function sendInterviewConfirmedEmail(email: InterviewConfirmedEmail) {
+  const calendarNote = email.calendarInviteFailed
+    ? "Google could not send you a calendar invitation, so keep this email: the link above is the one to join."
+    : `Google Calendar is sending you an invitation${email.organizerEmail ? ` from ${email.organizerEmail}` : ""}. If it isn't in your inbox, look in Spam: moving it to the inbox puts the interview in your calendar.`;
+  await sendLayoutEmail({
+    to: email.to,
+    subject: `Interview confirmed: ${email.jobTitle} at ${email.companyName}`,
+    heading: "Your interview is confirmed",
+    paragraphs: [
+      `Hi ${email.candidateName},`,
+      `You confirmed the interview with ${email.companyName} for ${email.jobTitle}.`,
+      `When: ${email.when}\nLength: ${email.duration}`,
+      ...(email.meetUrl ? [`Google Meet: ${email.meetUrl}`] : []),
+      calendarNote,
+    ],
+    action: email.meetUrl ? { label: "Join on Google Meet", url: email.meetUrl } : undefined,
+  });
+}

@@ -84,6 +84,13 @@ function Details({ view }: { view: InvitationView }) {
   );
 }
 
+// Google's invitation comes from the company's own Google account, which a candidate has usually never
+// written to, so it can land in Spam; naming the address tells them what to look for.
+function calendarInvitationNote(view: InvitationView): string {
+  const fromOrganizer = view.organizerEmail ? ` from ${view.organizerEmail}` : "";
+  return `${view.companyName} has been told. Google is sending you a calendar invitation${fromOrganizer}. If it isn\u2019t in your inbox, look in Spam.`;
+}
+
 function Outcome({ view }: { view: InvitationView }) {
   switch (view.state) {
     case "pending":
@@ -98,7 +105,7 @@ function Outcome({ view }: { view: InvitationView }) {
         <div className="grid gap-3">
           <p className="flex items-start gap-2 text-sm text-muted-foreground">
             <CalendarCheckIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {view.companyName} has been told. Google is sending you a calendar invitation.
+            {calendarInvitationNote(view)}
           </p>
           {view.meetUrl && (
             <a href={view.meetUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: "lg", className: "h-11 text-base" })}>
