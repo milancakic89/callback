@@ -47,8 +47,8 @@ On the server:
 ```
 /srv/callback/
   .env              production environment (written by every deploy, mode 600)
-  current -> releases/<git sha>
-  releases/         the three newest releases
+  current -> releases/<git sha>-<run id>-<attempt>
+  releases/         the three newest releases, one directory per build
   incoming/         where the workflow uploads to
   job-scraper/      the daily job refresh: package.json, node_modules, browsers/ (Chromium),
                     scraper/ (the code) and scraper/data/ (its state, gitignored in the repo)
@@ -112,11 +112,11 @@ On the server:
 1. **The `test` job** installs with `npm ci` and runs `npm run lint` and `npm test` ([testing.md](./testing.md)). If either fails, the `deploy` job doesn't start, and nothing is built or uploaded.
 2. **The `deploy` job** installs again and builds with the real environment (the build validates it and prerenders pages from the live job list).
 3. Packs `.next/standalone` with `public/` and `.next/static` into one archive, and uploads it with the environment over SSH.
-4. On the server, unpacks it into `releases/<sha>`, points `current` at it, restarts the service, and waits for `/api/health` (up to about 30 seconds).
+4. On the server, unpacks it into a new `releases/<sha>-<run id>-<attempt>`, points `current` at it, restarts the service, and waits for `/api/health` (up to about 30 seconds). If that directory already exists, the script stops before changing anything: a release is never unpacked over another.
 5. If that fails, it prints the service log, points `current` back at the previous release, restarts, deletes the failed release and fails the job.
 6. Keeps the three newest releases.
 
-`NEXT_DEPLOYMENT_ID` is the commit hash: a browser that still has the previous release open reloads on its next navigation, instead of calling Server Actions that no longer exist.
+`NEXT_DEPLOYMENT_ID` is the release id, `<sha>-<run id>-<attempt>`: one per build, not per commit. A rerun of the same commit is a new deployment, so a browser that still has the previous build open reloads on its next navigation, instead of calling Server Actions that no longer exist. The same id names the release directory and the uploaded files.
 
 ## The daily job refresh
 `npm run jobs:refresh` (the scraper: companies, careers, jobs, descriptions, publish, discover and the job boards, [job-scraper.md](../features/job-scraper.md#keeping-it-up-to-date)) runs on the server **every day at 05:00 Belgrade time** and takes about an hour. It writes to the same Supabase project the app reads, and, with `APP_URL` and `REVALIDATE_SECRET` in `PRODUCTION_ENV`, tells the app to drop its cached job list at once.
@@ -188,8 +188,8 @@ Do it only after a key login works for the account you will use afterwards, in a
 
 ## Operating it
 - **Logs:** `journalctl -u callback -f` (the `deploy` user may read it); Caddy's is `sudo journalctl -u caddy`.
-- **Changing a secret:** edit `PRODUCTION_ENV` on GitHub, then run the workflow by hand. The deploy rewrites `/srv/callback/.env`.
-- **Rolling back by hand:** `ln -sfn /srv/callback/releases/<older sha> /srv/callback/current && sudo systemctl restart callback`, or revert the commit and push.
+- **Changing a secret:** edit `PRODUCTION_ENV` on GitHub, then run the workflow by hand. The run builds a release of its own, even for the commit that is already live, and the deploy rewrites `/srv/callback/.env`.
+- **Rolling back by hand:** `ln -sfn /srv/callback/releases/<older release> /srv/callback/current && sudo systemctl restart callback`, or revert the commit and push.
 - **Moving to another server:** run the setup there, then change `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` and the DNS records.
 - **Security updates:** `unattended-upgrades` is installed by the setup script. Node itself follows NodeSource's 24.x.
 

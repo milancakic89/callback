@@ -53,9 +53,14 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     env:
-      # Next.js version-skew protection: a browser that opened the previous release reloads instead of
-      # calling Server Actions or fetching chunks that no longer exist.
-      NEXT_DEPLOYMENT_ID: ${{ github.sha }}
+      # One id for this build: the commit, and the run and attempt that built it. A rerun of the same
+      # commit (e.g. after changing PRODUCTION_ENV) is a new build with new Server Action ids, so it
+      # must be a new deployment and a new release directory too.
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # Next.js version-skew protection: a browser that opened the previous build reloads instead of
+      # calling Server Actions or fetching chunks that no longer exist. Per build, not per commit.
+      # The same value as RELEASE_ID (a job's `env` can't read its own `env` context).
+      NEXT_DEPLOYMENT_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v7
 
@@ -101,8 +106,8 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           SSH_OPTS="-o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15"
-          scp $SSH_OPTS release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/$GITHUB_SHA.tgz"
-          scp $SSH_OPTS .env.production.local "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/$GITHUB_SHA.env"
+          scp $SSH_OPTS release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/$RELEASE_ID.tgz"
+          scp $SSH_OPTS .env.production.local "$DEPLOY_USER@$DEPLOY_HOST:/srv/callback/incoming/$RELEASE_ID.env"
 
       # Unpacks, switches `current`, restarts, checks /api/health, and rolls back if that fails.
       - name: Activate the release
@@ -111,7 +116,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 \
-            "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$GITHUB_SHA" < deploy/activate-release.sh
+            "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$RELEASE_ID" < deploy/activate-release.sh
 
   # The daily job refresh runs on the server (deploy/callback-scraper.timer), from code shipped here:
   # the standalone release has no scraper in it. A separate job, after the app is live, so a problem
