@@ -174,3 +174,21 @@ The goal: when the employer moves a candidate to a step that is an interview, th
 3. Google Auth Platform, Audience: publish the app (In production).
 4. Record the demo video (in English, the consent screen's language set to English) and upload it to YouTube as unlisted.
 5. Verification Center: submit, then answer Google's emails.
+
+## Update, 2026-11-14: Google's reason for a refused calendar call
+**Status:** implemented on the branch `fix/google-meet-403`, 2026-11-14. `npm test` (1,261 tests), `npm run lint`, `npx tsc --noEmit` and `npm run build` pass. No existing test changed. Not yet checked against real Google: the reason shows in the log only after a deploy and one more invitation.
+
+**Why.** No invitation has ever gone out on callback.rs: every `events.insert` since the first try (2026-11-13 21:56) is refused with 403, and the log shows only `Creating the event failed (403)`. Connecting works, which proves nothing about the calendar: the OAuth trip doesn't touch the Calendar API. Google's 403 body names the cause, and `src/lib/google/calendar.ts` throws it away. The usual causes, by their reason codes: `ACCESS_TOKEN_SCOPE_INSUFFICIENT` / `insufficientPermissions` (the token has no calendar scope, e.g. its checkbox left unticked on Google's consent screen), `SERVICE_DISABLED` / `accessNotConfigured` (the Calendar API is off in the Cloud project), `forbidden` / `requiredAccessLevel` (no write access to that calendar). The Calendar API is on (checked by the owner, 2026-11-14), so the log has to tell the rest.
+
+**What changes** (`src/lib/google/calendar.ts` only; what the employer reads stays the same, only the log gets the reason).
+- `GoogleCalendarError` gets a third field, `reason: string | null` (default `null`), next to `status`.
+- One function builds the error for a refused call from the response and the action's name ("Creating the event", "Adding the guest", "Deleting the event"). It reads the body best effort (a body that isn't JSON gives no reason): the reason is the first `error.details[].reason` (Google's `ErrorInfo`), else `error.errors[0].reason`; Google's text is `error.message`. The message is `<action> failed (<status>)` as today, followed by `: <reason>, <Google's text>` when Google gave them. Nothing else from the body (its `metadata` names the Cloud project) is kept.
+- The insert, `addAttendee` and `deleteEvent` throw that error. The second `events.get` for a late Meet link stays best effort, as now.
+
+**Tests** (`calendar.test.ts`: new tests only, the existing ones keep passing because the message keeps its prefix).
+- A 403 with an `ErrorInfo` reason gives `status`, `reason` and a message with Google's text.
+- A 403 with only `errors[0].reason` gives that reason.
+- A body that isn't JSON gives `reason: null` and the message `Creating the event failed (403)`.
+- `addAttendee` and `deleteEvent` carry the reason as well.
+
+**Then (by the owner):** deploy, try one invitation, and read the reason with `journalctl -u callback --since "10 minutes ago" --no-pager | grep -A8 createInterviewEvent`.

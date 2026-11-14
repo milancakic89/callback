@@ -9,10 +9,51 @@ export class GoogleCalendarError extends Error {
   constructor(
     message: string,
     readonly status: number | null = null,
+    // Google's own code for the refusal, e.g. ACCESS_TOKEN_SCOPE_INSUFFICIENT. Only in the log.
+    readonly reason: string | null = null,
   ) {
     super(message);
     this.name = "GoogleCalendarError";
   }
+}
+
+type GoogleErrorBody = {
+  error?: {
+    message?: unknown;
+    errors?: { reason?: unknown }[];
+    details?: { reason?: unknown }[];
+  };
+};
+
+async function readErrorBody(response: Response): Promise<GoogleErrorBody | null> {
+  try {
+    return (await response.json()) as GoogleErrorBody | null;
+  } catch {
+    return null;
+  }
+}
+
+function reasonOf(entry: { reason?: unknown } | undefined): string | null {
+  return typeof entry?.reason === "string" ? entry.reason : null;
+}
+
+function firstReasonOf(entries: { reason?: unknown }[] | undefined): string | null {
+  if (!Array.isArray(entries)) return null;
+  return entries.map(reasonOf).find((reason) => reason !== null) ?? null;
+}
+
+// The error for a refused call. Google's body says why (a reason code and a sentence), so both go into
+// the message, for the log. A body that isn't JSON gives no reason. Nothing else from it is kept (its
+// `metadata` names the Cloud project).
+async function refusedCall(response: Response, action: string): Promise<GoogleCalendarError> {
+  const googleError = (await readErrorBody(response))?.error;
+  const errorInfoReason = firstReasonOf(googleError?.details);
+  const legacyReason = Array.isArray(googleError?.errors) ? reasonOf(googleError.errors[0]) : null;
+  const reason = errorInfoReason ?? legacyReason;
+  const text = typeof googleError?.message === "string" && googleError.message ? googleError.message : null;
+  const explanation = [reason, text].filter((part): part is string => part !== null).join(", ");
+  const message = `${action} failed (${response.status})${explanation ? `: ${explanation}` : ""}`;
+  return new GoogleCalendarError(message, response.status, reason);
 }
 
 function authHeaders(accessToken: string, json = false): Record<string, string> {
@@ -69,7 +110,7 @@ export async function createInterviewEvent(
       guestsCanInviteOthers: false,
     }),
   });
-  if (!response.ok) throw new GoogleCalendarError(`Creating the event failed (${response.status})`, response.status);
+  if (!response.ok) throw await refusedCall(response, "Creating the event");
 
   const created = (await response.json()) as EventResponse;
   if (!created.id) throw new GoogleCalendarError("Google did not return an event id");
@@ -100,7 +141,7 @@ export async function addAttendee(accessToken: string, eventId: string, email: s
     cache: "no-store",
     body: JSON.stringify({ attendees: [{ email }] }),
   });
-  if (!response.ok) throw new GoogleCalendarError(`Adding the guest failed (${response.status})`, response.status);
+  if (!response.ok) throw await refusedCall(response, "Adding the guest");
 }
 
 // An event that is already gone (404, 410) is as good as deleted. `notify` tells the guests it was
@@ -112,5 +153,5 @@ export async function deleteEvent(accessToken: string, eventId: string, notify: 
     cache: "no-store",
   });
   if (response.ok || response.status === 404 || response.status === 410) return;
-  throw new GoogleCalendarError(`Deleting the event failed (${response.status})`, response.status);
+  throw await refusedCall(response, "Deleting the event");
 }

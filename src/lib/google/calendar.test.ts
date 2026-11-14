@@ -134,3 +134,144 @@ describe("deleteEvent", () => {
     await expect(deleteEvent("token", "evt-1", false)).rejects.toThrow("Deleting the event failed (500)");
   });
 });
+
+function replyWithUnreadableBody(status: number) {
+  return {
+    ok: false,
+    status,
+    json: async () => {
+      throw new SyntaxError("Unexpected token < in JSON at position 0");
+    },
+  };
+}
+
+const INSUFFICIENT_SCOPES_BODY = {
+  error: {
+    code: 403,
+    message: "Request had insufficient authentication scopes.",
+    status: "PERMISSION_DENIED",
+    errors: [{ reason: "insufficientPermissions" }],
+    details: [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+        metadata: { service: "calendar-json.googleapis.com" },
+      },
+    ],
+  },
+};
+
+describe("the reason Google gives for a refused call", () => {
+  it("takes the ErrorInfo reason and Google's text, and nothing else from the body", async () => {
+    fetchMock.mockResolvedValue(reply(403, INSUFFICIENT_SCOPES_BODY));
+
+    const error = await createInterviewEvent("token", EVENT).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(GoogleCalendarError);
+    expect(error.status).toBe(403);
+    expect(error.reason).toBe("ACCESS_TOKEN_SCOPE_INSUFFICIENT");
+    expect(error.message).toBe(
+      "Creating the event failed (403): ACCESS_TOKEN_SCOPE_INSUFFICIENT, Request had insufficient authentication scopes.",
+    );
+    expect(error.message).not.toContain("calendar-json");
+  });
+
+  it("falls back to the first errors[] reason when there are no details", async () => {
+    fetchMock.mockResolvedValue(
+      reply(403, {
+        error: {
+          message: "Google Calendar API has not been used in project 123 before or it is disabled.",
+          errors: [{ reason: "accessNotConfigured" }, { reason: "somethingElse" }],
+        },
+      }),
+    );
+
+    const error = await createInterviewEvent("token", EVENT).catch((caught) => caught);
+
+    expect(error.reason).toBe("accessNotConfigured");
+    expect(error.message).toBe(
+      "Creating the event failed (403): accessNotConfigured, Google Calendar API has not been used in project 123 before or it is disabled.",
+    );
+  });
+
+  it("skips a details entry without a reason", async () => {
+    fetchMock.mockResolvedValue(
+      reply(403, { error: { details: [{ "@type": "type.googleapis.com/google.rpc.Help" }, { reason: "RATE_LIMIT_EXCEEDED" }] } }),
+    );
+
+    const error = await createInterviewEvent("token", EVENT).catch((caught) => caught);
+
+    expect(error.reason).toBe("RATE_LIMIT_EXCEEDED");
+    expect(error.message).toBe("Creating the event failed (403): RATE_LIMIT_EXCEEDED");
+  });
+
+  it("keeps only Google's text when there is no reason", async () => {
+    fetchMock.mockResolvedValue(reply(403, { error: { message: "The caller does not have permission" } }));
+
+    const error = await createInterviewEvent("token", EVENT).catch((caught) => caught);
+
+    expect(error.reason).toBeNull();
+    expect(error.message).toBe("Creating the event failed (403): The caller does not have permission");
+  });
+
+  it("gives no reason when the body is empty or not what Google sends", async () => {
+    for (const body of [{}, null, "Forbidden", { error: "Forbidden" }, { error: { details: "x", errors: "y", message: 7 } }]) {
+      fetchMock.mockResolvedValue(reply(403, body));
+
+      const error = await createInterviewEvent("token", EVENT).catch((caught) => caught);
+
+      expect(error.reason).toBeNull();
+      expect(error.message).toBe("Creating the event failed (403)");
+    }
+  });
+
+  it("gives no reason when the body is not JSON", async () => {
+    fetchMock.mockResolvedValue(replyWithUnreadableBody(403));
+
+    const error = await createInterviewEvent("token", EVENT).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(GoogleCalendarError);
+    expect(error.status).toBe(403);
+    expect(error.reason).toBeNull();
+    expect(error.message).toBe("Creating the event failed (403)");
+  });
+
+  it("is carried by a refused guest", async () => {
+    fetchMock.mockResolvedValue(reply(403, INSUFFICIENT_SCOPES_BODY));
+
+    const error = await addAttendee("token", "evt-1", "ana@example.com").catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(GoogleCalendarError);
+    expect(error.status).toBe(403);
+    expect(error.reason).toBe("ACCESS_TOKEN_SCOPE_INSUFFICIENT");
+    expect(error.message).toBe(
+      "Adding the guest failed (403): ACCESS_TOKEN_SCOPE_INSUFFICIENT, Request had insufficient authentication scopes.",
+    );
+  });
+
+  it("is carried by a refused delete", async () => {
+    fetchMock.mockResolvedValue(reply(403, INSUFFICIENT_SCOPES_BODY));
+
+    const error = await deleteEvent("token", "evt-1", false).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(GoogleCalendarError);
+    expect(error.status).toBe(403);
+    expect(error.reason).toBe("ACCESS_TOKEN_SCOPE_INSUFFICIENT");
+    expect(error.message).toBe(
+      "Deleting the event failed (403): ACCESS_TOKEN_SCOPE_INSUFFICIENT, Request had insufficient authentication scopes.",
+    );
+  });
+
+  it("does not look at the body of an event that is already gone", async () => {
+    fetchMock.mockResolvedValue(reply(404, INSUFFICIENT_SCOPES_BODY));
+
+    await expect(deleteEvent("token", "evt-1", false)).resolves.toBeUndefined();
+  });
+
+  it("leaves the errors without a Google body as they were", () => {
+    const error = new GoogleCalendarError("Google did not create a Meet link");
+
+    expect(error.status).toBeNull();
+    expect(error.reason).toBeNull();
+  });
+});
