@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The extension's build output, which is bundled code.
+    "extension/dist/**",
   ]),
 ]);
 

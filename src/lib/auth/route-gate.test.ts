@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isWorkspacePath, slugProblem } from "@/lib/companies/company";
-import { gateRedirect, type Visitor } from "./route-gate";
+import { gateRedirect, signInTarget, type Visitor } from "./route-gate";
 
 const guest: Visitor = { isAuthenticated: false, accountType: "candidate", companySlug: null };
 const candidate: Visitor = { isAuthenticated: true, accountType: "candidate", companySlug: null };
@@ -144,5 +144,42 @@ describe("the legal pages", () => {
       expect(isWorkspacePath(path), path).toBe(false);
       expect(slugProblem(path.slice(1)), path).toBe("reserved");
     }
+  });
+});
+
+describe("the page the browser extension opens", () => {
+  const TRACK_PATH = "/applications/new";
+
+  it("is a candidate's page: a guest is sent to sign-in, an employer home, and a candidate may stay", () => {
+    expect(gateRedirect(TRACK_PATH, guest)).toBe("/sign-in");
+    expect(gateRedirect(TRACK_PATH, employer)).toBe("/acme");
+    expect(gateRedirect(TRACK_PATH, newEmployer)).toBe("/setup");
+    expect(gateRedirect(TRACK_PATH, candidate)).toBeNull();
+  });
+});
+
+describe("signInTarget", () => {
+  const TRACK_LINK = `/applications/new?url=${encodeURIComponent("https://www.linkedin.com/jobs/view/4463907148/")}&title=Engineer`;
+  const returnToTrackLink = (requested: string) => (requested === TRACK_LINK ? requested : null);
+
+  it("adds the page to come back to when sign-in is where the visitor is sent", () => {
+    expect(signInTarget("/sign-in", TRACK_LINK, returnToTrackLink)).toBe(`/sign-in?next=${encodeURIComponent(TRACK_LINK)}`);
+  });
+
+  it("adds nothing for a page the rule doesn't accept, so /applications is sent as before", () => {
+    expect(signInTarget("/sign-in", "/applications", returnToTrackLink)).toBe("/sign-in");
+    expect(signInTarget("/sign-in", `${TRACK_LINK}&next=//evil.example`, returnToTrackLink)).toBe("/sign-in");
+  });
+
+  it("leaves every other destination alone", () => {
+    expect(signInTarget("/dashboard", TRACK_LINK, returnToTrackLink)).toBe("/dashboard");
+    expect(signInTarget("/setup", TRACK_LINK, returnToTrackLink)).toBe("/setup");
+  });
+
+  it("asks the rule only for the sign-in case", () => {
+    const calls: string[] = [];
+    signInTarget("/dashboard", TRACK_LINK, (requested) => (calls.push(requested), null));
+
+    expect(calls).toEqual([]);
   });
 });

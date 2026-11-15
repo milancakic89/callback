@@ -15,7 +15,9 @@
     "demo:documents": "node --import tsx scripts/build-demo-documents.ts",
     "landing:screenshots": "node --import tsx scripts/capture-landing-screenshots.ts",
     "load:test": "node --import tsx scripts/load-test.ts",
-    "icons": "node --import tsx scripts/generate-app-icons.ts"
+    "icons": "node --import tsx scripts/generate-app-icons.ts",
+    "extension:build": "node --import tsx scripts/build-extension.ts",
+    "extension:zip": "node --import tsx scripts/build-extension.ts --zip"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -42,8 +44,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "cheerio": "^1.2.0",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "happy-dom": "^21.0.4",
     "playwright": "^1.64.1",
     "sharp": "^0.35.5",
     "tailwindcss": "^4",

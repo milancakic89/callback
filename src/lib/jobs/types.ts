@@ -1,3 +1,5 @@
+import { EXTERNAL_SOURCE_LABELS } from "@/lib/external-jobs/sources";
+
 export const WORK_MODES = ["REMOTE", "HYBRID", "ON_SITE"] as const;
 export type WorkMode = (typeof WORK_MODES)[number];
 
@@ -40,6 +42,8 @@ export function isNativeJob(job: Pick<JobListItem, "source">): boolean {
 
 const SOURCE_LABELS: Record<string, string> = {
   callback: "Callback",
+  // The sites a candidate adds a job from with the browser extension (features/chrome-extension.md).
+  ...EXTERNAL_SOURCE_LABELS,
   // A company's own ATS board, found through its job-board postings (scraper/stages/discover.ts).
   companyboards: "Company careers",
   himalayas: "Himalayas",

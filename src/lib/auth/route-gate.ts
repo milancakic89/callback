@@ -48,3 +48,20 @@ export function gateRedirect(pathname: string, visitor: Visitor): string | null 
   if (!companySlug) return isWorkspacePath(pathname) ? SETUP_PATH : null;
   return matchesPrefix(pathname, SETUP_PATH) ? home : null;
 }
+
+export const SIGN_IN_PATH = "/sign-in";
+
+// Where the proxy really sends the visitor. A guest stopped on a page they can come back to once
+// signed in (the one the browser extension opens, features/chrome-extension.md) is sent to
+// `/sign-in?next=<the page>`, so the address's parameters are not lost. `returnTo` is the rule for
+// which pages those are: it gets the path and query that were asked for, and answers the path to come
+// back to, or null for any other page, which then has no `next`.
+export function signInTarget(
+  destination: string,
+  requested: string,
+  returnTo: (requested: string) => string | null,
+): string {
+  if (destination !== SIGN_IN_PATH) return destination;
+  const next = returnTo(requested);
+  return next ? `${SIGN_IN_PATH}?next=${encodeURIComponent(next)}` : destination;
+}

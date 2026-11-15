@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { postingNext, safeNext } from "./safe-next";
+import { candidateNext, postingNext, safeNext } from "./safe-next";
 
 const ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
@@ -61,6 +61,39 @@ describe("postingNext", () => {
       {},
     ]) {
       expect(postingNext(next), String(next)).toBeNull();
+    }
+  });
+});
+
+describe("candidateNext", () => {
+  const JOB = "https://www.linkedin.com/jobs/view/4463907148/";
+  const TRACK = `/applications/new?url=${encodeURIComponent(JOB)}&title=Engineer`;
+
+  it("accepts a posting's path, as postingNext does", () => {
+    expect(candidateNext(`/jobs/${ID}`)).toBe(`/jobs/${ID}`);
+    expect(candidateNext(`/jobs/${ID}?apply=1`)).toBe(`/jobs/${ID}?apply=1`);
+  });
+
+  it("accepts the page that adds a job from the extension", () => {
+    expect(candidateNext(TRACK)).toBe(TRACK);
+  });
+
+  it("refuses every other path, other hosts and anything that isn't a string", () => {
+    for (const next of [
+      "/dashboard",
+      "/applications",
+      "/applications/new",
+      `/applications/new?url=${encodeURIComponent(JOB)}&next=//evil.example`,
+      `/applications/new?url=${encodeURIComponent("https://evil.example/jobs/view/4463907148/")}`,
+      `https://evil.example${TRACK}`,
+      `//evil.example${TRACK}`,
+      `/jobs/${ID}/extra`,
+      "",
+      null,
+      undefined,
+      42,
+    ]) {
+      expect(candidateNext(next), String(next)).toBeNull();
     }
   });
 });

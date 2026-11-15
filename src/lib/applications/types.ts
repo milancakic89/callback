@@ -1,4 +1,5 @@
 import type { CallbackApplicationState, CallbackStatus } from "@/lib/cvs/types";
+import type { ExternalSource } from "@/lib/external-jobs/sources";
 
 export const APPLICATION_STATUSES = ["PENDING", "NO_ANSWER", "REJECTED", "OFFER"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
@@ -39,5 +40,23 @@ export type CallbackApplicationItem = {
   status: CallbackStatus | null;
 };
 
+// A job the candidate added from another site with the browser extension (features/chrome-extension.md):
+// LinkedIn, HelloWorld or Infostud. The candidate's own row, with the same status they change as a job
+// tracked by hand, and a CV they may have named. `cvFileName` is filled in by the page from the
+// candidate's CVs, because the table of CVs has no client select.
+export type ExternalApplicationItem = {
+  kind: "external";
+  id: string;
+  source: ExternalSource;
+  status: ApplicationStatus;
+  appliedAt: string;
+  title: string;
+  companyName: string;
+  location: string | null;
+  url: string;
+  cvId: string | null;
+  cvFileName: string | null;
+};
+
 // One row of the /applications table.
-export type ApplicationListItem = ManualApplicationItem | CallbackApplicationItem;
+export type ApplicationListItem = ManualApplicationItem | CallbackApplicationItem | ExternalApplicationItem;

@@ -5,18 +5,19 @@ import { cleanLogo, type BoundingBox } from "./app-icons/clean-logo";
 import { packIco } from "./app-icons/ico";
 
 // Makes every icon Callback has (features/app-icons.md) from public/logoicon.png: the browser tab's
-// favicon.ico and icon.png and iOS's apple-icon.png (the three file conventions of src/app), and the
-// four icons of the web manifest (public/icons/). The output is committed; the build does no image work.
-// Run it again, `npm run icons`, whenever the logo changes.
+// favicon.ico and icon.png and iOS's apple-icon.png (the three file conventions of src/app), the four
+// icons of the web manifest (public/icons/), and the four of the Chrome extension (extension/icons/,
+// features/chrome-extension.md). The output is committed; the build does no image work. Run it again,
+// `npm run icons`, whenever the logo changes.
 //
-//   npm run icons [-- --source <logo.png>] [-- --app-dir <dir>] [-- --icons-dir <dir>]
+//   npm run icons [-- --source <logo.png>] [-- --app-dir <dir>] [-- --icons-dir <dir>] [-- --extension-dir <dir>]
 //
 // The logo is cleaned of its specks first, cropped to the mark, and then placed, centred, at each icon's
 // scale on a transparent or filled square. Every size is scaled (lanczos3) from the cleaned full-size
 // mark, never from a smaller copy.
 
 type Colour = { r: number; g: number; b: number };
-type Paths = { source: string; appDirectory: string; iconsDirectory: string };
+type Paths = { source: string; appDirectory: string; iconsDirectory: string; extensionDirectory: string };
 
 // The background of the icons that need one: apple-icon (iOS turns transparency black) and the
 // maskable icons (Android crops them to the launcher's circle or squircle). White, because the
@@ -33,6 +34,9 @@ const FAVICON_SIZES = [16, 32, 48];
 const ICON_PNG_SIZE = 192;
 const APPLE_ICON_SIZE = 180;
 const MANIFEST_SIZES = [192, 512];
+// The extension's manifest names these four: the toolbar and the extensions page use 16 and 32, the
+// management page 48, and the Chrome Web Store 128. Transparent, at the "any" scale.
+const EXTENSION_SIZES = [16, 32, 48, 128];
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 const RGBA_CHANNELS = 4;
@@ -128,15 +132,25 @@ async function buildOutputFiles(mark: CleanedMark, paths: Paths): Promise<Output
       bytes: await renderIcon(mark, { size, markScale: MASKABLE_MARK_SCALE, fill: FILL_COLOUR }),
     });
   }
+
+  for (const size of EXTENSION_SIZES) {
+    files.push({
+      path: path.join(paths.extensionDirectory, `icon-${size}.png`),
+      description: `${size}x${size}, transparent (extension)`,
+      bytes: await renderIcon(mark, { size, markScale: TRANSPARENT_MARK_SCALE, fill: null }),
+    });
+  }
   return files;
 }
 
-// `--source`, `--app-dir` and `--icons-dir`, each followed by a path; whatever is missing keeps its default.
+// `--source`, `--app-dir`, `--icons-dir` and `--extension-dir`, each followed by a path; whatever is
+// missing keeps its default.
 function parseArguments(argumentList: readonly string[], defaults: Paths): Paths {
   const flagToKey: Record<string, keyof Paths> = {
     "--source": "source",
     "--app-dir": "appDirectory",
     "--icons-dir": "iconsDirectory",
+    "--extension-dir": "extensionDirectory",
   };
   const paths = { ...defaults };
   for (let index = 0; index < argumentList.length; index += 2) {
@@ -156,6 +170,7 @@ async function main(): Promise<void> {
     source: path.join(workingDirectory, "public", "logoicon.png"),
     appDirectory: path.join(workingDirectory, "src", "app"),
     iconsDirectory: path.join(workingDirectory, "public", "icons"),
+    extensionDirectory: path.join(workingDirectory, "extension", "icons"),
   });
 
   const { data, info } = await sharp(paths.source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -167,6 +182,7 @@ async function main(): Promise<void> {
 
   await mkdir(paths.appDirectory, { recursive: true });
   await mkdir(paths.iconsDirectory, { recursive: true });
+  await mkdir(paths.extensionDirectory, { recursive: true });
   for (const file of await buildOutputFiles(mark, paths)) {
     await writeFile(file.path, file.bytes);
     console.log(`${path.relative(workingDirectory, file.path)}  ${file.description}  ${file.bytes.length} bytes`);

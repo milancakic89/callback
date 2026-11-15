@@ -1,15 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { AccountType } from "@/lib/auth/account-type";
-import { gateRedirect } from "@/lib/auth/route-gate";
+import { gateRedirect, signInTarget } from "@/lib/auth/route-gate";
+import { trackNext } from "@/lib/external-jobs/track-query";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { updateSession } from "@/lib/supabase/proxy";
 
 const GLOBAL_LIMIT = 300;
 const GLOBAL_WINDOW_MS = 60_000;
 
-// Copies refreshed session cookies so a redirect doesn't drop a rotated refresh token.
-function redirectWithCookies(request: NextRequest, pathname: string, from: NextResponse) {
-  const redirect = NextResponse.redirect(new URL(pathname, request.url));
+// Copies refreshed session cookies so a redirect doesn't drop a rotated refresh token. `target` is a
+// path, and may carry a query.
+function redirectWithCookies(request: NextRequest, target: string, from: NextResponse) {
+  const redirect = NextResponse.redirect(new URL(target, request.url));
   for (const cookie of from.cookies.getAll()) {
     redirect.cookies.set(cookie);
   }
@@ -47,7 +49,11 @@ export async function proxy(request: NextRequest) {
   // Optimistic gating only: pages, Server Actions and the DAL re-check auth themselves. The rules
   // (features/account-types.md, features/company-slugs.md) are in gateRedirect().
   const destination = gateRedirect(request.nextUrl.pathname, { isAuthenticated, accountType, companySlug });
-  if (destination) return redirectWithCookies(request, destination, response);
+  if (destination) {
+    // The page the browser extension opens keeps its address through sign-in (features/chrome-extension.md).
+    const requested = request.nextUrl.pathname + request.nextUrl.search;
+    return redirectWithCookies(request, signInTarget(destination, requested, trackNext), response);
+  }
 
   return response;
 }

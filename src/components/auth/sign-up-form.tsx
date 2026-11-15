@@ -5,7 +5,7 @@ import { signUp } from "@/app/(auth)/actions";
 import { FieldError, FormAlert } from "@/components/auth/form-feedback";
 import { LegalConsent } from "@/components/auth/legal-consent";
 import { useAuthForm } from "@/components/auth/use-auth-form";
-import { postingNext } from "@/lib/auth/safe-next";
+import { candidateNext } from "@/lib/auth/safe-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ export function SignUpForm() {
     { secrets: ["password", "confirmPassword"], linked: { password: ["confirmPassword"] } },
   );
   // Set by "Create an account" on a posting (features/candidate-cvs.md); the action checks it again.
-  const next = postingNext(useSearchParams().get("next"));
+  const next = candidateNext(useSearchParams().get("next"));
 
   return (
     <form action={formAction} className="grid gap-4">

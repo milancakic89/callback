@@ -14,7 +14,8 @@ const transporter = nodemailer.createTransport({
 // comes from a magic link, which also confirms the email, so the link is verified as `type=email`.
 type AuthEmail =
   // `next`: where the link lands once the account is active, instead of its home (a posting a
-  // candidate signed up from, features/candidate-cvs.md). Checked by postingNext() before it gets here.
+  // candidate signed up from, features/candidate-cvs.md, or the page the browser extension opens,
+  // features/chrome-extension.md). Checked by candidateNext() before it gets here.
   | { to: string; type: "activation"; accountType: AccountType; tokenHash: string; next?: string | null }
   | { to: string; type: "recovery"; tokenHash: string };
 

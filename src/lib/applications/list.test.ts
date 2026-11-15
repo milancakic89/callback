@@ -4,13 +4,15 @@ import {
   compareApplications,
   fromCallbackApplication,
   isCallbackItem,
+  isExternalItem,
   isOpenItem,
   itemKey,
   mergeApplications,
   statusRank,
+  withCvFileNames,
   type SortField,
 } from "./list";
-import type { ApplicationListItem, CallbackApplicationItem, ManualApplicationItem } from "./types";
+import type { ApplicationListItem, CallbackApplicationItem, ExternalApplicationItem, ManualApplicationItem } from "./types";
 
 const manual = (fields: Partial<ManualApplicationItem> = {}): ManualApplicationItem => ({
   kind: "manual",
@@ -184,5 +186,91 @@ describe("compareApplications", () => {
     const later = callback({ id: "b", appliedAt: "2026-11-09T10:30:00+00:00" });
 
     expect(compareApplications(earlier, later, "applied")).toBeLessThan(0);
+  });
+});
+
+const external = (fields: Partial<ExternalApplicationItem> = {}): ExternalApplicationItem => ({
+  kind: "external",
+  id: "ext-1",
+  source: "linkedin",
+  status: "PENDING",
+  appliedAt: "2026-11-03T09:00:00+00:00",
+  title: "Data Engineer",
+  companyName: "Gamma",
+  location: "Belgrade",
+  url: "https://www.linkedin.com/jobs/view/4463907148/",
+  cvId: null,
+  cvFileName: null,
+  ...fields,
+});
+
+describe("external applications in the list", () => {
+  it("are added after the other two kinds, and the third argument is optional", () => {
+    const merged = mergeApplications([manual()], [application()], [external()]);
+
+    expect(merged.map((item) => item.kind)).toEqual(["manual", "callback", "external"]);
+    expect(mergeApplications([manual()], [])).toHaveLength(1);
+  });
+
+  it("are told apart from the other kinds", () => {
+    expect(isExternalItem(external())).toBe(true);
+    expect(isExternalItem(manual())).toBe(false);
+    expect(isExternalItem(callback())).toBe(false);
+    expect(isCallbackItem(external())).toBe(false);
+  });
+
+  it("are keyed by their own id, so they can't clash with another kind", () => {
+    expect(itemKey(external({ id: "x" }))).toBe("external:x");
+    expect(itemKey(external({ id: "x" }))).not.toBe(itemKey(callback({ id: "x" })));
+    expect(itemKey(external({ id: "x" }))).not.toBe(itemKey(manual({ jobId: "x" })));
+  });
+
+  it("are always open: the job is on another site", () => {
+    expect(isOpenItem(external())).toBe(true);
+  });
+
+  it("rank as a job tracked by hand with the same status", () => {
+    for (const status of ["PENDING", "NO_ANSWER", "REJECTED", "OFFER"] as const) {
+      expect(statusRank(external({ status })), status).toBe(statusRank(manual({ status })));
+    }
+  });
+
+  it("sort with the others by title, company, date and status", () => {
+    const items = [
+      manual({ jobId: "m", title: "Backend Engineer", companyName: "Beta", appliedAt: "2026-11-01T09:00:00+00:00" }),
+      external({ id: "e", title: "Data Engineer", companyName: "Gamma", appliedAt: "2026-11-03T09:00:00+00:00", status: "OFFER" }),
+    ];
+    const sorted = (field: SortField) =>
+      [...items].sort((first, second) => compareApplications(first, second, field)).map(itemKey);
+
+    expect(sorted("title")).toEqual(["manual:m", "external:e"]);
+    expect(sorted("applied")).toEqual(["manual:m", "external:e"]);
+    expect(sorted("status")).toEqual(["manual:m", "external:e"]);
+  });
+});
+
+describe("withCvFileNames", () => {
+  const cvs = [
+    { id: "cv-1", fileName: "ana-cv.pdf" },
+    { id: "cv-2", fileName: "ana-cv-2.pdf" },
+  ];
+
+  it("names the CV each application used", () => {
+    const named = withCvFileNames([external({ id: "a", cvId: "cv-2" }), external({ id: "b", cvId: "cv-1" })], cvs);
+
+    expect(named.map((item) => item.cvFileName)).toEqual(["ana-cv-2.pdf", "ana-cv.pdf"]);
+  });
+
+  it("leaves no name for no CV, or for a CV that is no longer on the account", () => {
+    const named = withCvFileNames([external({ id: "a", cvId: null }), external({ id: "b", cvId: "gone" })], cvs);
+
+    expect(named.map((item) => item.cvFileName)).toEqual([null, null]);
+  });
+
+  it("changes nothing else", () => {
+    const original = external({ id: "a", cvId: "cv-1" });
+
+    expect(withCvFileNames([original], cvs)[0]).toEqual({ ...original, cvFileName: "ana-cv.pdf" });
+    expect(original.cvFileName).toBeNull();
   });
 });

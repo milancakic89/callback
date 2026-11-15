@@ -62,7 +62,7 @@ answers Phase 5 for this minimal shape.
 - `status` on `applications` (Pending / Long time no answer / Rejected / Got offer)
 - Applying is one-way: the Applied checkbox asks for confirmation, and there is no way to undo it
 
-**Deferred:** `notes` on an application, status history; automated entries from another source (e.g. a browser extension) — still open.
+**Deferred:** `notes` on an application, status history. Entries from another source: a Chrome extension that adds jobs from LinkedIn, HelloWorld and Infostud is built ([features/chrome-extension.md](../features/chrome-extension.md)), waiting for its migration, the deploy and the Chrome Web Store; other sources (and Firefox/Safari) are still open.
 
 ## Employer: Companies & Jobs — In Progress
 See [features/companies.md](../features/companies.md).

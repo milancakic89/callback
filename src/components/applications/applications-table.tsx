@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { setApplicationStatus } from "@/app/(app)/applications/actions";
+import {
+  removeExternalApplication,
+  setApplicationStatus,
+  setExternalApplicationStatus,
+} from "@/app/(app)/applications/actions";
 import { CallbackApplicationRow, ManualApplicationRow } from "./application-rows";
+import { ExternalApplicationRow } from "./external-application-row";
 import {
   CARD_BODY_CLASS,
   CARD_FULL_CELL_CLASS,
@@ -18,8 +23,13 @@ import {
 } from "@/components/jobs/table-parts";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { compareApplications, isCallbackItem, itemKey, type SortField } from "@/lib/applications/list";
-import type { ApplicationListItem, ApplicationStatus, ManualApplicationItem } from "@/lib/applications/types";
+import { compareApplications, isCallbackItem, isExternalItem, itemKey, type SortField } from "@/lib/applications/list";
+import type {
+  ApplicationListItem,
+  ApplicationStatus,
+  ExternalApplicationItem,
+  ManualApplicationItem,
+} from "@/lib/applications/types";
 import type { SortDirection } from "@/lib/jobs/filter";
 import { cn } from "cn";
 
@@ -32,10 +42,14 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: "status", label: "Status" },
 ];
 
-// Owns sort, paging and the optimistic status state of the rows tracked by hand. A status change is
-// saved immediately by the Server Action, and reverted with an error tooltip if that fails — see
-// features/applied.md. The applications to jobs posted on Callback are rows of the same table, with an
-// automatic status (features/callback-applications-in-table.md).
+type SaveResult = { ok: true } | { ok: false; error: string };
+
+// Owns sort, paging and the optimistic state of the rows with a status the candidate sets: the jobs
+// tracked by hand, and the jobs added from another site (features/chrome-extension.md). A status change
+// is saved immediately by the Server Action, and reverted with an error tooltip if that fails — see
+// features/applied.md. A job added from another site can also be removed: its row is hidden at once
+// and comes back, with the error, if that fails. The applications to jobs posted on Callback are rows
+// of the same table, with an automatic status (features/callback-applications-in-table.md).
 export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
   const [sort, setSort] = useState<SortField>("applied");
   const [direction, setDirection] = useState<SortDirection>("desc");
@@ -45,12 +59,15 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
   const [statuses, setStatuses] = useState<Record<string, ApplicationStatus>>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // The keys of the rows being removed, which are hidden until the removal is known to have failed.
+  const [removedKeys, setRemovedKeys] = useState<Record<string, true>>({});
 
   const sorted = useMemo(() => {
-    const result = [...items].sort((first, second) => compareApplications(first, second, sort));
+    const result = items.filter((item) => !removedKeys[itemKey(item)]);
+    result.sort((first, second) => compareApplications(first, second, sort));
     if (direction === "desc") result.reverse();
     return result;
-  }, [items, sort, direction]);
+  }, [items, removedKeys, sort, direction]);
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const clampedPage = Math.min(page, pageCount);
@@ -68,23 +85,54 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
     setPage(1);
   }
 
-  async function handleStatusChange(item: ManualApplicationItem, next: ApplicationStatus) {
-    const previous = statuses[item.jobId] ?? item.status;
+  function clearError(key: string) {
     setErrors((prev) => {
-      if (!(item.jobId in prev)) return prev;
+      if (!(key in prev)) return prev;
       const rest = { ...prev };
-      delete rest[item.jobId];
+      delete rest[key];
       return rest;
     });
-    setStatuses((prev) => ({ ...prev, [item.jobId]: next }));
-    setPendingId(item.jobId);
+  }
 
-    const result = await setApplicationStatus(item.jobId, next);
+  // The new status shows at once and is put back, with the error, if saving it fails. `key` is what
+  // the row's state is kept under; `current` is the status the row came with.
+  async function changeStatus(key: string, current: ApplicationStatus, next: ApplicationStatus, save: () => Promise<SaveResult>) {
+    const previous = statuses[key] ?? current;
+    clearError(key);
+    setStatuses((prev) => ({ ...prev, [key]: next }));
+    setPendingId(key);
+
+    const result = await save();
 
     setPendingId(null);
     if (!result.ok) {
-      setStatuses((prev) => ({ ...prev, [item.jobId]: previous }));
-      setErrors((prev) => ({ ...prev, [item.jobId]: result.error }));
+      setStatuses((prev) => ({ ...prev, [key]: previous }));
+      setErrors((prev) => ({ ...prev, [key]: result.error }));
+    }
+  }
+
+  function handleStatusChange(item: ManualApplicationItem, next: ApplicationStatus) {
+    return changeStatus(item.jobId, item.status, next, () => setApplicationStatus(item.jobId, next));
+  }
+
+  function handleExternalStatusChange(item: ExternalApplicationItem, next: ApplicationStatus) {
+    return changeStatus(itemKey(item), item.status, next, () => setExternalApplicationStatus(item.id, next));
+  }
+
+  async function handleRemove(item: ExternalApplicationItem) {
+    const key = itemKey(item);
+    clearError(key);
+    setRemovedKeys((prev) => ({ ...prev, [key]: true }));
+
+    const result = await removeExternalApplication(item.id);
+
+    if (!result.ok) {
+      setRemovedKeys((prev) => {
+        const rest = { ...prev };
+        delete rest[key];
+        return rest;
+      });
+      setErrors((prev) => ({ ...prev, [key]: result.error }));
     }
   }
 
@@ -164,20 +212,33 @@ export function ApplicationsTable({ items }: { items: ApplicationListItem[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((item) =>
-                isCallbackItem(item) ? (
-                  <CallbackApplicationRow key={itemKey(item)} item={item} />
-                ) : (
+              rows.map((item) => {
+                const key = itemKey(item);
+                if (isCallbackItem(item)) return <CallbackApplicationRow key={key} item={item} />;
+                if (isExternalItem(item)) {
+                  return (
+                    <ExternalApplicationRow
+                      key={key}
+                      item={item}
+                      status={statuses[key] ?? item.status}
+                      error={errors[key]}
+                      pending={pendingId === key}
+                      onStatusChange={(next) => handleExternalStatusChange(item, next)}
+                      onRemove={() => handleRemove(item)}
+                    />
+                  );
+                }
+                return (
                   <ManualApplicationRow
-                    key={itemKey(item)}
+                    key={key}
                     item={item}
                     status={statuses[item.jobId] ?? item.status}
                     error={errors[item.jobId]}
                     pending={pendingId === item.jobId}
                     onStatusChange={(next) => handleStatusChange(item, next)}
                   />
-                ),
-              )
+                );
+              })
             )}
           </TableBody>
         </Table>

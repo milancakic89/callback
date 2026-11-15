@@ -7,7 +7,7 @@ import { z } from "zod";
 import { ACCOUNT_TYPES, homeFor, parseAccountType, type AccountType } from "@/lib/auth/account-type";
 import { requireUser } from "@/lib/auth/dal";
 import { clearPendingSignup, readPendingSignup, setPendingSignup } from "@/lib/auth/pending-signup";
-import { postingNext } from "@/lib/auth/safe-next";
+import { candidateNext } from "@/lib/auth/safe-next";
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -65,7 +65,7 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
       // account type yet, the activation email hasn't been sent: open the choice dialog instead.
       const account = await accountForEmail(email);
       if (account && !account.account_type) {
-        await setPendingSignup({ uid: account.id, email, next: postingNext(formData.get("next")) });
+        await setPendingSignup({ uid: account.id, email, next: candidateNext(formData.get("next")) });
         return {};
       }
       return { error: "Confirm your email first. Check your inbox for the link." };
@@ -74,9 +74,10 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   }
 
   const accountType = parseAccountType(data.user.app_metadata.account_type);
-  // "Sign in to apply" on a posting comes back to it (features/apply-with-cv.md). Only a candidate
-  // can apply, so anyone else goes home; and only a posting's path is followed, never another.
-  const next = accountType === "candidate" ? postingNext(formData.get("next")) : null;
+  // "Sign in to apply" on a posting comes back to it (features/apply-with-cv.md), and so does the page
+  // the browser extension opens (features/chrome-extension.md). Only a candidate can apply or track a
+  // job, so anyone else goes home; and only those two paths are followed, never another.
+  const next = accountType === "candidate" ? candidateNext(formData.get("next")) : null;
   redirect(next ?? homeFor(accountType, parseCompanySlug(data.user.app_metadata.company_slug)));
 }
 
@@ -86,8 +87,9 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
     return { fieldErrors: fieldErrors(parsed.error) };
   }
   const { email, password } = parsed.data;
-  // "Create an account" on a posting: the activation email brings a candidate back to it.
-  const next = postingNext(formData.get("next"));
+  // "Create an account" on a posting, or on the extension's page: the activation email brings a
+  // candidate back to it.
+  const next = candidateNext(formData.get("next"));
 
   if (await isLimited(`sign-up:${await clientIp()}`, 3, HOUR)) {
     return { error: TOO_MANY_ATTEMPTS };

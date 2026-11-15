@@ -7,7 +7,7 @@ import { useActionState, useState, useTransition } from "react";
 import { applyToJob, type ApplyFormState } from "@/app/jobs/[jobId]/actions";
 import { FieldError } from "@/components/auth/form-feedback";
 import { MyApplicationPanel } from "@/components/applications/my-application-panel";
-import { CvUploadButton } from "@/components/cvs/cv-upload-button";
+import { CvPicker } from "@/components/cvs/cv-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,8 +21,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { clientPdfError, COVER_LETTER_MAX_LENGTH, MAX_CVS } from "@/lib/applications/apply-schema";
-import { formatFileSize, type CallbackApplication, type CandidateCv } from "@/lib/cvs/types";
+import { clientPdfError, COVER_LETTER_MAX_LENGTH } from "@/lib/applications/apply-schema";
+import type { CallbackApplication, CandidateCv } from "@/lib/cvs/types";
 import { formatAbsolute } from "@/lib/jobs/format";
 import { cn } from "cn";
 
@@ -202,54 +202,7 @@ export function ApplyDialog({
                 </Alert>
               )}
 
-              {allCvs.length === 0 ? (
-                <div className="grid justify-items-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center">
-                  <FileTextIcon aria-hidden className="size-6 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Upload your CV as a PDF, up to 5 MB. It is saved to your account, so you can use it again.
-                  </p>
-                  <CvUploadButton label="Upload your CV" variant="default" onUploaded={onUploaded} onError={setUploadError} />
-                </div>
-              ) : (
-                <fieldset className="grid gap-2">
-                  <legend className="sr-only">Your CVs</legend>
-                  {allCvs.map((cv) => (
-                    <label
-                      key={cv.id}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/50",
-                        "has-checked:border-primary has-checked:bg-primary/5 has-focus-visible:outline-2 has-focus-visible:outline-ring",
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="cv"
-                        value={cv.id}
-                        checked={cvId === cv.id}
-                        onChange={() => setCvId(cv.id)}
-                        className="size-4 shrink-0 accent-primary"
-                      />
-                      <span className="grid min-w-0 gap-0.5">
-                        <span className="truncate font-medium">{cv.fileName}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatFileSize(cv.sizeBytes)} · Uploaded {formatAbsolute(cv.createdAt, TIME_ZONE)}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                  {allCvs.length < MAX_CVS ? (
-                    <CvUploadButton label="Upload a new CV" className="justify-self-start" onUploaded={onUploaded} onError={setUploadError} />
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      You have {MAX_CVS} CVs.{" "}
-                      <Link href="/profile" className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Manage your CVs
-                      </Link>{" "}
-                      to upload another.
-                    </p>
-                  )}
-                </fieldset>
-              )}
+              <CvPicker cvs={allCvs} value={cvId} onChange={setCvId} onUploaded={onUploaded} onError={setUploadError} />
 
               <p className="text-xs text-muted-foreground">
                 The CV stays on your account. The company can read it for as long as your application is active.

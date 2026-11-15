@@ -44,5 +44,11 @@ next-env.d.ts
 # scraper output
 /scraper/data/
 
+# the Chrome extension's build and the zip for the store (npm run extension:build, extension:zip)
+/extension/dist/
+*.zip
+
 # personal deploy notes (server address, progress): never committed
 /deploy-notes.local.md
+# Chrome Web Store images, made for the listing (features/chrome-extension.md); they show other sites' job ads
+/extension/store-assets/

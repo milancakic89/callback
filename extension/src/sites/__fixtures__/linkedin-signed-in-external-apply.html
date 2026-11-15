@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Frontend Engineer &amp; UI Designer (Developer Tooling) | SearchApi | LinkedIn</title>
+<style>
+/* The CSS below is the fixture's own, not LinkedIn's: it only makes a wrapper that clips, which a real
+   browser needs in order to show what the button does there. */
+body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
+.k4dlje { padding: 24px; width: 640px; }
+.mQ3vbN { display: flex; align-items: center; gap: 8px; }
+.pR5sT6 { display: inline-flex; width: 168px; height: 48px; overflow: hidden; border-radius: 24px; }
+.aB3cD4 { flex: 0 0 100%; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; background: #0a66c2; color: #fff; font-weight: 600; text-decoration: none; }
+.kL1mN2 { height: 48px; padding: 0 24px; border: 1px solid #0a66c2; border-radius: 24px; background: #fff; color: #0a66c2; font: inherit; font-weight: 600; }
+</style>
+</head>
+<body>
+<!-- WRITTEN BY HAND from what the owner's own browser showed on LinkedIn's new jobs page
+     (/jobs/search-results/?currentJobId=4431674043), read-only, on 2026-11-16, and nothing more:
+     - the job has an external application: the apply control is one `A`, `aria-label="Apply on company
+       website"`, text "Apply", with an `href` to https://www.linkedin.com/safety/go/?url=..., and
+       "Responses managed off LinkedIn" is shown near it;
+     - LinkedIn wraps that `A` in an element of the same size that clips or stacks its children, so a
+       sibling put after the `A` ends up inside it, behind LinkedIn's own button;
+     - hashed classes only (they change with every LinkedIn deploy), and the tab's title above.
+     Where those facts stop, the markup here is only what a test needs, not LinkedIn's: the wrapper is a
+     span with `overflow: hidden`, the size of the link, and the link fills it; a Save button sits beside it. -->
+<main>
+<div class="k4dlje">
+<div class="mQ3vbN">
+<span class="pR5sT6"><a class="aB3cD4" href="https://www.linkedin.com/safety/go/?url=https%3A%2F%2Fsearchapi.example%2Fcareers%2Ffrontend-engineer" aria-label="Apply on company website"><span>Apply</span></a></span>
+<button aria-label="Save the job" class="kL1mN2" type="button">Save</button>
+</div>
+<p>Responses managed off LinkedIn</p>
+<h2 class="yZ5aB6">About the job</h2>
+</div>
+</main>
+</body>
+</html>

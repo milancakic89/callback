@@ -36,6 +36,9 @@ export function howLongWeKeepIt(): LegalSectionContent {
           open them.
         </li>
         <li>
+          A job you added from another site stays on your list until you remove it, or until your account is deleted.
+        </li>
+        <li>
           We delete an account and its data when you ask (see part 8), without undue delay, except for what the law
           requires us to keep.
         </li>

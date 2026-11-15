@@ -40,3 +40,11 @@ describe("work modes", () => {
     for (const mode of WORK_MODES) expect(WORK_MODE_LABELS[mode].length, mode).toBeGreaterThan(0);
   });
 });
+
+describe("sourceLabel for the sites a job is added from", () => {
+  it("names LinkedIn, HelloWorld and Infostud as they are written", () => {
+    expect(sourceLabel("linkedin")).toBe("LinkedIn");
+    expect(sourceLabel("helloworld")).toBe("HelloWorld");
+    expect(sourceLabel("infostud")).toBe("Infostud");
+  });
+});

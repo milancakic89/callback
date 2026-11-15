@@ -217,7 +217,7 @@ Callback         │ Showing 1–4 of 4                           Rows per page 
 - `notes` on an application, status history, and when the status last changed.
 - Search and filters on `/applications`.
 - Any way to undo an application, including an admin or support path.
-- Adding applications by hand for jobs that aren't in `public.jobs`.
+- Adding applications by hand for jobs that aren't in `public.jobs`. Jobs on LinkedIn, HelloWorld and Infostud are added from a Chrome extension instead, into their own table: [chrome-extension.md](./chrome-extension.md). Any other site is still out of scope.
 
 ## Open questions
 The plan uses these defaults. Each one is easy to change.

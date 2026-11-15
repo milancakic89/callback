@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LegalSectionContent } from "@/components/legal/legal-document";
 import { ContactLink, ExternalLink } from "@/components/legal/legal-links";
+import { ExtensionData } from "@/components/legal/privacy-extension-block";
 import { GOOGLE_PRIVACY_POLICY_URL } from "@/components/legal/privacy-google-section";
 import { LEGAL_LINKS, type LegalOperator } from "@/lib/legal/constants";
 
@@ -61,6 +62,10 @@ export function whatWeCollect(): LegalSectionContent {
             whether you withdrew.
           </li>
           <li>The jobs you save.</li>
+          <li>
+            The jobs you add from other sites, such as LinkedIn, HelloWorld and Infostud: the job&rsquo;s address, title,
+            company and location, the status you give it, the date you added it and the CV you choose for it, if any.
+          </li>
         </ul>
         <p>
           <strong>Employers</strong>
@@ -73,6 +78,7 @@ export function whatWeCollect(): LegalSectionContent {
             The interview invitations you send: the time, the length and your message. If you connect Google, see part 5.
           </li>
         </ul>
+        <ExtensionData />
         <p>
           <strong>Collected automatically</strong>
         </p>

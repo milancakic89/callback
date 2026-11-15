@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Callback",
+  "version": "0.1.0",
+  "description": "Add the jobs you apply to on LinkedIn, HelloWorld and Infostud to your Callback applications with one click.",
+  "minimum_chrome_version": "120",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*", "https://www.helloworld.rs/*", "https://poslovi.infostud.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
