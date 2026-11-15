@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppliedCheckbox } from "./applied-checkbox";
 import { AutoTrackedBadge } from "./auto-tracked-badge";
+import { PostedCell } from "./posted-cell";
 import { SaveJobButton } from "./save-job-button";
 import {
   CARD_BODY_CLASS,
@@ -26,9 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SortDirection, SortField } from "@/lib/jobs/filter";
-import { formatAbsolute, formatRelative } from "@/lib/jobs/format";
 import { postingIdOf, postingPath } from "@/lib/jobs/published";
 import { isNativeJob, sourceLabel, type JobListItem } from "@/lib/jobs/types";
 import { cn } from "cn";
@@ -76,10 +75,11 @@ export type JobsTableProps = {
 
 function noop() {}
 
-// On a card the row is a two-column grid with just three lines — Label · eye, Work mode · heart,
-// Company · Applied checkbox — and the other cells are hidden. The cells pick their spot with
-// `max-md:col-start-* max-md:row-start-*`, so their order in the markup (the desktop column order)
-// doesn't matter, and a missing column (no Applied / Save job when signed out) just leaves a gap.
+// On a card the row is a two-column grid with four lines — Label · eye, Work mode · heart,
+// Company · Applied checkbox, and the posted date on the left of the last — and the other cells are
+// hidden. The cells pick their spot with `max-md:col-start-* max-md:row-start-*`, so their order in
+// the markup (the desktop column order) doesn't matter, and a missing column (no Applied / Save job
+// when signed out) just leaves a gap.
 const CARD_GRID_CLASS = "max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3";
 
 // The sortable columns, for the sort picker that stands in for the header band on cards.
@@ -94,23 +94,6 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
 // native jobs are stored, has no row for either to point at), so its cells stay empty.
 function NotNeeded() {
   return <span className="text-muted-foreground">—</span>;
-}
-
-function PostedCell({ job, now }: { job: JobListItem; now?: number }) {
-  // No live clock during a prerender (the static Suspense fallback has no `now`) — an absolute
-  // date is deterministic, "3d ago" isn't.
-  if (now === undefined) {
-    return <span>{formatAbsolute(job.postedAt ?? job.firstSeenAt)}</span>;
-  }
-  if (job.postedAt) return <span>{formatRelative(job.postedAt, now)}</span>;
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="text-muted-foreground" />}>
-        {formatRelative(job.firstSeenAt, now)}
-      </TooltipTrigger>
-      <TooltipContent>First seen {formatAbsolute(job.firstSeenAt)}</TooltipContent>
-    </Tooltip>
-  );
 }
 
 export function JobsTable({
@@ -304,7 +287,9 @@ export function JobsTable({
                     <DataCell className="py-3 text-muted-foreground max-md:hidden">
                       {sourceLabel(job.source)}
                     </DataCell>
-                    <DataCell className="py-3 max-md:hidden">
+                    {/* The fourth line of a card, muted like the Company above it. The "Posted" word in
+                        front of the date shows on a card only (see PostedCell). */}
+                    <DataCell className="py-3 max-md:col-start-1 max-md:row-start-4 max-md:text-muted-foreground">
                       <PostedCell job={job} now={now} />
                     </DataCell>
                     <DataCell className="py-3 max-md:col-start-1 max-md:row-start-2">
