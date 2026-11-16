@@ -2,6 +2,9 @@
 # tests pass, and only from main (project-overview/deployment.md, project-overview/testing.md).
 # Deploying needs five repository secrets: PRODUCTION_ENV, DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY
 # and DEPLOY_KNOWN_HOSTS. The test job needs none.
+# Deploying can be switched off without editing this file, for when there is no VPS: set the repository
+# variable DEPLOY_ENABLED to false (Settings > Secrets and variables > Actions > Variables). Unset, or
+# any other value, deploys as before. The test job runs either way.
 name: Test and deploy
 
 on:
@@ -45,7 +48,7 @@ jobs:
   deploy:
     # `needs` makes this wait for the test job and skip itself if that job fails or is skipped.
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # One deploy at a time; a newer push waits for the running one rather than cancelling it halfway.
@@ -124,7 +127,7 @@ jobs:
   # job replaces an older pending one in the same group, and that must not be able to drop a deploy.
   scraper:
     needs: deploy
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED != 'false'
     runs-on: ubuntu-24.04
     # update-scraper.sh waits up to 90 minutes for a scrape in progress, then `npm ci` runs.
     timeout-minutes: 120

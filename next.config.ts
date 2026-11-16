@@ -1,34 +1,14 @@
 import type { NextConfig } from "next";
+// A relative import: the config is loaded by Next itself, which doesn't know tsconfig's `@/` alias.
+import { buildSecurityHeaders } from "./src/lib/security-headers";
 
-const isDev = process.env.NODE_ENV === "development";
-
-// Static CSP: nonce-based CSP is incompatible with Partial Prerendering (cacheComponents).
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' blob: data:",
-  "font-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  ...(isDev ? [] : ["upgrade-insecure-requests"]),
-].join("; ");
-
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
-  },
-  { key: "X-Frame-Options", value: "DENY" },
-  ...(isDev
-    ? []
-    : [{ key: "Strict-Transport-Security", value: "max-age=63072000" }]),
-];
+// The headers are computed when the config is loaded, so a build bakes them in: `next build` must see
+// the APP_URL the site will be served from. https (callback.rs) adds upgrade-insecure-requests and
+// HSTS; http://localhost (Docker Compose) doesn't (src/lib/security-headers.ts).
+const securityHeaders = buildSecurityHeaders({
+  nodeEnv: process.env.NODE_ENV,
+  appUrl: process.env.APP_URL,
+});
 
 const nextConfig: NextConfig = {
   // A self-contained server in .next/standalone (no node_modules install on the host), started with

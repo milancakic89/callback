@@ -1,0 +1,19 @@
+# What the Docker builds (Dockerfile, deploy/docker/scheduler.Dockerfile) never get. `.env.local` reaches
+# the app's build only as a BuildKit secret (compose.yaml), never as a file in the context.
+**/node_modules
+.next
+.git
+.github
+**/.env*
+.mcp.json
+**/.DS_Store
+*.local.md
+*.tsbuildinfo
+next-env.d.ts
+coverage
+out
+extension/dist
+extension/store-assets
+**/*.zip
+# The scraper's state, mounted by compose (./scraper/data) and never baked in.
+scraper/data

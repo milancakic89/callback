@@ -4,19 +4,21 @@ This page covers the security baseline that's in place today, what the hosting s
 
 ## What's In Place
 
-### Security headers (`next.config.ts`)
-Applied to every route via `headers()`:
+### Security headers (`next.config.ts`, built by `src/lib/security-headers.ts`)
+Applied to every route via `headers()`. The headers are computed when the build starts, so a build bakes in the `APP_URL` it saw:
 
 | Header | Value | Why |
 |---|---|---|
 | `Content-Security-Policy` | see below | Restricts where scripts, styles, images, fonts, and forms can load from |
-| `Strict-Transport-Security` | `max-age=63072000` (production only) | Forces HTTPS for 2 years after first visit |
+| `Strict-Transport-Security` | `max-age=63072000` (a production build whose `APP_URL` is https) | Forces HTTPS for 2 years after first visit |
 | `X-Content-Type-Options` | `nosniff` | Stops browsers from guessing MIME types |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Sends only the origin to other sites, nothing over HTTPS→HTTP |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), browsing-topics=()` | Disables browser APIs the app doesn't use |
 | `X-Frame-Options` | `DENY` | Legacy clickjacking protection (CSP `frame-ancestors` is the modern equivalent) |
 
 `poweredByHeader: false` removes the `X-Powered-By: Next.js` header.
+
+HSTS and `upgrade-insecure-requests` are left out when the site is served over plain http, as on `http://localhost` with Docker Compose ([deployment.md](./deployment.md#running-locally-with-docker-compose)): over plain http, `upgrade-insecure-requests` makes Safari, and any browser on an address other than localhost (a LAN IP), rewrite the page's own `/_next/...` requests to https, which nothing answers (Chromium leaves `localhost` alone: nothing broke there, either way), and browsers ignore HSTS that arrives over http. callback.rs's `APP_URL` is https, so it sends both.
 
 HSTS deliberately leaves out `includeSubDomains` and `preload`. Add them once the production domain is known and every subdomain serves HTTPS. Preload in particular is effectively irreversible.
 
@@ -31,7 +33,7 @@ object-src 'none';
 base-uri 'self';
 form-action 'self';
 frame-ancestors 'none';
-upgrade-insecure-requests                   (production only)
+upgrade-insecure-requests                   (a production build whose APP_URL is https)
 ```
 
 **Why it's static and allows `'unsafe-inline'` scripts:** the stricter, nonce-based CSP requires every page to be rendered dynamically, and the Next.js 16 docs state it is incompatible with Partial Prerendering, which `cacheComponents` enables. We chose to keep `cacheComponents`. Until that changes, React's automatic escaping is the main XSS defense, which makes the `dangerouslySetInnerHTML` rule below important.

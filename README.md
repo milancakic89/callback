@@ -195,6 +195,7 @@ npm run build     # production build (standalone output)
 npm run lint      # ESLint
 npm test          # unit tests (Vitest); `npm run test:watch` re-runs them as you edit
 npm run load:test -- <url> --concurrency 50 --seconds 15   # HTTP load test of a local production build (features/performance.md)
+npm run compose:up    # the app and its scheduled jobs in Docker, at http://localhost:3000 (`compose:down`, `compose:logs`)
 ```
 
 `npm run seed:mock-candidates` creates the three fictional candidates that every company's demo job starts with ([`features/demo-job.md`](features/demo-job.md)). It writes to the Supabase project, so run it once, after the `employer_jobs` migration.
@@ -220,7 +221,8 @@ scripts/                one-off scripts (the mock-candidate seed)
 supabase/migrations/    the database, as SQL
 features/               one spec per feature: decisions, constraints, verification
 project-overview/       architecture, roadmap, security, deployment
-deploy/                 Caddyfile, systemd unit and server scripts
+deploy/                 Caddyfile, systemd unit and server scripts; docker/ is the scheduler container
+Dockerfile, compose.yaml  the app and its scheduler with Docker Compose
 .github/workflows/      the deploy pipeline
 ```
 
@@ -245,6 +247,8 @@ Security is part of the design, not an afterthought. The full baseline is in [`p
 Callback is built to run as **one Node process on a small VPS**, behind Caddy for automatic HTTPS. Its rate limit and cache live in the server's memory, so it isn't meant for serverless hosting.
 
 A push to `main` triggers the GitHub Actions workflow, which lints and runs the tests first and, only if they pass, builds a standalone release, ships it over SSH, restarts the service, checks `/api/health` and **rolls back automatically** if the new release doesn't come up healthy. Everything needed, from ordering the server to the secrets to add, is in [`project-overview/deployment.md`](project-overview/deployment.md).
+
+Without a server, the whole project (the app, the interview timer and the daily job refresh) also runs on one machine with `docker compose`, from `.env.local`: `npm run compose:up`, see [Running locally with Docker Compose](project-overview/deployment.md#running-locally-with-docker-compose).
 
 <br>
 

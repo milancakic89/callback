@@ -1,0 +1,82 @@
+# Callback on one machine with Docker Compose (project-overview/deployment.md, "Running locally with
+# Docker Compose"): the app, and a scheduler that runs what the VPS's two systemd timers ran.
+#
+#   npm run compose:up      build and start (http://localhost:3000)
+#   npm run compose:logs    follow the logs
+#   npm run compose:down    stop
+#
+# Both services read the environment from .env.local, as the app does under `next dev`, with APP_URL
+# set here: the one in .env.local is https://callback.rs. There is no Caddy and no https on localhost;
+# a server later puts Caddy in front (deploy/Caddyfile), and nothing else changes.
+#
+#   CALLBACK_PORT      the port on this machine (default 3000). Google sign-in only works on 3000, the
+#                      redirect URI the OAuth client lists, and so does `next dev`: stop one of them.
+#   NEXT_DEPLOYMENT_ID this build's id (npm run compose:up sets one from the clock).
+#   SCRAPER_DATA_DIR   where the scraper's state is (default ./scraper/data).
+name: callback
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_URL: http://localhost:${CALLBACK_PORT:-3000}
+        NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-local}
+      # .env.local for `next build`, as a BuildKit secret: never written into an image layer.
+      secrets:
+        - env
+    env_file: .env.local
+    environment:
+      # After env_file, so it wins: the links in mails and the sign-in redirects must point here.
+      APP_URL: http://localhost:${CALLBACK_PORT:-3000}
+    # Loopback only. The per-IP rate limit trusts the X-Forwarded-For that a reverse proxy sets
+    # (project-overview/security.md), and nothing sets it here: every visitor counts as "unknown". Fine
+    # for one person on one Mac; never publish this port to a network.
+    ports:
+      - "127.0.0.1:${CALLBACK_PORT:-3000}:3000"
+    healthcheck:
+      # /api/health answers 500 when the environment is incomplete, which a prerendered page would not.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    init: true
+    restart: unless-stopped
+    # deploy/callback.service: MemoryMax=3G (the Node heap is capped at 2 GB inside it).
+    mem_limit: 3g
+    # Next finishes the requests it is serving on SIGTERM.
+    stop_grace_period: 30s
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: deploy/docker/scheduler.Dockerfile
+    env_file: .env.local
+    environment:
+      # The scraper tells the app to drop its cached job list through this address.
+      APP_URL: http://app:3000
+      TZ: Europe/Belgrade
+    volumes:
+      # The scraper's state: jobs.json and the rest, and the "ran today" and lock files. Copy the
+      # server's copy here before the first run (deployment.md).
+      - ${SCRAPER_DATA_DIR:-./scraper/data}:/app/scraper/data
+    depends_on:
+      app:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    # deploy/callback-scraper.service: MemoryMax=3G (a run peaks at about 1.2 GB), two CPUs.
+    mem_limit: 3g
+    cpus: 2
+    # A stop is handed on to a running refresh, which finishes the companies it is on and saves.
+    stop_grace_period: 2m
+
+secrets:
+  env:
+    file: .env.local

@@ -1,0 +1,10 @@
+# What the scheduler container runs (compose.yaml, deploy/docker/scheduler.Dockerfile), by supercronic.
+# Times are Belgrade time: the container has TZ=Europe/Belgrade, like callback-scraper.timer on the VPS.
+# These two lines replace deploy/callback-interviews.timer and deploy/callback-scraper.timer.
+
+# Close the interview invitations nobody answered (features/interview-invitations.md), every 15 minutes.
+*/15 * * * * /app/deploy/docker/expire-interviews.sh
+
+# The daily job refresh. Every hour at :07 it asks "is today's run due?": after 05:00 and not yet run
+# today. So it runs at 05:07, or, when the Mac was asleep then, at the first check after it wakes.
+7 * * * * /app/deploy/docker/refresh-jobs-if-due.sh

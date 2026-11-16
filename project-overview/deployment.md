@@ -8,6 +8,7 @@
   - Ports 22, 80 and 443 are open.
 - **Tested locally:** the standalone build and server (`node --env-file=... server.js`), `/api/health` with and without a valid environment, and `deploy/activate-release.sh` (first deploy, a healthy deploy, a failed deploy rolling back, keeping three releases) against a fake `systemctl` and health server.
 - **Not tested:** the GitHub Actions workflow, end to end.
+- **Without the VPS:** the whole project (the app and the two timers' jobs) also runs on one machine with `docker compose`, from `.env.local`: [Running locally with Docker Compose](#running-locally-with-docker-compose), added for when the VPS is not renewed.
 
 The app runs as one Node process on a small VPS, behind Caddy, and GitHub Actions deploys it on every push to `main`.
 
@@ -42,6 +43,9 @@ The build happens on GitHub, so the server only runs `node server.js`; its memor
 | `deploy/update-scraper.sh` | Runs on the server after each deploy: puts the scraper's code and dependencies in `/srv/callback/job-scraper`, and never touches its data. |
 | `deploy/Caddyfile` | HTTPS for `callback.rs`, compression (`encode zstd gzip`), the browser cache for the job list and descriptions, and `www` redirecting to it. |
 | `deploy/setup-server.sh` | One-time server setup: Node 24, Caddy, a `deploy` user, the service and the scraper's timer, the firewall. |
+| `Dockerfile`, `compose.yaml`, `.dockerignore` | The app as a container, and the Compose file that starts it with the scheduler ([Running locally with Docker Compose](#running-locally-with-docker-compose)). |
+| `deploy/docker/` | The scheduler container: its `scheduler.Dockerfile`, the `crontab` and the scripts it runs (`expire-interviews.sh`, `refresh-jobs-if-due.sh`, `run-scheduler.sh`), with their tests. |
+| `src/lib/security-headers.ts` | The security headers `next.config.ts` sends, with `upgrade-insecure-requests` and HSTS only for a site served over https. |
 
 On the server:
 ```
@@ -214,6 +218,65 @@ Then check: `curl -sI -H 'Accept-Encoding: zstd, gzip' https://callback.rs/api/j
 
 ## Mail from `callback.rs`
 `MAIL_FROM` can stay a Gmail address while you launch, but activation emails sent "from" a domain you own land in spam less often. Any SMTP provider works, because the app only uses `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and `SMTP_PASSWORD` (`src/lib/mail.ts`). Whichever one you pick, it gives you SPF, DKIM and DMARC records to add to the `callback.rs` DNS; sending without them is what gets mail flagged.
+
+## Running locally with Docker Compose
+Added with [features/docker-compose.md](../features/docker-compose.md), for when the VPS is not renewed: the app, the interview timer and the daily job refresh run on one machine (the owner's Mac) with `docker compose`, at `http://localhost:3000`. callback.rs is offline until there is a new server. Nothing here replaces the VPS setup above; the same files still deploy to one.
+
+**What runs**
+
+| Service | What it is | Replaces |
+|---|---|---|
+| `app` | The standalone build, from the multi-stage `Dockerfile` (`node:24-bookworm-slim`, a non-root user, `NODE_OPTIONS=--max-old-space-size=2048`, 3 GB cap). Published on `127.0.0.1` only. | `callback.service` |
+| `scheduler` | supercronic running `deploy/docker/crontab`, in Playwright's image (Chromium and its libraries), as `pwuser`, with `TZ=Europe/Belgrade`. | `callback-interviews.timer` and `callback-scraper.timer` |
+| Supabase, Cloudflare R2, Gmail SMTP | Unchanged, outside. | |
+| Caddy | Not there: no domain, no https, no compression on localhost. | `deploy/Caddyfile` |
+
+**Starting it.** Docker Desktop, and the same `.env.local` that `next dev` reads (the variables of [.env.example](../.env.example)). Compose replaces its `APP_URL` (`https://callback.rs` in the owner's file) with the localhost address, for the build and at run time.
+```bash
+npm run compose:up            # build and start; http://localhost:3000
+npm run compose:logs          # follow both logs
+npm run compose:down          # stop and remove the containers
+npm run compose:refresh-jobs  # run the scraper once by hand, now (it writes to the production database)
+docker compose up -d          # start again without rebuilding
+```
+- **While the VPS still scrapes, start only the app:** `NEXT_DEPLOYMENT_ID=local-try docker compose up -d --build app`. `npm run compose:up` also starts the scheduler, and the Mac's `scraper/data/jobs.json` (from 2026-10-25) is older than the server's. The scheduler would then run a second scraper from that stale state at 05:07, next to the VPS's at 05:00, into the same production database. Start the scheduler only at step 3 of "Moving off the VPS" below, after the state is copied and the VPS's timers are off.
+- **`compose:up` rebuilds the app every time** (about two minutes: `npm ci`, then `next build`), because it passes a new `NEXT_DEPLOYMENT_ID` (`local-<date and time>`), which is what makes a browser that has the previous build open reload. A rebuild also picks up a changed `.env.local`, which BuildKit's cache would not notice.
+- **Port 3000 is `next dev`'s too.** Stop one of them, or `CALLBACK_PORT=3105 npm run compose:up`. Google sign-in only works on 3000: the OAuth client lists only `http://localhost:3000/api/google/callback` (and `https://callback.rs/...`).
+- **The containers restart by themselves** (`restart: unless-stopped`) when Docker Desktop starts, so turn on "Start Docker Desktop when you sign in" if the scheduled jobs should keep running. While the Mac sleeps nothing runs; see the catch-up below.
+- **Docker Desktop needs memory for both:** the app is capped at 3 GB and the scheduler at 3 GB and two CPUs (a refresh peaks at about 1.2 GB); Settings, Resources.
+- **The secret is not in the images.** The app's build reads `.env.local` as a BuildKit secret mounted for the one `RUN npm run build`, so it is never in a layer, and `.dockerignore` keeps every `.env*` file out of the build context. At run time compose passes it as environment (`env_file`), which `docker inspect` shows to anyone who can run Docker on the machine.
+
+**The scheduler** (`deploy/docker/crontab`, in Belgrade time)
+- **`*/15 * * * *` runs `expire-interviews.sh`:** `curl --fail -X POST http://app:3000/api/interviews/expire` with `CRON_SECRET`, as `callback-interviews.service` did. It does nothing while `CRON_SECRET` is unset, and a wrong secret or a 500 is a failed run (`curl`'s exit status 22) in the log. The secret goes to `curl` through stdin, not its command line.
+- **`7 * * * *` runs `refresh-jobs-if-due.sh`,** which asks every hour at :07 whether today's refresh is due, and runs `npm run jobs:refresh` only if all of these hold:
+  1. `scraper/data/jobs.json` exists (the same reason as the unit's `ConditionPathExists`: a first run from nothing stamps every job as first seen today).
+  2. It is 05:00 Belgrade time or later.
+  3. `scraper/data/.last-refresh` does not hold today's Belgrade date.
+  4. Nobody holds `scraper/data/.refresh.lock` (`flock -n`; a lock goes away with its process, so a killed container leaves none behind).
+
+  So the run is at 05:07, or, when the Mac was asleep then, at the first check after it wakes (the `Persistent=true` of the timer). A run has `timeout 3h`. Afterwards the script writes today's date to `.last-refresh` **whatever the exit code** (a step that failed still lets the others run, as in the unit; it is not tried again until tomorrow) and exits with the run's exit code, so a failed run shows in the log. It logs why it skipped, or the start, the end and the exit code.
+- **A stop is passed on.** supercronic waits for a running job on SIGTERM but never tells it to stop, so `run-scheduler.sh` (the container's command) hands the stop to a running refresh, by hand or not, and waits for it. The scraper then finishes the companies it is on and saves, and `docker compose stop` ends in a second or two instead of Docker killing an hour-long run after the grace period (2 minutes). A run that was **stopped is not recorded** in `.last-refresh`, so the next check after the restart goes on with it (the companies with a recent result are skipped).
+- **By hand:** `npm run compose:refresh-jobs` is `refresh-jobs-if-due.sh --force` in the scheduler: now, whatever the hour and the date, but still with the lock and `jobs.json`. `--dry-run` prints the decision and runs nothing: `docker compose exec scheduler deploy/docker/refresh-jobs-if-due.sh --dry-run`. To skip today's run, write today's date: `TZ=Europe/Belgrade date +%F > scraper/data/.last-refresh`.
+- **The log** of both jobs is the scheduler's: `docker compose logs -f scheduler`.
+
+**Where the state is.** `./scraper/data` on the machine, mounted into the scheduler at `/app/scraper/data` (`SCRAPER_DATA_DIR` changes the folder): the scraper's JSON, and the two small files above. The app keeps nothing; the rest is in Supabase and R2. The folder must be writable by the container's `pwuser` (uid 1001): on Docker Desktop for Mac that just works, on a Linux server `chown -R 1001:1001 scraper/data` once.
+
+**Moving off the VPS** (while it still runs, in this order)
+1. **Copy the scraper's state from the VPS.** Its copy is the newer one (the Mac's is old, and a stale `jobs.json` would re-stamp the first-seen dates of the jobs found since):
+   ```bash
+   scp -i ~/.ssh/callback_deploy deploy@<IP>:/srv/callback/job-scraper/scraper/data/*.json scraper/data/
+   ```
+   The scheduler then runs a refresh at the first hourly check after 05:00, if none has run today. If the VPS has already run today's, skip it with the `.last-refresh` line above.
+2. **Stop the VPS's timers,** so that two scrapers never publish at once, and the interviews are expired by one clock: as root on the VPS, `systemctl disable --now callback-scraper.timer callback-interviews.timer` (and `systemctl stop callback-scraper` if a run is in progress: it saves first).
+3. **Start compose:** `npm run compose:up` (with the `next dev` on port 3000 stopped).
+4. **Turn off the deploys.** With the VPS gone, every push to `main` would fail at the SSH step. In GitHub, Settings, Secrets and variables, Actions, Variables: add `DEPLOY_ENABLED` with the value `false`. The workflow's `deploy` and `scraper` jobs then skip; `test` still runs on every push. Setting it back to `true` (or deleting it) turns deploys on again, with the secrets as before.
+5. **Build the extension for localhost:** `CALLBACK_ORIGIN=http://localhost:3000 npm run extension:build`, then reload it in Chrome ([features/chrome-extension.md](../features/chrome-extension.md)).
+
+**Not on localhost**
+- **No Caddy, no https, no compression.** The app is built with `APP_URL=http://localhost:<port>`, so it sends no HSTS and no `upgrade-insecure-requests`. (Over plain http the second makes Safari, and any browser on an address other than localhost, rewrite the page's own `/_next/...` requests to https, which nothing answers; Chromium leaves `localhost` alone, so nothing broke there before either, and a browser ignores HSTS that arrives over http.) callback.rs keeps both: its `APP_URL` is https.
+- **The rate limit counts every visitor as `"unknown"`.** `getClientIp` reads the `X-Forwarded-For` that a reverse proxy sets ([security.md](./security.md)), and there is none. That is harmless for one person on one Mac, and the reason the app's port is published on `127.0.0.1` only: **never publish it to a network or the internet like this.**
+- **Mail and Google sign-in work.** Links in mails point to `http://localhost:3000`.
+- **A new server later:** add a Caddy service in front, as [`deploy/Caddyfile`](../deploy/Caddyfile) describes, and set `APP_URL` to the domain; the headers follow it. Nothing else changes.
 
 ## Known limits
 - **The per-IP limit resets on every restart**, so each deploy clears it ([security.md](./security.md)). The auth limits live in Postgres and survive.

@@ -17,7 +17,11 @@
     "load:test": "node --import tsx scripts/load-test.ts",
     "icons": "node --import tsx scripts/generate-app-icons.ts",
     "extension:build": "node --import tsx scripts/build-extension.ts",
-    "extension:zip": "node --import tsx scripts/build-extension.ts --zip"
+    "extension:zip": "node --import tsx scripts/build-extension.ts --zip",
+    "compose:up": "NEXT_DEPLOYMENT_ID=local-$(date +%Y%m%d%H%M%S) docker compose up -d --build",
+    "compose:down": "docker compose down",
+    "compose:logs": "docker compose logs -f --tail=200",
+    "compose:refresh-jobs": "docker compose exec scheduler deploy/docker/refresh-jobs-if-due.sh --force"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
